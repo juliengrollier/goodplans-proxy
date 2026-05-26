@@ -18,6 +18,7 @@ const ALLOWED = [
   'petescandystore.com',
   'citycal.com',
   'ohmyrockness.com',
+  'classbento.com', 
 ];
 
 export default async function handler(req, res) {
