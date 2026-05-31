@@ -51,7 +51,7 @@ const DP={
   },
 };
 
-const SK_P="gp_prefs_v4",SK_F="gp_favs_v3",SK_B="gp_beh_v3";
+const SK_P="gp_prefs_v5",SK_F="gp_favs_v3",SK_B="gp_beh_v3";
 const DEFAULT_SUBS=Object.fromEntries(Object.entries(CATS).flatMap(([cat,cfg])=>cfg.sub.map(s=>[cat+"::"+s,50])));
 const sg=async(k)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):null;}catch{return null;}};
 const ss=async(k,v)=>{try{if(v===null||v===undefined)localStorage.removeItem(k);else localStorage.setItem(k,JSON.stringify(v));}catch{}};
@@ -77,13 +77,29 @@ const friendlyDate=(ev,t,tom)=>{
 const eHour=t=>{if(!t||t==="All day")return 12;const m=t.match(/(\d+):?(\d*)\s*(AM|PM)/i);if(!m)return 12;let h=parseInt(m[1]);if(m[3].toUpperCase()==="PM"&&h!==12)h+=12;if(m[3].toUpperCase()==="AM"&&h===12)h=0;return h;};
 const parseT=t=>{if(!t||t==="All day")return"18:00";const m=t.match(/(\d+):?(\d*)\s*(AM|PM)/i);if(!m)return"18:00";let h=parseInt(m[1]);const mn=m[2]||"00",ap=m[3].toUpperCase();if(ap==="PM"&&h!==12)h+=12;if(ap==="AM"&&h===12)h=0;return String(h).padStart(2,"0")+":"+mn;};
 const toGC=d=>d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
+
+// NYC borough centroids — fallback when model assigns bad coords
+const HOOD_COORD={
+  "Manhattan":[40.7831,-73.9712],"Brooklyn":[40.6501,-73.9496],
+  "Queens":[40.7282,-73.7949],"Bronx":[40.8448,-73.8648],
+  "Staten Island":[40.5795,-74.1502]
+};
+// Validate coord is within greater NYC area; fall back to hood centroid or LES
+const safeCoord=(ev)=>{
+  const c=ev.coord;
+  if(Array.isArray(c)&&c.length===2){
+    const [la,lo]=c;
+    if(la>=40.4&&la<=41.1&&lo>=-74.4&&lo<=-73.5)return c;
+  }
+  return HOOD_COORD[ev.hood]||[40.7186,-73.9865];
+};
 const kmdist=(c,h)=>{const R=6371,dLa=(c[0]-h[0])*Math.PI/180,dLo=(c[1]-h[1])*Math.PI/180,a=Math.sin(dLa/2)**2+Math.cos(h[0]*Math.PI/180)*Math.cos(c[0]*Math.PI/180)*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
 
 function calcScore(ev,prof,beh,today,home){
   const cat=ev.cat||"Other",rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
   const dow=today.getDay(),hr=new Date().getHours(),mo=today.getMonth();
   const we=dow===5||dow===6||dow===0,free=(ev.price||"").toLowerCase().includes("free");
-  const d=kmdist(ev.coord||[40.7186,-73.9865],home);
+  const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
   const subPref=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
   let s=(prof.categories?.[cat]||30)*0.35+(subPref-50)*0.08;
@@ -107,7 +123,7 @@ function calcBd(ev,prof,beh,today,home){
   const cat=ev.cat||"Other",rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
   const dow=today.getDay(),hr=new Date().getHours(),mo=today.getMonth();
   const we=dow===5||dow===6||dow===0,free=(ev.price||"").toLowerCase().includes("free");
-  const d=kmdist(ev.coord||[40.7186,-73.9865],home);
+  const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
   const subPref=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
   let taste=(prof.categories?.[cat]||30)*0.35+(subPref-50)*0.08,bh=0,ed=0,urg=0,ctx=0,deal=0;
@@ -517,11 +533,11 @@ function MapTab({evts,userLoc,CATS,onOpen}){
     }
     // Event markers
     evts.forEach(ev=>{
-      if(!Array.isArray(ev.coord)||ev.coord.length!==2)return;
+      const evCoord=safeCoord(ev);
       const cfg=CATS[ev.cat]||CATS.Other;
       const html='<div style="width:30px;height:30px;background:'+cfg.color+';border:2.5px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;">'+cfg.emoji+'</div>';
       const ic=L.divIcon({className:"gp-pin",html,iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-15]});
-      const mk=L.marker(ev.coord,{icon:ic}).addTo(m);
+      const mk=L.marker(evCoord,{icon:ic}).addTo(m);
       const free=(ev.price||"").toLowerCase().includes("free");
       const popupHtml='<div style="font-family:Sora,sans-serif;min-width:170px;max-width:230px;">'
         +'<div style="font-size:8px;font-weight:700;color:'+cfg.color+';background:'+cfg.bg+';padding:2px 6px;border-radius:6px;display:inline-block;margin-bottom:6px;">'+cfg.emoji+' '+ev.cat+'</div>'
@@ -538,7 +554,7 @@ function MapTab({evts,userLoc,CATS,onOpen}){
     });
     // Fit bounds if we have events
     if(evts.length){
-      const pts=evts.filter(e=>Array.isArray(e.coord)).map(e=>e.coord);
+      const pts=evts.map(e=>safeCoord(e));
       if(userLoc)pts.push(userLoc);
       if(pts.length>1){
         try{m.fitBounds(pts,{padding:[40,40],maxZoom:14});}catch{}
@@ -914,13 +930,13 @@ const doRefresh=async()=>{
     sc:calcScore(ev,prof,beh,floorDay(NOW),home),
     bs:bookSoon(ev,floorDay(NOW)),
     bd:calcBd(ev,prof,beh,floorDay(NOW),home),
-    km:kmdist(ev.coord||[40.7186,-73.9865],home).toFixed(1),
+    km:kmdist(safeCoord(ev),home).toFixed(1),
   })).sort((a,b)=>b.sc-a.sc);
 
   const has=fc.length>0||fh.length>0||fp.length>0||fd.length>0||fv.length>0||fms>0||fmk<50;
   const mf=ev=>{
     if(!evActive(ev,TODAY))return false;
-    const d=kmdist(ev.coord||[40.7186,-73.9865],home);
+    const d=kmdist(safeCoord(ev),home);
     if(fmk<50&&d>fmk)return false;
     if(fms>0&&calcScore(ev,prof,beh,floorDay(NOW),home)<fms)return false;
     if(fv.length>0&&!fv.some(k=>matchV(ev,k)))return false;
@@ -938,8 +954,8 @@ const doRefresh=async()=>{
   };
   const clr=()=>{setFc([]);setFh([]);setFp([]);setFd([]);setFv([]);setFms(0);setFmk(50);};
 
-  const nn=sc(active.filter(ev=>evCovers(ev,TODAY)&&kmdist(ev.coord||[40.7186,-73.9865],home)<5));
-  const nt=sc(active.filter(ev=>evCovers(ev,TODAY)&&eHour(ev.time)>=17&&kmdist(ev.coord||[40.7186,-73.9865],home)<8));
+  const nn=sc(active.filter(ev=>evCovers(ev,TODAY)&&kmdist(safeCoord(ev),home)<5));
+  const nt=sc(active.filter(ev=>evCovers(ev,TODAY)&&eHour(ev.time)>=17&&kmdist(safeCoord(ev),home)<8));
   const wd=sc(active.filter(ev=>matchV(ev,"weird"))).slice(0,10);
   const tw=sc(active.filter(ev=>evStart(ev)<=SUN&&evEnd(ev)>=FRI));
   const bm=sc(active.filter(ev=>evStart(ev)<=EOM)).slice(0,24);
@@ -974,7 +990,7 @@ const doRefresh=async()=>{
   const sortedCats=Object.entries(prof.categories).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
   const sortedVibes=[...VIBES].sort((a,b)=>(prof.vibes?.[b.key]||50)-(prof.vibes?.[a.key]||50));
   // Map tab: only events happening TODAY with valid coordinates
-  const mapEvts=sc(active.filter(ev=>evCovers(ev,TODAY)&&Array.isArray(ev.coord)&&ev.coord.length===2));
+  const mapEvts=sc(active.filter(ev=>evCovers(ev,TODAY)));
   const favList=Object.values(favs);
   const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs};
   const fbProps={fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,has,onClear:clr,dd,setDd};
@@ -1115,7 +1131,7 @@ const doRefresh=async()=>{
               </div>
               :<div>
                 {favList.map(ev=>{
-                  const e={...ev,sc:calcScore(ev,prof,beh,floorDay(NOW),home),bs:bookSoon(ev,floorDay(NOW)),bd:calcBd(ev,prof,beh,floorDay(NOW),home),km:kmdist(ev.coord||[40.7186,-73.9865],home).toFixed(1)};
+                  const e={...ev,sc:calcScore(ev,prof,beh,floorDay(NOW),home),bs:bookSoon(ev,floorDay(NOW)),bd:calcBd(ev,prof,beh,floorDay(NOW),home),km:kmdist(safeCoord(ev),home).toFixed(1)};
                   return <Row key={e.id} ev={e} isFav={true} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW}/>;
                 })}
               </div>
