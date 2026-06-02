@@ -84,6 +84,24 @@ const HOOD_COORD={
   "Queens":[40.7282,-73.7949],"Bronx":[40.8448,-73.8648],
   "Staten Island":[40.5795,-74.1502]
 };
+
+// Detect events with unspecific locations — citywide, various venues, or coords
+// that exactly match a borough centroid (= Maps geocoder fell back). These
+// should NOT appear in "Nearby Now" / "Tonight" since we can't claim they're
+// actually nearby.
+const isImprecise=(ev)=>{
+  const v=(ev.venue||"").toLowerCase();
+  if(/citywide|various venues|various locations|multiple venues|multiple locations|all (five )?boroughs|across nyc|across the city|tba|tbd|nyc parks( department)?$|^nyc parks/.test(v))return true;
+  const c=ev.coord;
+  if(Array.isArray(c)&&c.length===2){
+    for(const hc of Object.values(HOOD_COORD)){
+      if(Math.abs(c[0]-hc[0])<0.0005&&Math.abs(c[1]-hc[1])<0.0005)return true;
+    }
+    // Also catch the legacy LES default [40.7186, -73.9865]
+    if(Math.abs(c[0]-40.7186)<0.0005&&Math.abs(c[1]-(-73.9865))<0.0005)return true;
+  }
+  return false;
+};
 // Validate coord is within greater NYC area; fall back to hood centroid or LES
 const safeCoord=(ev)=>{
   const c=ev.coord;
@@ -94,6 +112,91 @@ const safeCoord=(ev)=>{
   return HOOD_COORD[ev.hood]||[40.7186,-73.9865];
 };
 const kmdist=(c,h)=>{const R=6371,dLa=(c[0]-h[0])*Math.PI/180,dLo=(c[1]-h[1])*Math.PI/180,a=Math.sin(dLa/2)**2+Math.cos(h[0]*Math.PI/180)*Math.cos(c[0]*Math.PI/180)*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
+// ─── NYC subway stations — major stops, hardcoded for offline use ──────────
+const SUBWAY=[
+  // Manhattan
+  {n:"14 St-Union Sq",l:["L","N","Q","R","W","4","5","6"],c:[40.7349,-73.9907]},
+  {n:"Times Sq-42 St",l:["1","2","3","7","N","Q","R","W","S"],c:[40.7559,-73.9870]},
+  {n:"Grand Central-42 St",l:["4","5","6","7","S"],c:[40.7527,-73.9772]},
+  {n:"34 St-Penn Station",l:["1","2","3"],c:[40.7506,-73.9909]},
+  {n:"34 St-Herald Sq",l:["B","D","F","M","N","Q","R","W"],c:[40.7497,-73.9879]},
+  {n:"59 St-Columbus Circle",l:["1","A","B","C","D"],c:[40.7681,-73.9819]},
+  {n:"42 St-Bryant Pk",l:["B","D","F","M","7"],c:[40.7546,-73.9842]},
+  {n:"23 St (6th Ave)",l:["F","M"],c:[40.7421,-73.9938]},
+  {n:"W 4 St-Wash Sq",l:["A","B","C","D","E","F","M"],c:[40.7322,-74.0006]},
+  {n:"Astor Pl",l:["6"],c:[40.7299,-73.9911]},
+  {n:"Delancey-Essex St",l:["F","J","M","Z"],c:[40.7185,-73.9879]},
+  {n:"2 Av",l:["F"],c:[40.7235,-73.9897]},
+  {n:"Bowery",l:["J","Z"],c:[40.7203,-73.9938]},
+  {n:"East Broadway",l:["F"],c:[40.7137,-73.9900]},
+  {n:"Canal St",l:["J","N","Q","R","Z","6","W"],c:[40.7185,-74.0001]},
+  {n:"Chambers St",l:["1","2","3","A","C","J","Z"],c:[40.7152,-74.0090]},
+  {n:"Wall St",l:["2","3","4","5"],c:[40.7077,-74.0099]},
+  {n:"Fulton St",l:["2","3","4","5","A","C","J","Z"],c:[40.7102,-74.0090]},
+  {n:"World Trade Center",l:["E","R"],c:[40.7126,-74.0099]},
+  {n:"Spring St",l:["6","C","E"],c:[40.7224,-73.9974]},
+  {n:"Houston St",l:["1"],c:[40.7282,-74.0050]},
+  {n:"Christopher St-Sheridan Sq",l:["1"],c:[40.7335,-74.0026]},
+  {n:"14 St (8th Ave)",l:["A","C","E","L"],c:[40.7407,-74.0024]},
+  {n:"23 St (8th Ave)",l:["C","E"],c:[40.7457,-73.9999]},
+  {n:"50 St (Bway)",l:["1"],c:[40.7615,-73.9839]},
+  {n:"66 St-Lincoln Ctr",l:["1"],c:[40.7733,-73.9821]},
+  {n:"72 St",l:["1","2","3"],c:[40.7783,-73.9819]},
+  {n:"86 St (Bway)",l:["1"],c:[40.7886,-73.9763]},
+  {n:"96 St (Bway)",l:["1","2","3"],c:[40.7935,-73.9725]},
+  {n:"125 St (Bway)",l:["1"],c:[40.8157,-73.9583]},
+  {n:"68 St-Hunter College",l:["6"],c:[40.7686,-73.9645]},
+  {n:"77 St",l:["6"],c:[40.7740,-73.9598]},
+  {n:"86 St (Lex)",l:["4","5","6"],c:[40.7790,-73.9555]},
+  {n:"96 St (Lex)",l:["6"],c:[40.7853,-73.9514]},
+  {n:"125 St (Lex)",l:["4","5","6"],c:[40.8044,-73.9374]},
+  {n:"Lexington Av-63 St",l:["F","Q"],c:[40.7649,-73.9663]},
+  // Brooklyn
+  {n:"Bedford Av",l:["L"],c:[40.7172,-73.9568]},
+  {n:"Lorimer St",l:["L","G"],c:[40.7140,-73.9504]},
+  {n:"Graham Av",l:["L"],c:[40.7146,-73.9442]},
+  {n:"Grand St",l:["L"],c:[40.7118,-73.9402]},
+  {n:"Greenpoint Av",l:["G"],c:[40.7314,-73.9540]},
+  {n:"Nassau Av",l:["G"],c:[40.7244,-73.9514]},
+  {n:"Metropolitan Av",l:["G"],c:[40.7128,-73.9512]},
+  {n:"Atlantic Av-Barclays",l:["B","D","N","Q","R","W","2","3","4","5"],c:[40.6841,-73.9772]},
+  {n:"DeKalb Av",l:["B","Q","R"],c:[40.6905,-73.9817]},
+  {n:"Jay St-MetroTech",l:["A","C","F","R"],c:[40.6924,-73.9870]},
+  {n:"Hoyt St",l:["2","3"],c:[40.6905,-73.9851]},
+  {n:"Court Sq",l:["G","7","E","M"],c:[40.7470,-73.9457]},
+  {n:"Bergen St",l:["F","G","2","3"],c:[40.6809,-73.9756]},
+  {n:"Carroll St",l:["F","G"],c:[40.6796,-73.9956]},
+  {n:"Smith-9 Sts",l:["F","G"],c:[40.6736,-73.9959]},
+  {n:"4 Av-9 St",l:["F","G","R"],c:[40.6705,-73.9897]},
+  {n:"7 Av (Park Slope)",l:["F","G"],c:[40.6663,-73.9805]},
+  {n:"15 St-Prospect Pk",l:["F","G"],c:[40.6606,-73.9794]},
+  {n:"Prospect Park",l:["B","Q","S"],c:[40.6618,-73.9620]},
+  {n:"Grand Army Plaza",l:["2","3"],c:[40.6750,-73.9707]},
+  {n:"Eastern Pkwy-Museum",l:["2","3"],c:[40.6720,-73.9645]},
+  {n:"Franklin Av",l:["2","3","4","5","C","S"],c:[40.6705,-73.9580]},
+  {n:"Nostrand Av",l:["3","A","C"],c:[40.6800,-73.9504]},
+  {n:"Marcy Av",l:["J","M","Z"],c:[40.7088,-73.9577]},
+  {n:"Hewes St",l:["J","M"],c:[40.7068,-73.9531]},
+  {n:"Lorimer St (J)",l:["J","M"],c:[40.7036,-73.9474]},
+  // Queens
+  {n:"Court Sq-23 St",l:["E","G","M","7"],c:[40.7470,-73.9457]},
+  {n:"Vernon Blvd-Jackson Av",l:["7"],c:[40.7426,-73.9536]},
+  {n:"Hunters Point Av",l:["7"],c:[40.7424,-73.9482]},
+  {n:"Queensboro Plaza",l:["7","N","W"],c:[40.7507,-73.9402]},
+  {n:"Long Island City-Court Sq",l:["7"],c:[40.7470,-73.9430]},
+  {n:"Astoria-Ditmars",l:["N","W"],c:[40.7758,-73.9123]},
+  {n:"Roosevelt Av-Jackson Hts",l:["E","F","M","R","7"],c:[40.7466,-73.8915]},
+];
+const LINE_COLOR={"1":"#EE352E","2":"#EE352E","3":"#EE352E","4":"#00933C","5":"#00933C","6":"#00933C","7":"#B933AD","A":"#0039A6","C":"#0039A6","E":"#0039A6","B":"#FF6319","D":"#FF6319","F":"#FF6319","M":"#FF6319","G":"#6CBE45","J":"#996633","Z":"#996633","L":"#A7A9AC","N":"#FCCC0A","Q":"#FCCC0A","R":"#FCCC0A","W":"#FCCC0A","S":"#808183"};
+const nearestSubways=(coord,maxKm)=>{
+  const out=[];
+  for(const s of SUBWAY){
+    const d=kmdist(coord,s.c);
+    if(d<=(maxKm||0.6))out.push({...s,d});
+  }
+  return out.sort((a,b)=>a.d-b.d).slice(0,2);
+};
+
 
 function calcScore(ev,prof,beh,today,home){
   const cat=ev.cat||"Other",rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
@@ -102,7 +205,7 @@ function calcScore(ev,prof,beh,today,home){
   const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
   const subPref=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
-  let s=(prof.categories?.[cat]||30)*0.35+(subPref-50)*0.08;
+  let s=(prof.categories?.[cat]||30)*0.55+(subPref-50)*0.12;
   if(d<1)s+=12;else if(d<3)s+=8;else if(d<7)s+=4;else if(d>15)s-=4;
   if(beh.viewedCats?.[cat])s+=Math.min(beh.viewedCats[cat]*1.5,5);
   if(beh.savedCats?.[cat])s+=Math.min(beh.savedCats[cat]*3,7);
@@ -116,7 +219,10 @@ function calcScore(ev,prof,beh,today,home){
   if(!we&&cat==="Art & Culture")s+=4;
   if(mo>=4&&mo<=8&&cat==="Outdoors")s+=6;
   if(free)s+=8;else{const n=parseFloat((ev.price||"").replace(/[^0-9.]/g,"")||"999");if(n<10)s+=5;else if(n<20)s+=3;else if(n<35)s+=1;}
-  return Math.min(100,Math.round(s));
+  // Preference multiplier — category at 0% halves the score, at 100% adds 10% boost
+  const prefMult=0.5+0.6*(prof.categories?.[cat]||30)/100;
+  s=s*prefMult;
+  return Math.max(0,Math.min(100,Math.round(s)));
 }
 
 function calcBd(ev,prof,beh,today,home){
@@ -126,7 +232,7 @@ function calcBd(ev,prof,beh,today,home){
   const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
   const subPref=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
-  let taste=(prof.categories?.[cat]||30)*0.35+(subPref-50)*0.08,bh=0,ed=0,urg=0,ctx=0,deal=0;
+  let taste=(prof.categories?.[cat]||30)*0.55+(subPref-50)*0.12,bh=0,ed=0,urg=0,ctx=0,deal=0;
   if(d<1)taste+=12;else if(d<3)taste+=8;else if(d<7)taste+=4;else if(d>15)taste-=4;
   if(beh.viewedCats?.[cat])bh+=Math.min(beh.viewedCats[cat]*1.5,5);
   if(beh.savedCats?.[cat])bh+=Math.min(beh.savedCats[cat]*3,7);
@@ -140,7 +246,8 @@ function calcBd(ev,prof,beh,today,home){
   if(!we&&cat==="Art & Culture")ctx+=4;
   if(mo>=4&&mo<=8&&cat==="Outdoors")ctx+=6;
   if(free)deal=8;else{const n=parseFloat((ev.price||"").replace(/[^0-9.]/g,"")||"999");if(n<10)deal=5;else if(n<20)deal=3;else if(n<35)deal=1;}
-  const total=Math.min(100,Math.round(taste+bh+ed+urg+ctx+deal));
+  const prefMult=0.5+0.6*(prof.categories?.[cat]||30)/100;
+  const total=Math.max(0,Math.min(100,Math.round((taste+bh+ed+urg+ctx+deal)*prefMult)));
   const why=[];
   if(taste>12)why.push("Matches your "+cat+" taste");
   if(d<2)why.push("Very close ("+d.toFixed(1)+"km)");else if(d<5)why.push("Nearby ("+d.toFixed(1)+"km)");
@@ -285,7 +392,7 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
         {!img&&<span style={{fontSize:28}}>{cfg.emoji}</span>}
         <button onClick={e=>{e.stopPropagation();onScore(ev.bd);}} style={{position:"absolute",top:6,right:6,background:TEAL,color:WHITE,border:"none",borderRadius:5,padding:"2px 6px",fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:800,cursor:"pointer"}}>{ev.sc||0}</button>
         {ev.bs&&<div style={{position:"absolute",bottom:5,left:8,background:CORAL,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:7,fontWeight:700,padding:"2px 5px",borderRadius:3}}>Book Soon</div>}
-        {img&&<div style={{position:"absolute",bottom:5,left:8,background:"rgba(0,0,0,0.55)",borderRadius:4,padding:"2px 6px",fontFamily:"'Sora',sans-serif",fontSize:8,color:WHITE,fontWeight:700}}>{cfg.emoji+" "+ev.cat}</div>}
+        {img&&<div style={{position:"absolute",bottom:5,left:8,background:cfg.color,borderRadius:5,padding:"3px 8px",fontFamily:"'Sora',sans-serif",fontSize:10,color:WHITE,fontWeight:800,letterSpacing:"0.3px",boxShadow:"0 2px 4px rgba(0,0,0,0.4)"}}>{cfg.emoji+" "+ev.cat}</div>}
       </div>
       <div style={{padding:"9px 10px 8px"}}>
         <div style={{display:"flex",gap:4,marginBottom:4,flexWrap:"wrap"}}>
@@ -348,21 +455,112 @@ function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow}){
   );
 }
 
-function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,imgs,accent,noPad}){
+function SortPill({sortKey,setSortKey}){
+  const [open,setOpen]=useState(false);
+  const btnRef=useRef(null);
+  const [pos,setPos]=useState({top:0,left:0});
+  const opts=[["score","For you"],["date","Date"],["distance","Distance"],["price","Price"]];
+  const cur=opts.find(o=>o[0]===sortKey)||opts[0];
+  return (
+    <div style={{flexShrink:0}} onClick={e=>e.stopPropagation()}>
+      <button ref={btnRef} onClick={()=>{if(!open&&btnRef.current){const b=btnRef.current.getBoundingClientRect();setPos({top:b.bottom+4,left:Math.min(b.left,window.innerWidth-160)});}setOpen(!open);}} style={{padding:"2px 7px",borderRadius:10,background:"none",border:"1px solid "+GRAY_LT,color:GRAY,fontSize:9,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap"}}>{"⇅ "+cur[1]}</button>
+      {open&&(
+        <div style={{position:"fixed",top:pos.top,left:pos.left,background:WHITE,border:"1.5px solid "+GRAY_LT,borderRadius:10,padding:4,zIndex:9999,minWidth:130,boxShadow:"0 8px 32px rgba(0,0,0,0.15)"}}>
+          {opts.map(([k,l])=>(
+            <button key={k} onClick={()=>{setSortKey(k);setOpen(false);}} style={{display:"block",width:"100%",padding:"7px 10px",background:sortKey===k?TEAL+"22":"none",border:"none",cursor:"pointer",color:sortKey===k?TEAL:INK,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:sortKey===k?700:500,textAlign:"left",borderRadius:6}}>{l}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,imgs,accent,noPad,sortKey,setSortKey,sortFn}){
   if(!evts||!evts.length)return null;
+  const sorted=sortFn&&sortKey?sortFn(evts,sortKey):evts;
   return (
     <div style={{marginBottom:4}}>
       {title&&(
-        <div style={{padding:(noPad?"4":"14")+"px 16px 8px"}}>
-          <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:accent||GRAY}}>{title}</div>
-          {sub&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,marginTop:1}}>{sub}</div>}
+        <div style={{padding:(noPad?"4":"14")+"px 16px 8px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:accent||GRAY}}>{title}</div>
+            {sub&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,marginTop:1}}>{sub}</div>}
+          </div>
+          {setSortKey&&<SortPill sortKey={sortKey||"score"} setSortKey={setSortKey}/>}
         </div>
       )}
       <div style={{display:"flex",gap:10,overflowX:"auto",padding:"0 16px 16px",scrollbarWidth:"none"}}>
-        {evts.map(ev=>(
+        {sorted.map(ev=>(
           <Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={onFav} onOpen={onOpen} onCal={onCal} onShare={onShare} onScore={onScore} today={today} tomorrow={tomorrow} img={imgs?.[ev.cat]}/>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ModalMap({coord,venue,catColor,catEmoji}){
+  const ref=useRef(null);
+  const [ready,setReady]=useState(!!window.L);
+  useEffect(()=>{
+    if(window.L){setReady(true);return;}
+    // Leaflet should have been loaded by MapTab; if not, load it now
+    const cssId="leaflet-css";
+    if(!document.getElementById(cssId)){
+      const link=document.createElement("link");
+      link.id=cssId;link.rel="stylesheet";
+      link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    if(document.getElementById("leaflet-js")){
+      const t=setInterval(()=>{if(window.L){clearInterval(t);setReady(true);}},80);
+      setTimeout(()=>clearInterval(t),8000);
+      return;
+    }
+    const s=document.createElement("script");
+    s.id="leaflet-js";s.async=true;
+    s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    s.onload=()=>setReady(true);
+    document.body.appendChild(s);
+  },[]);
+  useEffect(()=>{
+    if(!ready||!ref.current||!coord)return;
+    const L=window.L;
+    if(ref.current._leafmap){ref.current._leafmap.remove();}
+    const m=L.map(ref.current,{zoomControl:false,attributionControl:false,dragging:true,scrollWheelZoom:false,doubleClickZoom:false,touchZoom:true,tap:false}).setView(coord,15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18}).addTo(m);
+    const ic=L.divIcon({className:"gp-pin",html:'<div style="width:30px;height:30px;background:'+catColor+';border:2.5px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:15px;">'+catEmoji+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
+    L.marker(coord,{icon:ic}).addTo(m);
+    ref.current._leafmap=m;
+    setTimeout(()=>m.invalidateSize(),100);
+    return ()=>{m.remove();ref.current&&(ref.current._leafmap=null);};
+  },[ready,coord,catColor,catEmoji]);
+  if(!coord)return null;
+  return (
+    <div style={{marginBottom:12}}>
+      <div ref={ref} style={{width:"100%",height:160,borderRadius:12,overflow:"hidden",border:"1.5px solid "+GRAY_LT,background:"#E8F4F0"}}/>
+      <a href={"https://www.google.com/maps/dir/?api=1&destination="+coord[0]+","+coord[1]+(venue?"&destination_place_id="+encodeURIComponent(venue):"")} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",marginTop:6,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:TEAL,textDecoration:"none"}}>{"↗ Directions in Google Maps"}</a>
+    </div>
+  );
+}
+
+function ModalSubway({coord}){
+  if(!coord)return null;
+  const stops=nearestSubways(coord,0.7);
+  if(!stops.length)return null;
+  return (
+    <div style={{marginBottom:12,padding:"10px 12px",background:CREAM,borderRadius:10}}>
+      <div style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:6}}>Nearest subway</div>
+      {stops.map(s=>(
+        <div key={s.n} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+          <div style={{display:"flex",gap:3,flexShrink:0}}>
+            {s.l.slice(0,4).map(line=>(
+              <span key={line} style={{width:18,height:18,borderRadius:"50%",background:LINE_COLOR[line]||"#888",color:["N","Q","R","W"].includes(line)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{line}</span>
+            ))}
+          </div>
+          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:INK,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.n}</span>
+          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,flexShrink:0}}>{Math.round(s.d*1000)+"m"}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -391,8 +589,10 @@ function Modal({ev,isFav,onClose,onFav,onCal,onShare,today,tomorrow}){
           <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:GRAY,marginBottom:3}}>{"📍 "+ev.venue+(ev.hood?", "+ev.hood:"")}</div>
           <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:GRAY,marginBottom:3}}>{"🗓 "+fd+ts}</div>
           <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:free?"#059669":TEAL,marginBottom:14}}>{ev.price||"Free"}</div>
-          {ev.desc&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:INK,lineHeight:1.7,marginBottom:20}}>{ev.desc}</div>}
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {ev.desc&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:INK,lineHeight:1.7,marginBottom:14}}>{ev.desc}</div>}
+          <ModalMap coord={safeCoord(ev)} venue={ev.venue} catColor={cfg.color} catEmoji={cfg.emoji}/>
+          <ModalSubway coord={safeCoord(ev)}/>
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
             {ev.url&&<a href={ev.url} target="_blank" rel="noreferrer" style={{display:"block",padding:"13px",background:TEAL,color:WHITE,border:"none",borderRadius:12,fontWeight:700,fontSize:14,textDecoration:"none",textAlign:"center",fontFamily:"'Sora',sans-serif"}}>View event page</a>}
             <button onClick={()=>onCal(ev)} style={{display:"block",width:"100%",padding:"12px",background:CREAM,color:INK,border:"1.5px solid "+GRAY_LT,borderRadius:12,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Sora',sans-serif"}}>{"📅 Add to Google Calendar"}</button>
             <div style={{display:"flex",gap:10}}>
@@ -406,13 +606,18 @@ function Modal({ev,isFav,onClose,onFav,onCal,onShare,today,tomorrow}){
   );
 }
 
-function FilterBar({fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,has,onClear,dd,setDd,cnt}){
+function FilterBar({fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,fq,setFq,has,onClear,dd,setDd,cnt}){
   const HOODS=["Manhattan","Brooklyn","Queens","Bronx","Staten Island"];
   const PRICES=["Free","Under $10","Under $25"];
   const DATES=["Today","Tomorrow","This Weekend"];
   return (
     <div style={{background:WHITE,borderBottom:"1px solid "+GRAY_LT}} onClick={e=>e.stopPropagation()}>
-      <div style={{display:"flex",gap:6,padding:"7px 12px",overflowX:"auto",scrollbarWidth:"none",alignItems:"center"}}>
+      <div style={{display:"flex",gap:6,padding:"7px 12px",alignItems:"center"}}>
+        <div style={{position:"relative",flex:"0 0 auto",minWidth:140,maxWidth:180}}>
+          <input type="search" value={fq||""} onChange={e=>setFq(e.target.value)} placeholder="🔍 Search…" style={{width:"100%",padding:"6px 10px 6px 10px",borderRadius:18,border:"1.5px solid "+GRAY_LT,fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none",background:fq?TEAL+"12":"none"}}/>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:6,padding:"0 12px 7px",overflowX:"auto",scrollbarWidth:"none",alignItems:"center"}}>
         {has&&<button onClick={onClear} style={{padding:"5px 10px",borderRadius:20,background:"none",border:"1.5px solid "+CORAL,color:CORAL,fontSize:11,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,flexShrink:0}}>{"✕ Clear"}</button>}
         <DD label="Date" opts={DATES} sel={fd} setSel={setFd} open={dd==="d"} setOpen={v=>setDd(v?"d":null)}/>
         <DD label="Cat." opts={Object.keys(CATS).filter(c=>c!=="Other")} sel={fc} setSel={setFc} open={dd==="c"} setOpen={v=>setDd(v?"c":null)}/>
@@ -428,7 +633,7 @@ function FilterBar({fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,
 }
 
 function DD({label,opts,sel,setSel,open,setOpen}){
-  const toggle=o=>setSel(s=>s.includes(o)?s.filter(x=>x!==o):[...s,o]);
+  const toggle=o=>{const next=sel.includes(o)?sel.filter(x=>x!==o):[...sel,o];setSel(next);};
   const btnRef=useRef(null);
   const [pos,setPos]=useState({top:0,left:0});
   return (
@@ -509,7 +714,7 @@ function MapTab({evts,userLoc,CATS,onOpen}){
   useEffect(()=>{
     if(!ready||!mapRef.current||mapInstRef.current)return;
     const L=window.L;
-    const m=L.map(mapRef.current,{zoomControl:true,attributionControl:true}).setView(userLoc||[40.7186,-73.9865],13);
+    const m=L.map(mapRef.current,{zoomControl:true,attributionControl:true}).setView(userLoc||[40.7186,-73.9865],14);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
       maxZoom:19,
       attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a>'
@@ -539,17 +744,25 @@ function MapTab({evts,userLoc,CATS,onOpen}){
       const ic=L.divIcon({className:"gp-pin",html,iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-15]});
       const mk=L.marker(evCoord,{icon:ic}).addTo(m);
       const free=(ev.price||"").toLowerCase().includes("free");
-      const popupHtml='<div style="font-family:Sora,sans-serif;min-width:170px;max-width:230px;">'
+      const popupHtml='<div style="font-family:Sora,sans-serif;min-width:180px;max-width:240px;">'
         +'<div style="font-size:8px;font-weight:700;color:'+cfg.color+';background:'+cfg.bg+';padding:2px 6px;border-radius:6px;display:inline-block;margin-bottom:6px;">'+cfg.emoji+' '+ev.cat+'</div>'
         +'<div style="font-size:13px;font-weight:700;color:#111;line-height:1.25;margin-bottom:4px;">'+(ev.title||"").replace(/</g,"&lt;")+'</div>'
         +'<div style="font-size:11px;color:#666;margin-bottom:3px;">📍 '+(ev.venue||"").replace(/</g,"&lt;")+'</div>'
         +'<div style="font-size:11px;color:#666;margin-bottom:6px;">🗓 '+(ev.time&&ev.time!=="All day"?ev.time:"All day")+'</div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center;">'
-        +'<span style="font-size:12px;font-weight:700;color:'+(free?"#059669":"#00796B")+'">'+(ev.price||"Free")+'</span>'
-        +(ev.url?'<a href="'+ev.url+'" target="_blank" rel="noreferrer" style="font-size:11px;color:#00796B;text-decoration:none;">View ↗</a>':'')
+        +'<span style="font-size:12px;font-weight:700;color:'+(free?"#059669":"#00796B")+'">'+(ev.price||"See website")+'</span>'
+        +'<button data-gp-open="'+ev.id+'" style="background:#00796B;color:white;border:none;border-radius:6px;padding:4px 10px;font-family:Sora,sans-serif;font-size:11px;font-weight:700;cursor:pointer;">Details →</button>'
         +'</div></div>';
       mk.bindPopup(popupHtml);
-      mk.on("click",()=>{ if(onOpen) {} }); // popup is enough
+      mk.on("popupopen",()=>{
+        setTimeout(()=>{
+          const btn=document.querySelector('[data-gp-open="'+ev.id+'"]');
+          if(btn&&!btn.__bound){
+            btn.__bound=true;
+            btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();m.closePopup();if(onOpen)onOpen(ev);});
+          }
+        },50);
+      });
       markersRef.current.push(mk);
     });
     // Fit bounds if we have events
@@ -557,7 +770,7 @@ function MapTab({evts,userLoc,CATS,onOpen}){
       const pts=evts.map(e=>safeCoord(e));
       if(userLoc)pts.push(userLoc);
       if(pts.length>1){
-        try{m.fitBounds(pts,{padding:[40,40],maxZoom:14});}catch{}
+        try{m.fitBounds(pts,{padding:[40,40],maxZoom:15});}catch{}
       }
     }
   },[ready,evts,userLoc,CATS]);
@@ -652,6 +865,7 @@ export default function App(){
   const [events,setEvents]=useState(EV);
   const [lastRefreshed,setLastRefreshed]=useState(null);
   const [refreshing,setRefreshing]=useState(false);
+  const [notif,setNotif]=useState({enabled:false,shown:[]});
   const [refreshLog,setRefreshLog]=useState([]);
   const [sourceMeta,setSourceMeta]=useState({});
   const [gmailUrl,setGmailUrl]=useState("https://script.google.com/macros/s/AKfycbzyUXSvObga5nVWHavisMQu3jxwNCWWsiZwsVaq_IzRp5qgSfz_8J1kL_5zP2iKly2-/exec");
@@ -672,7 +886,12 @@ export default function App(){
   const [fv,setFv]=useState([]);
   const [fms,setFms]=useState(0);
   const [fmk,setFmk]=useState(50);
+  const [fq,setFq]=useState("");
   const [sortBy,setSortBy]=useState("date");
+  const [sortBy2,setSortBy2]=useState("score");
+  // Per-carousel sort overrides (default each to score)
+  const [carSort,setCarSort]=useState({});
+  const setCar=(k,v)=>setCarSort(p=>({...p,[k]:v}));
   const [dd,setDd]=useState(null);
   const [loc,setLoc]=useState(null);
   const [locSt,setLocSt]=useState("idle");
@@ -716,7 +935,9 @@ export default function App(){
 
   useEffect(()=>{
     (async()=>{
-      const [pr,fv2,bh,evStore,gm]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1")]);
+      const [pr,fv2,bh,evStore,gm,nt0]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1")]);
+      if(nt0)setNotif(nt0);
+
       if(pr){setProf({...DP,...pr,categories:{...DP.categories,...(pr.categories||{})},vibes:{...DP.vibes,...(pr.vibes||{})},subcategories:{...DEFAULT_SUBS,...DP.subcategories,...(pr.subcategories||{})}});}
       if(fv2)setFavs(fv2);
       if(bh)setBeh(bh);
@@ -738,13 +959,80 @@ export default function App(){
   useEffect(()=>{
     if(!ready||!gmailUrl||autoSyncRef.current||refreshing)return;
     const last=lastRefreshed?new Date(lastRefreshed).getTime():0;
-    if(Date.now()-last>24*3600*1000){
+    if(Date.now()-last>3*3600*1000){ // 3 hours — auto-refresh on app open if stale
       autoSyncRef.current=true;
       setTimeout(()=>doRefresh(),1500);
     }
   },[ready,gmailUrl,lastRefreshed]);
 
-  const showToast=m=>{setToast(m);setTimeout(()=>setToast(null),2800);};
+  // ─── Push-style local notifications ──────────────────────────────────────
+  // Fire on app open for top-score events starting in next 4h, with dedup.
+  const notifEnabled=notif.enabled&&typeof Notification!=="undefined"&&Notification.permission==="granted";
+  useEffect(()=>{
+    if(!ready||!notifEnabled)return;
+    const home2=loc||[40.7186,-73.9865];
+    const now=new Date(),today2=floorDay(now),fourH=new Date(now.getTime()+4*3600*1000);
+    const candidates=events.filter(ev=>{
+      if(!evCovers(ev,today2))return false;
+      if(isImprecise(ev))return false;
+      const t=parseT(ev.time);
+      const startDT=new Date(ev.E+"T"+t);
+      if(startDT<now||startDT>fourH)return false;
+      const d=kmdist(safeCoord(ev),home2);
+      if(d>3)return false;
+      const sc=calcScore(ev,prof,beh,today2,home2);
+      return sc>=55;
+    }).map(ev=>({...ev,_sc:calcScore(ev,prof,beh,today2,home2)})).sort((a,b)=>b._sc-a._sc).slice(0,3);
+    const already=new Set(notif.shown||[]);
+    const fresh=candidates.filter(ev=>!already.has(ev.id));
+    if(fresh.length===0)return;
+    for(const ev of fresh){
+      try{
+        const cfg=CATS[ev.cat]||CATS.Other;
+        const t=ev.time&&ev.time!=="All day"?ev.time:"soon";
+        const d=kmdist(safeCoord(ev),home2).toFixed(1);
+        const n=new Notification((cfg.emoji||"📍")+" "+ev.title,{
+          body:t+" · "+(ev.venue||"")+" · "+d+"km · "+(ev.price||"Free"),
+          tag:"gp-"+ev.id,
+          icon:LOGO,
+          badge:LOGO,
+        });
+        n.onclick=()=>{window.focus();openModal(ev);n.close();};
+      }catch(e){console.warn("Notification failed",e);}
+    }
+    const newShown=[...(notif.shown||[]),...fresh.map(e=>e.id)].slice(-50);
+    const next={...notif,shown:newShown};
+    setNotif(next);ss("gp_notif_v1",next);
+  },[ready,notifEnabled,events.length,prof,beh,loc]);
+
+  const requestNotifPermission=async()=>{
+    if(typeof Notification==="undefined"){showToast("Notifications not supported in this browser");return;}
+    if(Notification.permission==="granted"){
+      const next={...notif,enabled:true};
+      setNotif(next);ss("gp_notif_v1",next);
+      showToast("Notifications enabled");
+      return;
+    }
+    if(Notification.permission==="denied"){
+      showToast("Permission blocked — enable in browser settings");
+      return;
+    }
+    const r=await Notification.requestPermission();
+    if(r==="granted"){
+      const next={...notif,enabled:true};
+      setNotif(next);ss("gp_notif_v1",next);
+      showToast("Notifications enabled");
+    }else{
+      showToast("Permission denied");
+    }
+  };
+  const disableNotif=()=>{
+    const next={...notif,enabled:false};
+    setNotif(next);ss("gp_notif_v1",next);
+    showToast("Notifications disabled");
+  };
+
+    const showToast=m=>{setToast(m);setTimeout(()=>setToast(null),2800);};
   const track=(type,cat)=>{
     setBeh(p=>{
       const k=type==="viewed"?"viewedCats":type==="saved"?"savedCats":"calCats";
@@ -933,9 +1221,14 @@ const doRefresh=async()=>{
     km:kmdist(safeCoord(ev),home).toFixed(1),
   })).sort((a,b)=>b.sc-a.sc);
 
-  const has=fc.length>0||fh.length>0||fp.length>0||fd.length>0||fv.length>0||fms>0||fmk<50;
+  const has=fc.length>0||fh.length>0||fp.length>0||fd.length>0||fv.length>0||fms>0||fmk<50||(fq&&fq.length>0);
   const mf=ev=>{
     if(!evActive(ev,TODAY))return false;
+    if(fq&&fq.trim()){
+      const q=fq.trim().toLowerCase();
+      const hay=((ev.title||"")+" "+(ev.venue||"")+" "+(ev.desc||"")+" "+(ev.hood||"")+" "+(ev.sub||"")+" "+(ev.cat||"")).toLowerCase();
+      if(!hay.includes(q))return false;
+    }
     const d=kmdist(safeCoord(ev),home);
     if(fmk<50&&d>fmk)return false;
     if(fms>0&&calcScore(ev,prof,beh,floorDay(NOW),home)<fms)return false;
@@ -952,48 +1245,63 @@ const doRefresh=async()=>{
     }
     return true;
   };
-  const clr=()=>{setFc([]);setFh([]);setFp([]);setFd([]);setFv([]);setFms(0);setFmk(50);};
+  const clr=()=>{setFc([]);setFh([]);setFp([]);setFd([]);setFv([]);setFms(0);setFmk(50);setFq("");};
 
-  const nn=sc(active.filter(ev=>evCovers(ev,TODAY)&&kmdist(safeCoord(ev),home)<5));
-  const nt=sc(active.filter(ev=>evCovers(ev,TODAY)&&eHour(ev.time)>=17&&kmdist(safeCoord(ev),home)<8));
-  const wd=sc(active.filter(ev=>matchV(ev,"weird"))).slice(0,10);
-  const tw=sc(active.filter(ev=>evStart(ev)<=SUN&&evEnd(ev)>=FRI));
-  const bm=sc(active.filter(ev=>evStart(ev)<=EOM)).slice(0,24);
-  const bk=sc(active.filter(ev=>bookSoon(ev,floorDay(NOW))));
-  const sdo=sc(active.filter(ev=>ev.cat==="Sports"&&(ev.tags||[]).includes("do")));
-  const swa=sc(active.filter(ev=>ev.cat==="Sports"&&(ev.tags||[]).includes("watch")));
+  // Home filtering: if user has set any filter, apply it to ALL home carousels.
+  // Also demote long-running events from "Nearby Now" / "Tonight" — a 3-month
+  // exhibition technically "covers today" but isn't a fresh thing to do tonight.
+  const isFreshToday=(ev)=>{
+    const rl=runLen(ev);
+    const startsToday=evStart(ev).getTime()===TODAY.getTime();
+    return startsToday||rl<=7;
+  };
+  const hf=ev=>has?mf(ev):true; // apply user filters to home if any are set
+  const nn=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&kmdist(safeCoord(ev),home)<5));
+  const nt=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&eHour(ev.time)>=17&&kmdist(safeCoord(ev),home)<8));
+  const wd=sc(active.filter(ev=>hf(ev)&&matchV(ev,"weird"))).slice(0,10);
+  const tw=sc(active.filter(ev=>hf(ev)&&evStart(ev)<=SUN&&evEnd(ev)>=FRI));
+  const bm=sc(active.filter(ev=>hf(ev)&&evStart(ev)<=EOM)).slice(0,24);
+  const bk=sc(active.filter(ev=>hf(ev)&&bookSoon(ev,floorDay(NOW))));
+  const sdo=sc(active.filter(ev=>hf(ev)&&ev.cat==="Sports"&&(ev.tags||[]).includes("do")));
+  const swa=sc(active.filter(ev=>hf(ev)&&ev.cat==="Sports"&&(ev.tags||[]).includes("watch")));
   const filt=sc(active.filter(mf));
-  const filtSorted=(()=>{
-    const arr=[...filt];
-    if(sortBy==="date"){
-      // Chronological with today first
-      arr.sort((a,b)=>{
-        const aT=evCovers(a,TODAY)?0:1, bT=evCovers(b,TODAY)?0:1;
+  // Reusable sort builder — accepts primary + optional secondary key
+  const sortEvts=(arr,primary,secondary)=>{
+    const keyFn={
+      date:(a,b)=>{
+        const aT=evCovers(a,TODAY)?0:1,bT=evCovers(b,TODAY)?0:1;
         if(aT!==bT)return aT-bT;
         return new Date(a.E)-new Date(b.E);
-      });
-    }else if(sortBy==="score"){
-      arr.sort((a,b)=>(b.sc||0)-(a.sc||0));
-    }else if(sortBy==="distance"){
-      arr.sort((a,b)=>parseFloat(a.km||"99")-parseFloat(b.km||"99"));
-    }else if(sortBy==="price"){
-      const px=ev=>{
-        const p=(ev.price||"").toLowerCase();
-        if(p.includes("free")||p.includes("pay what")||p.includes("pwyw"))return 0;
-        const n=parseFloat(p.replace(/[^0-9.]/g,""));
-        return isNaN(n)?9999:n;
-      };
-      arr.sort((a,b)=>px(a)-px(b));
-    }
-    return arr;
-  })();
+      },
+      score:(a,b)=>(b.sc||0)-(a.sc||0),
+      distance:(a,b)=>parseFloat(a.km||"99")-parseFloat(b.km||"99"),
+      price:(a,b)=>{
+        const px=ev=>{
+          const p=(ev.price||"").toLowerCase();
+          if(p.includes("free")||p.includes("pwyw")||p.includes("pay what"))return 0;
+          const n=parseFloat(p.replace(/[^0-9.]/g,""));
+          return isNaN(n)?9999:n;
+        };
+        return px(a)-px(b);
+      },
+    };
+    const fnP=keyFn[primary]||keyFn.date;
+    const fnS=secondary&&secondary!==primary?keyFn[secondary]:null;
+    return [...arr].sort((a,b)=>{
+      const r=fnP(a,b);
+      if(r!==0||!fnS)return r;
+      return fnS(a,b);
+    });
+  };
+  const filtSorted=sortEvts(filt,sortBy,sortBy2);
   const sortedCats=Object.entries(prof.categories).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
   const sortedVibes=[...VIBES].sort((a,b)=>(prof.vibes?.[b.key]||50)-(prof.vibes?.[a.key]||50));
   // Map tab: only events happening TODAY with valid coordinates
   const mapEvts=sc(active.filter(ev=>evCovers(ev,TODAY)));
   const favList=Object.values(favs);
-  const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs};
-  const fbProps={fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,has,onClear:clr,dd,setDd};
+  const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs,sortFn:sortEvts};
+  const carP=(k)=>({sortKey:carSort[k]||"score",setSortKey:v=>setCar(k,v)});
+  const fbProps={fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,fq,setFq,has,onClear:clr,dd,setDd};
 
   if(!ready){
     return (
@@ -1032,24 +1340,32 @@ const doRefresh=async()=>{
           <div>
             <FilterBar {...fbProps}/>
             <div style={{padding:"6px 16px 0",fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>{(lastRefreshed?"🔄 "+lastRefreshed:"Sun 25 May 2026")+" · "+events.length+" events"+(lastRefreshed?"":" · 9 sources · hardcoded")}</div>
-            {nn.length>0&&<Carousel title="📍 Nearby Now" sub={locSt==="ok"?"Active near your location":"Active near LES"} evts={nn} {...fp2}/>}
-            {nt.length>0&&<Carousel title="🌙 Tonight" sub="Starting after 5pm near you" evts={nt} {...fp2}/>}
-            {wd.length>0&&<Carousel title="🤡 Something Weird" sub="Unexpected, one-of-a-kind" evts={wd} accent={CORAL} {...fp2}/>}
-            {tw.length>0&&<Carousel title="⭐ This Weekend" sub="Top picks Fri-Sun" evts={tw} {...fp2}/>}
-            {sdo.length>0&&<Carousel title="🏃 Get Moving" sub="Physical activities to do" evts={sdo} {...fp2}/>}
-            {swa.length>0&&<Carousel title="👟 Watch the Game" sub="Live sport to spectate" evts={swa} {...fp2}/>}
-            {bm.length>0&&<Carousel title="📅 Best This Month" sub="Top picks for the coming weeks" evts={bm} {...fp2}/>}
-            {bk.length>0&&<Carousel title="🔖 Book Soon" sub="These will sell out" evts={bk} accent={CORAL} {...fp2}/>}
+            {nn.length>0&&<Carousel title="📍 Nearby Now" sub={locSt==="ok"?"Active near your location":"Active near LES"} evts={nn} {...fp2} {...carP("nn")}/>}
+            {nt.length>0&&<Carousel title="🌙 Tonight" sub="Starting after 5pm near you" evts={nt} {...fp2} {...carP("nt")}/>}
+            {wd.length>0&&<Carousel title="🤡 Something Weird" sub="Unexpected, one-of-a-kind" evts={wd} accent={CORAL} {...fp2} {...carP("wd")}/>}
+            {tw.length>0&&<Carousel title="⭐ This Weekend" sub="Top picks Fri-Sun" evts={tw} {...fp2} {...carP("tw")}/>}
+            {sdo.length>0&&<Carousel title="🏃 Get Moving" sub="Physical activities to do" evts={sdo} {...fp2} {...carP("sdo")}/>}
+            {swa.length>0&&<Carousel title="👟 Watch the Game" sub="Live sport to spectate" evts={swa} {...fp2} {...carP("swa")}/>}
+            {bm.length>0&&<Carousel title="📅 Best This Month" sub="Top picks for the coming weeks" evts={bm} {...fp2} {...carP("bm")}/>}
+            {bk.length>0&&<Carousel title="🔖 Book Soon" sub="These will sell out" evts={bk} accent={CORAL} {...fp2} {...carP("bk")}/>}
           </div>
         )}
         {tab==="browse"&&(
           <div>
             <FilterBar {...fbProps} cnt={filtSorted.length}/>
-            <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px",background:WHITE,borderBottom:"1px solid "+GRAY_LT}}>
-              <span style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:GRAY,letterSpacing:"0.5px",textTransform:"uppercase"}}>Sort</span>
-              {[["date","Date"],["score","For you"],["distance","Distance"],["price","Price"]].map(([k,l])=>(
-                <button key={k} onClick={()=>setSortBy(k)} style={{padding:"4px 10px",borderRadius:14,background:sortBy===k?TEAL:"none",border:"1.5px solid "+(sortBy===k?TEAL:GRAY_LT),color:sortBy===k?WHITE:GRAY,fontSize:11,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap"}}>{l}</button>
-              ))}
+            <div style={{padding:"6px 12px",background:WHITE,borderBottom:"1px solid "+GRAY_LT}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,overflowX:"auto",scrollbarWidth:"none"}}>
+                <span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:GRAY,letterSpacing:"0.5px",textTransform:"uppercase",flexShrink:0}}>Sort by</span>
+                {[["date","Date"],["score","For you"],["distance","Distance"],["price","Price"]].map(([k,l])=>(
+                  <button key={k} onClick={()=>setSortBy(k)} style={{padding:"3px 9px",borderRadius:14,background:sortBy===k?TEAL:"none",border:"1.5px solid "+(sortBy===k?TEAL:GRAY_LT),color:sortBy===k?WHITE:GRAY,fontSize:10,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{l}</button>
+                ))}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6,overflowX:"auto",scrollbarWidth:"none",marginTop:4}}>
+                <span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:GRAY,letterSpacing:"0.5px",textTransform:"uppercase",flexShrink:0}}>Then by</span>
+                {[["none","—"],["date","Date"],["score","For you"],["distance","Distance"],["price","Price"]].filter(([k])=>k==="none"||k!==sortBy).map(([k,l])=>(
+                  <button key={k} onClick={()=>setSortBy2(k==="none"?null:k)} style={{padding:"3px 9px",borderRadius:14,background:(sortBy2===k||(k==="none"&&!sortBy2))?TEAL+"66":"none",border:"1.5px solid "+((sortBy2===k||(k==="none"&&!sortBy2))?TEAL:GRAY_LT),color:(sortBy2===k||(k==="none"&&!sortBy2))?TEAL:GRAY,fontSize:10,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{l}</button>
+                ))}
+              </div>
             </div>
             {filtSorted.length===0
               ?<div style={{padding:"60px 20px",textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:GRAY}}>No events match.</div>
@@ -1154,6 +1470,14 @@ const doRefresh=async()=>{
                     <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc?(loc[0].toFixed(4)+", "+loc[1].toFixed(4)):"Tap retry to grant location"}</div>
                   </div>
                   <button onClick={retryGPS} disabled={locSt==="locating"} style={{padding:"6px 10px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:locSt==="locating"?"not-allowed":"pointer",opacity:locSt==="locating"?0.6:1,flexShrink:0}}>↻ Retry</button>
+                </div>
+                <div style={{background:notifEnabled?TEAL+"18":GRAY+"18",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
+                  <span style={{fontSize:18}}>🔔</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>{notifEnabled?"Notifications enabled":"Notifications off"}</div>
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,lineHeight:1.4}}>{notifEnabled?"Alerts for top picks starting in next 4 hours":"Get notified about top picks near you"}</div>
+                  </div>
+                  <button onClick={notifEnabled?disableNotif:requestNotifPermission} style={{padding:"6px 10px",background:notifEnabled?CORAL:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>{notifEnabled?"Off":"On"}</button>
                 </div>
                 <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:10}}>Categories</div>
                 {Object.entries(prof.categories).map(([cat,val])=>{
