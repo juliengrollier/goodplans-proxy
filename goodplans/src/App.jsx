@@ -16,6 +16,7 @@ const CATS={
   "Talk & Learn":{emoji:"🎤",color:"#0891B2",bg:"#ECFEFF",sub:["Lecture","Panel","Book Launch","Literary & Books","History Tour"]},
   "Get Creative":{emoji:"🧑‍🎨",color:"#B45309",bg:"#FFFBEB",sub:["Painting","Drawing","Pottery","Ceramics","Glassmaking","Printmaking","Sewing & Textiles","Jewellery","Sculpture","Photography","Woodworking","Music & Instruments","Singing & Voice","Dance Class","Cooking Class","Cocktail Class","Open Studio"]},
   "Nightlife":{emoji:"🌙",color:"#9333EA",bg:"#FAF5FF",sub:["Dance Party","Late Night","Club Night"]},
+  "Shopping":{emoji:"🛍️",color:"#DB2777",bg:"#FDF2F8",sub:["Flea Market","Vintage Market","Pop-up Shop","Sample Sale","Holiday Market","Bookstore","Record Store"]},
   "Other":{emoji:"✨",color:GRAY,bg:GRAY_LT,sub:[]},
 };
 
@@ -38,7 +39,7 @@ const VIBES=[
 ];
 
 const DP={
-  categories:{Music:60,Comedy:60,"Art & Culture":50,Film:25,"Food & Drink":15,Outdoors:70,Sports:35,Family:35,"Talk & Learn":25,"Get Creative":45,Nightlife:25,Other:30},
+  categories:{Music:60,Comedy:60,"Art & Culture":50,Film:25,"Food & Drink":15,Outdoors:70,Sports:35,Family:35,"Talk & Learn":25,"Get Creative":45,Nightlife:25,Shopping:5,Other:30},
   vibes:{chill:60,dance:15,culture:55,eat:25,weird:70,date:49,kids:25,solo:50,big:30,sunday:50,nyc:70,free:60,late:40,move:50,watch:49},
   subcategories:{
     "Music::Live Jazz":20,"Music::Blues":80,"Music::Classical":0,"Music::Hip-Hop":15,"Music::Indie/Alt":70,"Music::Electronic":15,"Music::Brass/Funk":65,"Music::World Music":50,"Music::Soul/R&B":50,"Music::Rock":80,"Music::Open Mic":76,"Music::Karaoke":5,
@@ -218,13 +219,18 @@ const nearestSubways=(coord,maxKm)=>{
 
 
 function calcScore(ev,prof,beh,today,home){
-  const cat=ev.cat||"Other",rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
+  const cat=ev.cat||"Other";
+  const catPref=prof.categories?.[cat]??30;
+  if(catPref===0)return -1; // Excluded — 0% means user hid this category
+  const rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
   const dow=today.getDay(),hr=new Date().getHours(),mo=today.getMonth();
   const we=dow===5||dow===6||dow===0,free=(ev.price||"").toLowerCase().includes("free");
   const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
-  const subPref=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
-  let s=(prof.categories?.[cat]||30)*0.55+(subPref-50)*0.12;
+  const subPrefRaw=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
+  // Sub-pref is nested under parent: effective = parent% × sub%
+  const effectiveSubPref=(catPref/100)*subPrefRaw;
+  let s=catPref*0.55+(effectiveSubPref-50)*0.12;
   if(d<1)s+=12;else if(d<3)s+=8;else if(d<7)s+=4;else if(d>15)s-=4;
   if(beh.viewedCats?.[cat])s+=Math.min(beh.viewedCats[cat]*1.5,5);
   if(beh.savedCats?.[cat])s+=Math.min(beh.savedCats[cat]*3,7);
@@ -238,20 +244,23 @@ function calcScore(ev,prof,beh,today,home){
   if(!we&&cat==="Art & Culture")s+=4;
   if(mo>=4&&mo<=8&&cat==="Outdoors")s+=6;
   if(free)s+=8;else{const n=parseFloat((ev.price||"").replace(/[^0-9.]/g,"")||"999");if(n<10)s+=5;else if(n<20)s+=3;else if(n<35)s+=1;}
-  // Preference multiplier — category at 0% halves the score, at 100% adds 10% boost
-  const prefMult=0.5+0.6*(prof.categories?.[cat]||30)/100;
-  s=s*prefMult;
+  // Steeper multiplier — 25% pref = 0.5x, 50% = 1.0x, 100% = 2.0x (clamped)
+  const mult=Math.max(0.3,Math.min(2.0,catPref/50));
+  s=s*mult;
   return Math.max(0,Math.min(100,Math.round(s)));
 }
 
 function calcBd(ev,prof,beh,today,home){
-  const cat=ev.cat||"Other",rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
+  const cat=ev.cat||"Other";
+  const catPref=prof.categories?.[cat]??30;
+  const rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
   const dow=today.getDay(),hr=new Date().getHours(),mo=today.getMonth();
   const we=dow===5||dow===6||dow===0,free=(ev.price||"").toLowerCase().includes("free");
   const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
-  const subPref=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
-  let taste=(prof.categories?.[cat]||30)*0.55+(subPref-50)*0.12,bh=0,ed=0,urg=0,ctx=0,deal=0;
+  const subPrefRaw=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
+  const effectiveSubPref=(catPref/100)*subPrefRaw;
+  let taste=catPref*0.55+(effectiveSubPref-50)*0.12,bh=0,ed=0,urg=0,ctx=0,deal=0;
   if(d<1)taste+=12;else if(d<3)taste+=8;else if(d<7)taste+=4;else if(d>15)taste-=4;
   if(beh.viewedCats?.[cat])bh+=Math.min(beh.viewedCats[cat]*1.5,5);
   if(beh.savedCats?.[cat])bh+=Math.min(beh.savedCats[cat]*3,7);
@@ -265,15 +274,19 @@ function calcBd(ev,prof,beh,today,home){
   if(!we&&cat==="Art & Culture")ctx+=4;
   if(mo>=4&&mo<=8&&cat==="Outdoors")ctx+=6;
   if(free)deal=8;else{const n=parseFloat((ev.price||"").replace(/[^0-9.]/g,"")||"999");if(n<10)deal=5;else if(n<20)deal=3;else if(n<35)deal=1;}
-  const prefMult=0.5+0.6*(prof.categories?.[cat]||30)/100;
-  const total=Math.max(0,Math.min(100,Math.round((taste+bh+ed+urg+ctx+deal)*prefMult)));
+  const mult=catPref===0?0:Math.max(0.3,Math.min(2.0,catPref/50));
+  const total=catPref===0?0:Math.max(0,Math.min(100,Math.round((taste+bh+ed+urg+ctx+deal)*mult)));
   const why=[];
-  if(taste>12)why.push("Matches your "+cat+" taste");
-  if(d<2)why.push("Very close ("+d.toFixed(1)+"km)");else if(d<5)why.push("Nearby ("+d.toFixed(1)+"km)");
-  if(ev.tier===1)why.push("Top source pick");
-  if(rl===1)why.push("One night only");else if(rl<=3)why.push("Short run");else if(de<=7)why.push("Ending soon");
-  if(free)why.push("Free admission");
-  return{taste:Math.round(taste),bh:Math.round(bh),ed,urg,ctx:Math.round(ctx),deal,total,why,d:d.toFixed(1)};
+  if(catPref===0)why.push("Hidden — "+cat+" set to 0%");
+  else{
+    if(taste>12)why.push("Matches your "+cat+" taste");
+    if(d<2)why.push("Very close ("+d.toFixed(1)+"km)");else if(d<5)why.push("Nearby ("+d.toFixed(1)+"km)");
+    if(ev.tier===1)why.push("Top source pick");
+    if(rl===1)why.push("One night only");else if(rl<=3)why.push("Short run");else if(de<=7)why.push("Ending soon");
+    if(free)why.push("Free admission");
+    if(catPref<50)why.push("Demoted — "+cat+" at "+catPref+"% ("+mult.toFixed(1)+"×)");
+  }
+  return{taste:Math.round(taste*mult),bh:Math.round(bh*mult),ed:Math.round(ed*mult),urg:Math.round(urg*mult),ctx:Math.round(ctx*mult),deal:Math.round(deal*mult),total,why,d:d.toFixed(1),mult};
 }
 
 function matchV(ev,vk){
@@ -373,7 +386,7 @@ function Smiley({size,color}){
 function ScorePop({data,onClose}){
   const rows=[["Taste",data.taste,26],["Behaviour",data.bh,15],["Editorial",data.ed,15],["Urgency",data.urg,20],["Context",data.ctx,10],["Deal",data.deal,14]];
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:5100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
       <div style={{background:WHITE,borderRadius:20,padding:20,width:"100%",maxWidth:340}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
           <span style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:800,color:INK}}>{"Score: "+data.total+"/100"+(data.d?" - "+data.d+"km":"")}</span>
@@ -411,18 +424,20 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
     return t;
   })();
   const isToday=fd==="Today",isTom=fd==="Tomorrow";
+  const bgImg=ev.image||img;
+  const pillBg="rgba(0,0,0,0.62)";
   return (
     <div onClick={()=>onOpen(ev)} style={{background:WHITE,borderRadius:16,overflow:"hidden",cursor:"pointer",border:"1.5px solid "+GRAY_LT,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",flexShrink:0,width:164}}>
-      <div style={{height:72,background:ev.image?"url("+ev.image+") center/cover":(img?"url("+img+") center/cover":cfg.bg),position:"relative",display:"flex",alignItems:"center",padding:"0 10px"}}>
-        {!img&&<span style={{fontSize:28}}>{cfg.emoji}</span>}
+      <div style={{height:84,background:bgImg?"url("+bgImg+") center/cover":cfg.bg,position:"relative"}}>
         <button onClick={e=>{e.stopPropagation();onScore(ev.bd);}} style={{position:"absolute",top:6,right:6,background:TEAL,color:WHITE,border:"none",borderRadius:5,padding:"2px 6px",fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:800,cursor:"pointer"}}>{ev.sc||0}</button>
-        {ev.bs&&<div style={{position:"absolute",bottom:5,left:8,background:CORAL,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:7,fontWeight:700,padding:"2px 5px",borderRadius:3}}>Book Soon</div>}
-        {(img||ev.image)&&<div style={{position:"absolute",bottom:5,left:8,background:cfg.color,borderRadius:5,padding:"3px 8px",fontFamily:"'Sora',sans-serif",fontSize:10,color:WHITE,fontWeight:800,letterSpacing:"0.3px",boxShadow:"0 2px 4px rgba(0,0,0,0.4)"}}>{cfg.emoji+" "+ev.cat}</div>}
+        {ev.bs&&<div style={{position:"absolute",top:6,left:8,background:CORAL,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:4}}>Book Soon</div>}
+        <div style={{position:"absolute",bottom:6,left:6,right:6,display:"flex",gap:4,flexWrap:"wrap"}}>
+          <span style={{background:bgImg?pillBg:cfg.color,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:6}}>{cfg.emoji+" "+ev.cat}</span>
+          {ev.sub&&<span style={{background:bgImg?pillBg:cfg.color+"DD",color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:600,padding:"2px 6px",borderRadius:6}}>{ev.sub}</span>}
+        </div>
       </div>
       <div style={{padding:"9px 10px 8px"}}>
         <div style={{display:"flex",gap:4,marginBottom:4,flexWrap:"wrap"}}>
-          {!(img||ev.image)&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:cfg.color,background:cfg.bg,padding:"2px 6px",borderRadius:8}}>{ev.cat}</span>}
-          {ev.sub&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:600,color:cfg.color,background:cfg.bg,padding:"2px 6px",borderRadius:8,opacity:0.8}}>{ev.sub}</span>}
           {free&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:"#059669",background:"#ECFDF5",padding:"2px 6px",borderRadius:8}}>Free</span>}
           {isToday&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:WHITE,background:CORAL,padding:"2px 6px",borderRadius:8}}>Today</span>}
           {isTom&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:WHITE,background:"#8B5CF6",padding:"2px 6px",borderRadius:8}}>Tomorrow</span>}
@@ -529,11 +544,21 @@ function CatFilterPill({sel,setSel}){
   const [pos,setPos]=useState({top:0,left:0});
   const cats=Object.keys(CATS).filter(c=>c!=="Other");
   const toggle=c=>setSel(sel.includes(c)?sel.filter(x=>x!==c):[...sel,c]);
+  useEffect(()=>{
+    if(!open)return;
+    const h=e=>{
+      if(e.target.closest&&e.target.closest('[data-popover-panel]'))return;
+      if(e.target.closest&&e.target.closest('[data-popover-trigger]'))return;
+      setOpen(false);
+    };
+    const t=setTimeout(()=>document.addEventListener("mousedown",h),0);
+    return ()=>{clearTimeout(t);document.removeEventListener("mousedown",h);};
+  },[open]);
   return (
     <div style={{flexShrink:0}} onClick={e=>e.stopPropagation()}>
-      <button ref={btnRef} onClick={()=>{if(!open&&btnRef.current){const b=btnRef.current.getBoundingClientRect();setPos({top:b.bottom+4,left:Math.max(8,Math.min(b.left,window.innerWidth-170))});}setOpen(!open);}} style={{padding:"2px 7px",borderRadius:10,background:sel.length>0?TEAL+"22":"none",border:"1px solid "+(sel.length>0?TEAL:GRAY_LT),color:sel.length>0?TEAL:GRAY,fontSize:9,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap"}}>{"⏷ "+(sel.length>0?"Cats ("+sel.length+")":"Cats")}</button>
+      <button ref={btnRef} data-popover-trigger onClick={()=>{if(!open&&btnRef.current){const b=btnRef.current.getBoundingClientRect();setPos({top:b.bottom+4,left:Math.max(8,Math.min(b.left,window.innerWidth-170))});}setOpen(!open);}} style={{padding:"2px 7px",borderRadius:10,background:sel.length>0?TEAL+"22":"none",border:"1px solid "+(sel.length>0?TEAL:GRAY_LT),color:sel.length>0?TEAL:GRAY,fontSize:9,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap"}}>{(sel.length>0?"Cats ("+sel.length+")":"Cats")+" ▼"}</button>
       {open&&(
-        <div style={{position:"fixed",top:pos.top,left:pos.left,background:WHITE,border:"1.5px solid "+GRAY_LT,borderRadius:10,padding:6,zIndex:9999,minWidth:160,maxHeight:260,overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.15)"}}>
+        <div data-popover-panel style={{position:"fixed",top:pos.top,left:pos.left,background:WHITE,border:"1.5px solid "+GRAY_LT,borderRadius:10,padding:6,zIndex:9999,minWidth:160,maxHeight:260,overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.15)"}}>
           {cats.map(c=>{
             const cfg=CATS[c]; const on=sel.includes(c);
             return (
@@ -556,11 +581,21 @@ function SortPill({sortKey,setSortKey}){
   const [pos,setPos]=useState({top:0,left:0});
   const opts=[["score","For you"],["date","Date"],["distance","Distance"],["price","Price"]];
   const cur=opts.find(o=>o[0]===sortKey)||opts[0];
+  useEffect(()=>{
+    if(!open)return;
+    const h=e=>{
+      if(e.target.closest&&e.target.closest('[data-popover-panel]'))return;
+      if(e.target.closest&&e.target.closest('[data-popover-trigger]'))return;
+      setOpen(false);
+    };
+    const t=setTimeout(()=>document.addEventListener("mousedown",h),0);
+    return ()=>{clearTimeout(t);document.removeEventListener("mousedown",h);};
+  },[open]);
   return (
     <div style={{flexShrink:0}} onClick={e=>e.stopPropagation()}>
-      <button ref={btnRef} onClick={()=>{if(!open&&btnRef.current){const b=btnRef.current.getBoundingClientRect();setPos({top:b.bottom+4,left:Math.min(b.left,window.innerWidth-160)});}setOpen(!open);}} style={{padding:"2px 7px",borderRadius:10,background:"none",border:"1px solid "+GRAY_LT,color:GRAY,fontSize:9,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap"}}>{"⇅ "+cur[1]}</button>
+      <button ref={btnRef} data-popover-trigger onClick={()=>{if(!open&&btnRef.current){const b=btnRef.current.getBoundingClientRect();setPos({top:b.bottom+4,left:Math.min(b.left,window.innerWidth-160)});}setOpen(!open);}} style={{padding:"2px 7px",borderRadius:10,background:"none",border:"1px solid "+GRAY_LT,color:GRAY,fontSize:9,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap"}}>{"⇅ "+cur[1]}</button>
       {open&&(
-        <div style={{position:"fixed",top:pos.top,left:pos.left,background:WHITE,border:"1.5px solid "+GRAY_LT,borderRadius:10,padding:4,zIndex:9999,minWidth:130,boxShadow:"0 8px 32px rgba(0,0,0,0.15)"}}>
+        <div data-popover-panel style={{position:"fixed",top:pos.top,left:pos.left,background:WHITE,border:"1.5px solid "+GRAY_LT,borderRadius:10,padding:4,zIndex:9999,minWidth:130,boxShadow:"0 8px 32px rgba(0,0,0,0.15)"}}>
           {opts.map(([k,l])=>(
             <button key={k} onClick={()=>{setSortKey(k);setOpen(false);}} style={{display:"block",width:"100%",padding:"7px 10px",background:sortKey===k?TEAL+"22":"none",border:"none",cursor:"pointer",color:sortKey===k?TEAL:INK,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:sortKey===k?700:500,textAlign:"left",borderRadius:6}}>{l}</button>
           ))}
@@ -672,7 +707,7 @@ function Modal({ev,isFav,onClose,onFav,onCal,onShare,today,tomorrow}){
   const fd=friendlyDate(ev,today,tomorrow);
   const ts=ev.time&&ev.time!=="All day"?" - "+ev.time:"";
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:5000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
       <div style={{background:WHITE,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{height:140,background:ev.image?"url("+ev.image+") center/cover":cfg.bg,display:"flex",alignItems:"flex-end",justifyContent:"flex-start",position:"relative"}}>
           {!ev.image&&<span style={{fontSize:56,margin:"auto"}}>{cfg.emoji}</span>}
@@ -830,7 +865,7 @@ function SP({label,val,setVal,min,max,step,fmt,open,setOpen,on}){
 }
 
 function MapTab({allActive,userLoc,CATS,onOpen,today,tomorrow}){
-  const [tf,setTf]=useState("today");
+  const [tf,setTf]=useState("tonight");
   const evts=(()=>{
     const now=new Date();
     const nowHr=now.getHours()+now.getMinutes()/60;
@@ -893,7 +928,7 @@ function MapTab({allActive,userLoc,CATS,onOpen,today,tomorrow}){
   useEffect(()=>{
     if(!ready||!mapRef.current||mapInstRef.current)return;
     const L=window.L;
-    const m=L.map(mapRef.current,{zoomControl:true,attributionControl:true}).setView(userLoc||[40.7186,-73.9865],15);
+    const m=L.map(mapRef.current,{zoomControl:true,attributionControl:true}).setView(userLoc||[40.7186,-73.9865],16);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
       maxZoom:19,
       attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a>'
@@ -944,12 +979,16 @@ function MapTab({allActive,userLoc,CATS,onOpen,today,tomorrow}){
       });
       markersRef.current.push(mk);
     });
-    // Fit bounds if we have events
-    if(evts.length){
-      const pts=evts.map(e=>safeCoord(e));
-      if(userLoc)pts.push(userLoc);
-      if(pts.length>1){
-        try{m.fitBounds(pts,{padding:[60,60],maxZoom:16});}catch{}
+    // Fit bounds only to events within 2km of user to keep map zoomed in around home.
+    // Far-flung events still render as pins but don't pull the view out.
+    if(userLoc&&evts.length){
+      const nearby=evts.filter(e=>{
+        try{return kmdist(safeCoord(e),userLoc)<=2;}catch{return false;}
+      });
+      if(nearby.length){
+        const pts=nearby.map(e=>safeCoord(e));
+        pts.push(userLoc);
+        try{m.fitBounds(pts,{padding:[50,50],maxZoom:16});}catch{}
       }
     }
   },[ready,evts,userLoc,CATS]);
@@ -958,11 +997,11 @@ function MapTab({allActive,userLoc,CATS,onOpen,today,tomorrow}){
     <div>
       <div style={{padding:"8px 12px",background:WHITE,borderBottom:"1px solid "+GRAY_LT}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:800,color:INK}}>{({now:"Happening now",tonight:"Tonight",today:"Today",tomorrow:"Tomorrow",weekend:"This weekend",week:"Next 7 days",all:"All upcoming"})[tf]||"Events"}</div>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:800,color:INK}}>{({now:"Happening now",tonight:"Tonight",tomorrow:"Tomorrow",weekend:"This weekend",week:"Next 7 days",all:"All upcoming"})[tf]||"Events"}</div>
           <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>{evts.length+" event"+(evts.length===1?"":"s")}</div>
         </div>
         <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none"}}>
-          {[["now","Now"],["tonight","Tonight"],["today","Today"],["tomorrow","Tomorrow"],["weekend","Weekend"],["week","This week"],["all","All"]].map(([k,l])=>(
+          {[["now","Now"],["tonight","Tonight"],["tomorrow","Tomorrow"],["weekend","Weekend"],["week","This week"],["all","All"]].map(([k,l])=>(
             <button key={k} onClick={()=>setTf(k)} style={{padding:"4px 11px",borderRadius:14,background:tf===k?TEAL:"none",border:"1.5px solid "+(tf===k?TEAL:GRAY_LT),color:tf===k?WHITE:GRAY,fontSize:11,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{l}</button>
           ))}
         </div>
@@ -1072,8 +1111,8 @@ export default function App(){
   const [fmk,setFmk]=useState(50);
   const [fsub,setFsub]=useState([]);
   const [fq,setFq]=useState("");
-  const [sortBy,setSortBy]=useState("date");
-  const [sortBy2,setSortBy2]=useState("score");
+  const [sortBy,setSortBy]=useState("score");
+  const [sortBy2,setSortBy2]=useState("date");
   // Per-carousel sort overrides (default each to score)
   const [carSort,setCarSort]=useState({});
   const setCar=(k,v)=>setCarSort(p=>({...p,[k]:v}));
@@ -1121,6 +1160,17 @@ export default function App(){
     });
     return ()=>clearInterval(iv);
   },[]);
+
+  // Deep-link: open ?event=ID in the modal on load (and when events list updates)
+  useEffect(()=>{
+    try{
+      const params=new URLSearchParams(window.location.search);
+      const evId=params.get("event");
+      if(!evId)return;
+      const ev=events.find(e=>e.id===evId)||EV.find(e=>e.id===evId);
+      if(ev)setModal(ev);
+    }catch{}
+  },[events]);
 
   const retryGPS=()=>{
     if(!navigator.geolocation){showToast("Geolocation not supported");return;}
@@ -1266,9 +1316,10 @@ export default function App(){
     showToast("Opening Google Calendar");
   };
   const share=ev=>{
-    const t=ev.title+"\n"+ev.venue+" - "+fmtD(ev.E)+"\n"+(ev.price||"Free")+"\n"+(ev.url||"");
-    if(navigator.share)navigator.share({title:ev.title,text:t,url:ev.url||""}).catch(()=>{});
-    else navigator.clipboard?.writeText(t).then(()=>showToast("Copied!")).catch(()=>{});
+    const appUrl=window.location.origin+window.location.pathname+"?event="+encodeURIComponent(ev.id);
+    const t=ev.title+"\n"+ev.venue+" - "+fmtD(ev.E)+"\n"+(ev.price||"Free")+"\n"+appUrl;
+    if(navigator.share)navigator.share({title:ev.title,text:t,url:appUrl}).catch(()=>{});
+    else navigator.clipboard?.writeText(appUrl).then(()=>showToast("Link copied!")).catch(()=>{});
   };
 
   const PROXY="https://goodplans-proxy.vercel.app/api/fetch";
@@ -1426,7 +1477,7 @@ const doRefresh=async()=>{
     bs:bookSoon(ev,floorDay(NOW)),
     bd:calcBd(ev,prof,beh,floorDay(NOW),home),
     km:kmdist(safeCoord(ev),home).toFixed(1),
-  })).sort((a,b)=>b.sc-a.sc);
+  })).filter(ev=>ev.sc>=0).sort((a,b)=>b.sc-a.sc);
 
   const has=fc.length>0||fsub.length>0||fh.length>0||fp.length>0||fd.length>0||fv.length>0||fms>0||fmk<50||(fq&&fq.length>0);
   const mf=ev=>{
@@ -1533,7 +1584,7 @@ sn.sort((a,b)=>{
   // Per-carousel state: sort + category filter
 const [carCat,setCarCat]=useState({});
 const setCarCatKey=(k,v)=>setCarCat(p=>({...p,[k]:v}));
-const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":k==="sn"?"date":"score"),setSortKey:v=>setCar(k,v),catFilter:carCat[k]||[],setCatFilter:v=>setCarCatKey(k,v)});
+const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":"score"),setSortKey:v=>setCar(k,v),catFilter:carCat[k]||[],setCatFilter:v=>setCarCatKey(k,v)});
   const fbProps={fc,setFc,fsub,setFsub,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,fq,setFq,has,onClear:clr,dd,setDd};
 
   if(!ready){
@@ -1555,14 +1606,14 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":k==="sn"?"date":"scor
             <img src={LOGO} alt="Good Plans" style={{height:30,width:"auto",display:"block"}}/>
           </div>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            <input type="search" value={fq||""} onChange={e=>setFq(e.target.value)} placeholder="🔍" style={{width:fq?150:34,transition:"width 0.2s",padding:"5px 9px",borderRadius:14,border:"1.5px solid "+(fq?TEAL:GRAY_LT),fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none",background:fq?TEAL+"12":"none"}}/>
+            <input type="search" value={fq||""} onChange={e=>setFq(e.target.value)} placeholder="🔍 Search" style={{width:fq?220:44,transition:"width 0.2s",padding:"5px 9px",borderRadius:14,border:"1.5px solid "+(fq?TEAL:GRAY_LT),fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none",background:fq?TEAL+"12":"none"}}/>
             <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:(locSt==="ok"||locSt==="cached")?TEAL:GRAY,whiteSpace:"nowrap"}}>{locSt==="locating"?"📍…":(locSt==="ok"||locSt==="cached")?"📍 GPS":"📍 LES"}</span>
             <button onClick={()=>setVm(v=>v==="cards"?"list":"cards")} title={vm==="cards"?"List view":"Grid view"} style={{background:"none",border:"1.5px solid "+GRAY_LT,borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:13,color:GRAY,whiteSpace:"nowrap"}}>{vm==="cards"?"☰":"▦"}</button>
           </div>
         </div>
       </header>
       <nav style={{display:"flex",background:WHITE,borderBottom:"1.5px solid "+GRAY_LT,position:"sticky",top:46,zIndex:40,overflowX:"auto",scrollbarWidth:"none"}}>
-        {[["home","Home"],["browse","Browse"],["map","Map"],["saved",favList.length?"★ "+favList.length:"Saved"],["sync","Sync"],["profile","Profile"]].map(([t,l])=>(
+        {[["home","Home"],["browse","Browse"],["map","Map"],["saved",favList.length?"★ "+favList.length:"Saved"],["profile","Profile"]].map(([t,l])=>(
           <button key={t} onClick={()=>setTab(t)} style={{flexShrink:0,padding:"9px 11px",background:"none",border:"none",color:tab===t?TEAL:GRAY,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,letterSpacing:"0.5px",textTransform:"uppercase",borderBottom:"2.5px solid "+(tab===t?TEAL:"transparent"),whiteSpace:"nowrap"}}>{l}</button>
         ))}
       </nav>
@@ -1598,65 +1649,6 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":k==="sn"?"date":"scor
             }
           </div>
         )}
-        {tab==="sync"&&(
-          <div style={{padding:16}}>
-            <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:800,color:INK,marginBottom:4}}>Sync Events</div>
-            <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:GRAY,marginBottom:16,lineHeight:1.5}}>
-              Apps Script extracts events daily at 7am (Google's servers, automatic). The app fetches the cached JSON directly — no rate limits, no claude.ai involvement.
-            </div>
-
-            <div style={{background:WHITE,borderRadius:12,padding:"14px 14px",marginBottom:14,border:"1.5px solid "+GRAY_LT}}>
-              <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:10}}>Gmail Source</div>
-              <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK,marginBottom:5}}>Apps Script URL</div>
-              <input value={gmailUrl} onChange={e=>setGmailUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" style={{width:"100%",padding:"9px 11px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:11,marginBottom:10,boxSizing:"border-box"}}/>
-              <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK,marginBottom:5}}>Apps Script secret key</div>
-              <input value={gmailKey} onChange={e=>setGmailKey(e.target.value)} placeholder="your secret string" style={{width:"100%",padding:"9px 11px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:11,marginBottom:10,boxSizing:"border-box"}}/>
-              <button onClick={async()=>{await ss("gp_gmail_v1",{url:gmailUrl,key:gmailKey});showToast("Saved");}} style={{padding:"8px 14px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save</button>
-            </div>
-
-            <div style={{background:lastRefreshed?TEAL+"12":GRAY+"12",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
-              <span style={{fontSize:18}}>🔄</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>{lastRefreshed?"Last synced":"Not yet synced"}</div>
-                <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,overflow:"hidden",textOverflow:"ellipsis"}}>{lastRefreshed?new Date(lastRefreshed).toLocaleString():"Using built-in events ("+EV.length+")"}</div>
-              </div>
-            </div>
-            <div style={{background:TEAL+"12",borderRadius:10,padding:"10px 14px",marginBottom:16,display:"flex",gap:10,alignItems:"center"}}>
-              <span style={{fontSize:18}}>📦</span>
-              <div>
-                <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>{events.length+" events loaded"}</div>
-                <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>Past events auto-removed on each sync</div>
-              </div>
-            </div>
-
-            {refreshing
-              ?<button onClick={()=>{stopRef.current=true;showToast("Stopping...");}} style={{display:"block",width:"100%",padding:"14px",background:CORAL,color:WHITE,border:"none",borderRadius:12,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Sora',sans-serif",marginBottom:8}}>
-                ⏹️ Stop refresh
-              </button>
-              :<button onClick={doRefresh} disabled={!gmailUrl} style={{display:"block",width:"100%",padding:"14px",background:gmailUrl?TEAL:GRAY,color:WHITE,border:"none",borderRadius:12,fontWeight:700,fontSize:14,cursor:gmailUrl?"pointer":"not-allowed",fontFamily:"'Sora',sans-serif",marginBottom:8}}>
-                🔄 Sync now
-              </button>
-            }
-            <button onClick={async()=>{
-              await ss("gp_events_v1",null);
-              setSourceMeta({});
-              setEvents(EV);
-              setLastRefreshed(null);
-              autoSyncRef.current=false;
-              showToast("Cache cleared");
-            }} disabled={refreshing} style={{display:"block",width:"100%",padding:"11px",background:"none",color:CORAL,border:"1.5px solid "+CORAL,borderRadius:12,fontWeight:600,fontSize:12,cursor:refreshing?"not-allowed":"pointer",fontFamily:"'Sora',sans-serif",marginBottom:16}}>
-              🗑️ Clear cache &amp; reset
-            </button>
-            {refreshLog.length>0&&(
-              <div style={{background:WHITE,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+GRAY_LT}}>
-                <div style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:8}}>Refresh log</div>
-                {refreshLog.map((l,i)=>(
-                  <div key={i} style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:INK,marginBottom:4,lineHeight:1.4}}>{l}</div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
         {tab==="map"&&(
           <MapTab allActive={active} userLoc={home} CATS={CATS} onOpen={openModal} today={TODAY} tomorrow={TOMORROW}/>
         )}
@@ -1680,7 +1672,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":k==="sn"?"date":"scor
         {tab==="profile"&&(
           <div style={{paddingBottom:60}}>
             <div style={{display:"flex",borderBottom:"1.5px solid "+GRAY_LT}}>
-              {[["prefs","Preferences"],["activity","Activity"]].map(([t,l])=>(
+              {[["prefs","Preferences"],["activity","Activity"],["sync","Sync"]].map(([t,l])=>(
                 <button key={t} onClick={()=>setProfTab(t)} style={{flex:1,padding:"12px 8px",background:"none",border:"none",color:profTab===t?TEAL:GRAY,borderBottom:"2.5px solid "+(profTab===t?TEAL:"transparent"),cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,textTransform:"uppercase"}}>{l}</button>
               ))}
             </div>
@@ -1772,6 +1764,62 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":k==="sn"?"date":"scor
                     }
                   </div>
                 ))}
+              </div>
+            )}
+            {profTab==="sync"&&(
+              <div style={{padding:16}}>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:800,color:INK,marginBottom:4}}>Sync Events</div>
+                <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:GRAY,marginBottom:16,lineHeight:1.5}}>
+                  Apps Script extracts events daily at 7am (Google's servers, automatic). The app fetches the cached JSON directly — no rate limits, no claude.ai involvement.
+                </div>
+                <div style={{background:WHITE,borderRadius:12,padding:"14px 14px",marginBottom:14,border:"1.5px solid "+GRAY_LT}}>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:10}}>Gmail Source</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK,marginBottom:5}}>Apps Script URL</div>
+                  <input value={gmailUrl} onChange={e=>setGmailUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" style={{width:"100%",padding:"9px 11px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:11,marginBottom:10,boxSizing:"border-box"}}/>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK,marginBottom:5}}>Apps Script secret key</div>
+                  <input value={gmailKey} onChange={e=>setGmailKey(e.target.value)} placeholder="your secret string" style={{width:"100%",padding:"9px 11px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:11,marginBottom:10,boxSizing:"border-box"}}/>
+                  <button onClick={async()=>{await ss("gp_gmail_v1",{url:gmailUrl,key:gmailKey});showToast("Saved");}} style={{padding:"8px 14px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save</button>
+                </div>
+                <div style={{background:lastRefreshed?TEAL+"12":GRAY+"12",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
+                  <span style={{fontSize:18}}>🔄</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>{lastRefreshed?"Last synced":"Not yet synced"}</div>
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,overflow:"hidden",textOverflow:"ellipsis"}}>{lastRefreshed?new Date(lastRefreshed).toLocaleString():"Using built-in events ("+EV.length+")"}</div>
+                  </div>
+                </div>
+                <div style={{background:TEAL+"12",borderRadius:10,padding:"10px 14px",marginBottom:16,display:"flex",gap:10,alignItems:"center"}}>
+                  <span style={{fontSize:18}}>📦</span>
+                  <div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>{events.length+" events loaded"}</div>
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>Past events auto-removed on each sync</div>
+                  </div>
+                </div>
+                {refreshing
+                  ?<button onClick={()=>{stopRef.current=true;showToast("Stopping...");}} style={{display:"block",width:"100%",padding:"14px",background:CORAL,color:WHITE,border:"none",borderRadius:12,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Sora',sans-serif",marginBottom:8}}>
+                    ⏹️ Stop refresh
+                  </button>
+                  :<button onClick={doRefresh} disabled={!gmailUrl} style={{display:"block",width:"100%",padding:"14px",background:gmailUrl?TEAL:GRAY,color:WHITE,border:"none",borderRadius:12,fontWeight:700,fontSize:14,cursor:gmailUrl?"pointer":"not-allowed",fontFamily:"'Sora',sans-serif",marginBottom:8}}>
+                    🔄 Sync now
+                  </button>
+                }
+                <button onClick={async()=>{
+                  await ss("gp_events_v1",null);
+                  setSourceMeta({});
+                  setEvents(EV);
+                  setLastRefreshed(null);
+                  autoSyncRef.current=false;
+                  showToast("Cache cleared");
+                }} disabled={refreshing} style={{display:"block",width:"100%",padding:"11px",background:"none",color:CORAL,border:"1.5px solid "+CORAL,borderRadius:12,fontWeight:600,fontSize:12,cursor:refreshing?"not-allowed":"pointer",fontFamily:"'Sora',sans-serif",marginBottom:16}}>
+                  🗑️ Clear cache &amp; reset
+                </button>
+                {refreshLog.length>0&&(
+                  <div style={{background:WHITE,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+GRAY_LT}}>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:8}}>Refresh log</div>
+                    {refreshLog.map((l,i)=>(
+                      <div key={i} style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:INK,marginBottom:4,lineHeight:1.4}}>{l}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
