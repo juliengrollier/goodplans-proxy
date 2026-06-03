@@ -74,7 +74,26 @@ const friendlyDate=(ev,t,tom)=>{
   if(ev.X&&ev.X!==ev.E)return fmtD(ev.E)+" - "+fmtD(ev.X);
   return fmtD(ev.E);
 };
-const eHour=t=>{if(!t||t==="All day")return 12;const m=t.match(/(\d+):?(\d*)\s*(AM|PM)/i);if(!m)return 12;let h=parseInt(m[1]);if(m[3].toUpperCase()==="PM"&&h!==12)h+=12;if(m[3].toUpperCase()==="AM"&&h===12)h=0;return h;};
+// Category-based assumed hour for events with unknown / "All day" / "Various" times.
+// Evening-by-default categories: Music, Comedy, Film, Nightlife.
+// Daytime-by-default: everything else.
+const NIGHT_CATS=new Set(["Music","Comedy","Film","Nightlife"]);
+const eHour=(t,cat)=>{
+  if(t&&t!=="All day"&&t!=="Various"){
+    const m=t.match(/(\d+):?(\d*)\s*(AM|PM)/i);
+    if(m){let h=parseInt(m[1]);if(m[3].toUpperCase()==="PM"&&h!==12)h+=12;if(m[3].toUpperCase()==="AM"&&h===12)h=0;return h;}
+    const m24=t.match(/^(\d{1,2}):(\d{2})/);
+    if(m24)return parseInt(m24[1]);
+  }
+  // Unknown time → assumed default per category
+  return NIGHT_CATS.has(cat)?20:13;
+};
+// Returns true if the event has a real, parseable start time (not "All day" / "Various")
+const hasKnownTime=(ev)=>{
+  const t=ev.time;
+  if(!t||t==="All day"||t==="Various")return false;
+  return /\d/.test(t);
+};
 const parseT=t=>{if(!t||t==="All day")return"18:00";const m=t.match(/(\d+):?(\d*)\s*(AM|PM)/i);if(!m)return"18:00";let h=parseInt(m[1]);const mn=m[2]||"00",ap=m[3].toUpperCase();if(ap==="PM"&&h!==12)h+=12;if(ap==="AM"&&h===12)h=0;return String(h).padStart(2,"0")+":"+mn;};
 const toGC=d=>d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
 
@@ -258,14 +277,14 @@ function calcBd(ev,prof,beh,today,home){
 }
 
 function matchV(ev,vk){
-  const h=eHour(ev.time),free=(ev.price||"").toLowerCase().includes("free");
+  const h=eHour(ev.time,ev.cat),free=(ev.price||"").toLowerCase().includes("free");
   const n=parseFloat((ev.price||"").replace(/[^0-9.]/g,"")||"999"),cheap=free||n<20,t=ev.tags||[];
   const m={
     chill:()=>cheap&&h<21,
     dance:()=>(ev.cat==="Music"&&h>=21)||t.includes("dance"),
     culture:()=>["Art & Culture","Film","Music","Talk & Learn"].includes(ev.cat),
     eat:()=>ev.cat==="Food & Drink",
-    weird:()=>["Comedy","Other"].includes(ev.cat)||t.includes("weird"),
+    weird:()=>t.includes("weird")||t.includes("unusual")||t.includes("offbeat")||ev.cat==="Other",
     date:()=>["Art & Culture","Music","Film","Food & Drink","Get Creative"].includes(ev.cat)&&(ev.tier||2)<=2&&h>=17,
     kids:()=>ev.cat==="Family",
     solo:()=>["Art & Culture","Film","Talk & Learn","Get Creative"].includes(ev.cat),
@@ -388,7 +407,7 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
   const isToday=fd==="Today",isTom=fd==="Tomorrow";
   return (
     <div onClick={()=>onOpen(ev)} style={{background:WHITE,borderRadius:16,overflow:"hidden",cursor:"pointer",border:"1.5px solid "+GRAY_LT,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",flexShrink:0,width:164}}>
-      <div style={{height:72,background:img?"url("+img+") center/cover":cfg.bg,position:"relative",display:"flex",alignItems:"center",padding:"0 10px"}}>
+      <div style={{height:72,background:ev.image?"url("+ev.image+") center/cover":(img?"url("+img+") center/cover":cfg.bg),position:"relative",display:"flex",alignItems:"center",padding:"0 10px"}}>
         {!img&&<span style={{fontSize:28}}>{cfg.emoji}</span>}
         <button onClick={e=>{e.stopPropagation();onScore(ev.bd);}} style={{position:"absolute",top:6,right:6,background:TEAL,color:WHITE,border:"none",borderRadius:5,padding:"2px 6px",fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:800,cursor:"pointer"}}>{ev.sc||0}</button>
         {ev.bs&&<div style={{position:"absolute",bottom:5,left:8,background:CORAL,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:7,fontWeight:700,padding:"2px 5px",borderRadius:3}}>Book Soon</div>}
@@ -404,6 +423,7 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
         </div>
         <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK,lineHeight:1.3,marginBottom:3,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{ev.title}</div>
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.venue}</div>
+        {(()=>{const stops=ev.coord?nearestSubways(ev.coord,0.5):[];if(!stops.length)return null;const lines=stops[0].l.slice(0,3);return(<div style={{display:"flex",gap:2,marginTop:2,alignItems:"center"}}>{lines.map(line=><span key={line} style={{width:13,height:13,borderRadius:"50%",background:LINE_COLOR[line]||"#888",color:["N","Q","R","W"].includes(line)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{line}</span>)}<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:2}}>{Math.round(stops[0].d*1000)+"m"}</span></div>);})()}
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>{fd}{ts?" - "+ts:""}</div>
         {ev.km&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginTop:1}}>{"📍"+ev.km+"km"+(ev.src?" · "+ev.src:"")}</div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:7,paddingTop:6,borderTop:"1px solid "+GRAY_LT}}>
@@ -452,6 +472,60 @@ function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow}){
         <button onClick={()=>onFav(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,color:isFav?TEAL:GRAY,padding:2}}>{isFav?"★":"☆"}</button>
       </div>
     </div>
+  );
+}
+
+
+function BrowseSortChip({primary,secondary,setPrimary,setSecondary}){
+  const opts=[["date","Date"],["score","For you"],["distance","Distance"],["price","Price"]];
+  // Tap once → primary; tap again → secondary; tap third time → off (only secondary cleared, primary stays unless already secondary)
+  const cycle=(k)=>{
+    if(primary===k){
+      // Promote to primary only → clear secondary
+      setSecondary(null);
+    }else if(secondary===k){
+      // Already secondary → clear it
+      setSecondary(null);
+    }else{
+      if(primary){setSecondary(k);}else{setPrimary(k);}
+    }
+    // If user taps key that's not primary, swap roles:
+    if(primary!==k&&secondary!==k){
+      // First fresh chip becomes secondary if primary exists, else primary
+    }
+  };
+  // Cleaner cycle: tap chip → it becomes primary, the previous primary becomes secondary (or cleared if it WAS secondary)
+  const tap=(k)=>{
+    if(primary===k){
+      // Tapping primary again: clear secondary if any, else clear primary
+      if(secondary){setSecondary(null);}else{setPrimary("date");}
+      return;
+    }
+    if(secondary===k){
+      // Tapping secondary: promote to primary, demote primary to secondary
+      setPrimary(k);setSecondary(primary);
+      return;
+    }
+    // Fresh chip → becomes primary, current primary becomes secondary
+    setSecondary(primary||null);
+    setPrimary(k);
+  };
+  return (
+    <>
+      {opts.map(([k,l])=>{
+        const isP=primary===k,isS=secondary===k;
+        const bg=isP?TEAL:(isS?TEAL+"30":"none");
+        const fg=isP?WHITE:(isS?TEAL:GRAY);
+        const bd=isP?TEAL:(isS?TEAL:GRAY_LT);
+        const badge=isP?"1":(isS?"2":null);
+        return (
+          <button key={k} onClick={()=>tap(k)} style={{padding:"3px 9px",borderRadius:14,background:bg,border:"1.5px solid "+bd,color:fg,fontSize:10,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap",flexShrink:0,display:"inline-flex",gap:4,alignItems:"center"}}>
+            {l}
+            {badge&&<span style={{fontSize:8,opacity:0.7,fontWeight:800}}>{badge}</span>}
+          </button>
+        );
+      })}
+    </>
   );
 }
 
@@ -573,15 +647,18 @@ function Modal({ev,isFav,onClose,onFav,onCal,onShare,today,tomorrow}){
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
       <div style={{background:WHITE,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{height:100,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
-          <span style={{fontSize:48}}>{cfg.emoji}</span>
-          <button onClick={onClose} style={{position:"absolute",top:12,right:12,background:"rgba(0,0,0,0.1)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:16,color:INK}}>{"×"}</button>
-          {ev.bs&&<div style={{position:"absolute",bottom:10,right:12,background:CORAL,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:6}}>Book Soon</div>}
+        <div style={{height:140,background:ev.image?"url("+ev.image+") center/cover":cfg.bg,display:"flex",alignItems:"flex-end",justifyContent:"flex-start",position:"relative"}}>
+          {!ev.image&&<span style={{fontSize:56,margin:"auto"}}>{cfg.emoji}</span>}
+          {ev.image&&<div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.6) 100%)"}}/>}
+          <div style={{position:"relative",padding:"10px 14px",zIndex:1,display:"flex",gap:6,flexWrap:"wrap"}}>
+            <span style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:800,color:WHITE,background:cfg.color,padding:"3px 9px",borderRadius:10,letterSpacing:"0.3px",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}>{cfg.emoji+" "+ev.cat}</span>
+          </div>
+          <button onClick={onClose} style={{position:"absolute",top:12,right:12,background:"rgba(255,255,255,0.92)",border:"none",borderRadius:"50%",width:32,height:32,cursor:"pointer",fontSize:18,color:INK,zIndex:2}}>{"×"}</button>
+          {ev.bs&&<div style={{position:"absolute",top:12,left:12,background:CORAL,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:8,zIndex:2}}>Book Soon</div>}
         </div>
         <div style={{padding:"18px 20px 36px"}}>
           <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
-            <span style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:cfg.color,background:cfg.bg,padding:"3px 10px",borderRadius:10}}>{ev.cat}</span>
-            {ev.sub&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:600,color:cfg.color,background:cfg.bg,padding:"3px 10px",borderRadius:10,opacity:0.8}}>{ev.sub}</span>}
+            {ev.sub&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:600,color:cfg.color,background:cfg.bg,padding:"3px 10px",borderRadius:10}}>{ev.sub}</span>}
             {free&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:"#059669",background:"#ECFDF5",padding:"3px 10px",borderRadius:10}}>Free</span>}
             {ev.src&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY,background:CREAM,padding:"3px 10px",borderRadius:10}}>{ev.src}</span>}
           </div>
@@ -606,21 +683,17 @@ function Modal({ev,isFav,onClose,onFav,onCal,onShare,today,tomorrow}){
   );
 }
 
-function FilterBar({fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,fq,setFq,has,onClear,dd,setDd,cnt}){
+function FilterBar({fc,setFc,fsub,setFsub,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,fq,setFq,has,onClear,dd,setDd,cnt}){
   const HOODS=["Manhattan","Brooklyn","Queens","Bronx","Staten Island"];
   const PRICES=["Free","Under $10","Under $25"];
   const DATES=["Today","Tomorrow","This Weekend"];
   return (
     <div style={{background:WHITE,borderBottom:"1px solid "+GRAY_LT}} onClick={e=>e.stopPropagation()}>
-      <div style={{display:"flex",gap:6,padding:"7px 12px",alignItems:"center"}}>
-        <div style={{position:"relative",flex:"0 0 auto",minWidth:140,maxWidth:180}}>
-          <input type="search" value={fq||""} onChange={e=>setFq(e.target.value)} placeholder="🔍 Search…" style={{width:"100%",padding:"6px 10px 6px 10px",borderRadius:18,border:"1.5px solid "+GRAY_LT,fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none",background:fq?TEAL+"12":"none"}}/>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:6,padding:"0 12px 7px",overflowX:"auto",scrollbarWidth:"none",alignItems:"center"}}>
+      <div style={{display:"flex",gap:6,padding:"7px 12px",overflowX:"auto",scrollbarWidth:"none",alignItems:"center"}}>
         {has&&<button onClick={onClear} style={{padding:"5px 10px",borderRadius:20,background:"none",border:"1.5px solid "+CORAL,color:CORAL,fontSize:11,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,flexShrink:0}}>{"✕ Clear"}</button>}
         <DD label="Date" opts={DATES} sel={fd} setSel={setFd} open={dd==="d"} setOpen={v=>setDd(v?"d":null)}/>
         <DD label="Cat." opts={Object.keys(CATS).filter(c=>c!=="Other")} sel={fc} setSel={setFc} open={dd==="c"} setOpen={v=>setDd(v?"c":null)}/>
+        <DD label="Sub" opts={(()=>{const cats=fc.length?fc:Object.keys(CATS);const out=[];for(const c of cats){(CATS[c]?.sub||[]).forEach(s=>{if(!out.includes(s))out.push(s);});}return out.sort();})()} sel={fsub} setSel={setFsub} open={dd==="sub"} setOpen={v=>setDd(v?"sub":null)}/>
         <DD label="Area" opts={HOODS} sel={fh} setSel={setFh} open={dd==="h"} setOpen={v=>setDd(v?"h":null)}/>
         <DD label="Price" opts={PRICES} sel={fp} setSel={setFp} open={dd==="p"} setOpen={v=>setDd(v?"p":null)}/>
         <DD label="Vibe" opts={VIBES.map(v=>v.label)} sel={fv.map(k=>VIBES.find(v=>v.key===k)?.label||k)} setSel={ls=>setFv(ls.map(l=>VIBES.find(v=>v.label===l)?.key||l))} open={dd==="v"} setOpen={v=>setDd(v?"v":null)}/>
@@ -675,7 +748,14 @@ function SP({label,val,setVal,min,max,step,fmt,open,setOpen,on}){
   );
 }
 
-function MapTab({evts,userLoc,CATS,onOpen}){
+function MapTab({allActive,userLoc,CATS,onOpen,today,tomorrow}){
+  const [tf,setTf]=useState("today");
+  const evts=(()=>{
+    if(tf==="today")return allActive.filter(e=>evCovers(e,today));
+    if(tf==="tomorrow")return allActive.filter(e=>evCovers(e,tomorrow));
+    if(tf==="week")return allActive.filter(e=>evStart(e)<=new Date(today.getTime()+7*86400000)&&evEnd(e)>=today);
+    return allActive;
+  })().filter(e=>Array.isArray(e.coord)&&e.coord.length===2);
   const mapRef=useRef(null);
   const mapInstRef=useRef(null);
   const markersRef=useRef([]);
@@ -714,7 +794,7 @@ function MapTab({evts,userLoc,CATS,onOpen}){
   useEffect(()=>{
     if(!ready||!mapRef.current||mapInstRef.current)return;
     const L=window.L;
-    const m=L.map(mapRef.current,{zoomControl:true,attributionControl:true}).setView(userLoc||[40.7186,-73.9865],14);
+    const m=L.map(mapRef.current,{zoomControl:true,attributionControl:true}).setView(userLoc||[40.7186,-73.9865],15);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
       maxZoom:19,
       attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a>'
@@ -770,17 +850,22 @@ function MapTab({evts,userLoc,CATS,onOpen}){
       const pts=evts.map(e=>safeCoord(e));
       if(userLoc)pts.push(userLoc);
       if(pts.length>1){
-        try{m.fitBounds(pts,{padding:[40,40],maxZoom:15});}catch{}
+        try{m.fitBounds(pts,{padding:[60,60],maxZoom:16});}catch{}
       }
     }
   },[ready,evts,userLoc,CATS]);
 
   return (
     <div>
-      <div style={{padding:"8px 16px",background:WHITE,borderBottom:"1px solid "+GRAY_LT,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:800,color:INK}}>Happening today</div>
-          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>{evts.length+" event"+(evts.length===1?"":"s")+" near you"}</div>
+      <div style={{padding:"8px 12px",background:WHITE,borderBottom:"1px solid "+GRAY_LT}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:800,color:INK}}>{({today:"Happening today",tomorrow:"Tomorrow",week:"Next 7 days",all:"All upcoming"})[tf]}</div>
+          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>{evts.length+" event"+(evts.length===1?"":"s")}</div>
+        </div>
+        <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none"}}>
+          {[["today","Today"],["tomorrow","Tomorrow"],["week","This week"],["all","All"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setTf(k)} style={{padding:"4px 11px",borderRadius:14,background:tf===k?TEAL:"none",border:"1.5px solid "+(tf===k?TEAL:GRAY_LT),color:tf===k?WHITE:GRAY,fontSize:11,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{l}</button>
+          ))}
         </div>
       </div>
       {err
@@ -886,6 +971,7 @@ export default function App(){
   const [fv,setFv]=useState([]);
   const [fms,setFms]=useState(0);
   const [fmk,setFmk]=useState(50);
+  const [fsub,setFsub]=useState([]);
   const [fq,setFq]=useState("");
   const [sortBy,setSortBy]=useState("date");
   const [sortBy2,setSortBy2]=useState("score");
@@ -915,6 +1001,28 @@ export default function App(){
       );
     })();
   },[]);
+  // Silently refresh GPS every 5 min while the app is open
+  useEffect(()=>{
+    if(typeof navigator==="undefined"||!navigator.geolocation)return;
+    const refresh=()=>{
+      navigator.geolocation.getCurrentPosition(
+        p=>{
+          const c=[p.coords.latitude,p.coords.longitude];
+          setLoc(c);
+          setLocSt(s=>s==="denied"?s:"ok");
+          ss("gp_loc_v1",{coord:c,ts:Date.now()});
+        },
+        ()=>{},  // silent — don't change status on background failure
+        {timeout:10000,maximumAge:120000,enableHighAccuracy:false}
+      );
+    };
+    const iv=setInterval(refresh,5*60*1000); // 5 min
+    document.addEventListener("visibilitychange",()=>{
+      if(document.visibilityState==="visible")refresh();
+    });
+    return ()=>clearInterval(iv);
+  },[]);
+
   const retryGPS=()=>{
     if(!navigator.geolocation){showToast("Geolocation not supported");return;}
     setLocSt("locating");
@@ -1221,7 +1329,7 @@ const doRefresh=async()=>{
     km:kmdist(safeCoord(ev),home).toFixed(1),
   })).sort((a,b)=>b.sc-a.sc);
 
-  const has=fc.length>0||fh.length>0||fp.length>0||fd.length>0||fv.length>0||fms>0||fmk<50||(fq&&fq.length>0);
+  const has=fc.length>0||fsub.length>0||fh.length>0||fp.length>0||fd.length>0||fv.length>0||fms>0||fmk<50||(fq&&fq.length>0);
   const mf=ev=>{
     if(!evActive(ev,TODAY))return false;
     if(fq&&fq.trim()){
@@ -1234,6 +1342,7 @@ const doRefresh=async()=>{
     if(fms>0&&calcScore(ev,prof,beh,floorDay(NOW),home)<fms)return false;
     if(fv.length>0&&!fv.some(k=>matchV(ev,k)))return false;
     if(fc.length>0&&!fc.includes(ev.cat))return false;
+    if(fsub.length>0&&!fsub.includes(ev.sub))return false;
     if(fh.length>0&&!fh.includes(ev.hood))return false;
     if(fp.length>0){
       const free=(ev.price||"").toLowerCase().includes("free");
@@ -1245,7 +1354,7 @@ const doRefresh=async()=>{
     }
     return true;
   };
-  const clr=()=>{setFc([]);setFh([]);setFp([]);setFd([]);setFv([]);setFms(0);setFmk(50);setFq("");};
+  const clr=()=>{setFc([]);setFsub([]);setFh([]);setFp([]);setFd([]);setFv([]);setFms(0);setFmk(50);setFq("");};
 
   // Home filtering: if user has set any filter, apply it to ALL home carousels.
   // Also demote long-running events from "Nearby Now" / "Tonight" — a 3-month
@@ -1256,8 +1365,29 @@ const doRefresh=async()=>{
     return startsToday||rl<=7;
   };
   const hf=ev=>has?mf(ev):true; // apply user filters to home if any are set
-  const nn=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&kmdist(safeCoord(ev),home)<5));
-  const nt=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&eHour(ev.time)>=17&&kmdist(safeCoord(ev),home)<8));
+  // Nearby Now: events that cover today, fresh, near the user (<5km).
+// Custom sort: within ±2h of now (with known time) first, then distance, then score.
+const nowH=NOW.getHours()+NOW.getMinutes()/60;
+const _nnRaw=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&kmdist(safeCoord(ev),home)<5));
+const nn=_nnRaw.slice().sort((a,b)=>{
+  const ah=eHour(a.time,a.cat),bh=eHour(b.time,b.cat);
+  const aIn=hasKnownTime(a)&&Math.abs(ah-nowH)<=2?0:1;
+  const bIn=hasKnownTime(b)&&Math.abs(bh-nowH)<=2?0:1;
+  if(aIn!==bIn)return aIn-bIn;
+  const ad=parseFloat(a.km||"99"),bd=parseFloat(b.km||"99");
+  if(Math.abs(ad-bd)>0.2)return ad-bd;
+  return (b.sc||0)-(a.sc||0);
+});
+  // Starting next: events with known start times near user, starting soon,
+// but NOT already in Nearby Now (i.e., further out than ±2h or further than 5km).
+const _nnSet=new Set(nn.map(e=>e.id));
+const sn=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&hasKnownTime(ev)&&kmdist(safeCoord(ev),home)<8&&!_nnSet.has(ev.id)));
+// Sort by time-from-now ascending (nearest in time first), with negative (past) at the end
+sn.sort((a,b)=>{
+  const ah=eHour(a.time,a.cat)-nowH,bh=eHour(b.time,b.cat)-nowH;
+  const aF=ah<0?ah+24:ah, bF=bh<0?bh+24:bh; // wrap past times to end of day
+  return aF-bF;
+});
   const wd=sc(active.filter(ev=>hf(ev)&&matchV(ev,"weird"))).slice(0,10);
   const tw=sc(active.filter(ev=>hf(ev)&&evStart(ev)<=SUN&&evEnd(ev)>=FRI));
   const bm=sc(active.filter(ev=>hf(ev)&&evStart(ev)<=EOM)).slice(0,24);
@@ -1301,7 +1431,7 @@ const doRefresh=async()=>{
   const favList=Object.values(favs);
   const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs,sortFn:sortEvts};
   const carP=(k)=>({sortKey:carSort[k]||"score",setSortKey:v=>setCar(k,v)});
-  const fbProps={fc,setFc,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,fq,setFq,has,onClear:clr,dd,setDd};
+  const fbProps={fc,setFc,fsub,setFsub,fh,setFh,fp,setFp,fd,setFd,fv,setFv,fms,setFms,fmk,setFmk,fq,setFq,has,onClear:clr,dd,setDd};
 
   if(!ready){
     return (
@@ -1321,10 +1451,10 @@ const doRefresh=async()=>{
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <img src={LOGO} alt="Good Plans" style={{height:30,width:"auto",display:"block"}}/>
           </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:(locSt==="ok"||locSt==="cached")?TEAL:GRAY}}>{locSt==="locating"?"📍...":(locSt==="ok"||locSt==="cached")?"📍 GPS":"📍 LES"}</span>
-            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>{events.length}</span>
-            <button onClick={()=>setVm(v=>v==="cards"?"list":"cards")} style={{background:"none",border:"1.5px solid "+GRAY_LT,borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:12,color:GRAY}}>{vm==="cards"?"list":"grid"}</button>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input type="search" value={fq||""} onChange={e=>setFq(e.target.value)} placeholder="🔍" style={{width:fq?150:34,transition:"width 0.2s",padding:"5px 9px",borderRadius:14,border:"1.5px solid "+(fq?TEAL:GRAY_LT),fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none",background:fq?TEAL+"12":"none"}}/>
+            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:(locSt==="ok"||locSt==="cached")?TEAL:GRAY,whiteSpace:"nowrap"}}>{locSt==="locating"?"📍…":(locSt==="ok"||locSt==="cached")?"📍 GPS":"📍 LES"}</span>
+            <button onClick={()=>setVm(v=>v==="cards"?"list":"cards")} title={vm==="cards"?"List view":"Grid view"} style={{background:"none",border:"1.5px solid "+GRAY_LT,borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:13,color:GRAY,whiteSpace:"nowrap"}}>{vm==="cards"?"☰":"▦"}</button>
           </div>
         </div>
       </header>
@@ -1341,7 +1471,7 @@ const doRefresh=async()=>{
             <FilterBar {...fbProps}/>
             <div style={{padding:"6px 16px 0",fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>{(lastRefreshed?"🔄 "+lastRefreshed:"Sun 25 May 2026")+" · "+events.length+" events"+(lastRefreshed?"":" · 9 sources · hardcoded")}</div>
             {nn.length>0&&<Carousel title="📍 Nearby Now" sub={locSt==="ok"?"Active near your location":"Active near LES"} evts={nn} {...fp2} {...carP("nn")}/>}
-            {nt.length>0&&<Carousel title="🌙 Tonight" sub="Starting after 5pm near you" evts={nt} {...fp2} {...carP("nt")}/>}
+            {sn.length>0&&<Carousel title="⏰ Starting Next" sub="Near you with known start times" evts={sn} {...fp2} {...carP("sn")}/>}
             {wd.length>0&&<Carousel title="🤡 Something Weird" sub="Unexpected, one-of-a-kind" evts={wd} accent={CORAL} {...fp2} {...carP("wd")}/>}
             {tw.length>0&&<Carousel title="⭐ This Weekend" sub="Top picks Fri-Sun" evts={tw} {...fp2} {...carP("tw")}/>}
             {sdo.length>0&&<Carousel title="🏃 Get Moving" sub="Physical activities to do" evts={sdo} {...fp2} {...carP("sdo")}/>}
@@ -1353,19 +1483,9 @@ const doRefresh=async()=>{
         {tab==="browse"&&(
           <div>
             <FilterBar {...fbProps} cnt={filtSorted.length}/>
-            <div style={{padding:"6px 12px",background:WHITE,borderBottom:"1px solid "+GRAY_LT}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,overflowX:"auto",scrollbarWidth:"none"}}>
-                <span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:GRAY,letterSpacing:"0.5px",textTransform:"uppercase",flexShrink:0}}>Sort by</span>
-                {[["date","Date"],["score","For you"],["distance","Distance"],["price","Price"]].map(([k,l])=>(
-                  <button key={k} onClick={()=>setSortBy(k)} style={{padding:"3px 9px",borderRadius:14,background:sortBy===k?TEAL:"none",border:"1.5px solid "+(sortBy===k?TEAL:GRAY_LT),color:sortBy===k?WHITE:GRAY,fontSize:10,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{l}</button>
-                ))}
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:6,overflowX:"auto",scrollbarWidth:"none",marginTop:4}}>
-                <span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:GRAY,letterSpacing:"0.5px",textTransform:"uppercase",flexShrink:0}}>Then by</span>
-                {[["none","—"],["date","Date"],["score","For you"],["distance","Distance"],["price","Price"]].filter(([k])=>k==="none"||k!==sortBy).map(([k,l])=>(
-                  <button key={k} onClick={()=>setSortBy2(k==="none"?null:k)} style={{padding:"3px 9px",borderRadius:14,background:(sortBy2===k||(k==="none"&&!sortBy2))?TEAL+"66":"none",border:"1.5px solid "+((sortBy2===k||(k==="none"&&!sortBy2))?TEAL:GRAY_LT),color:(sortBy2===k||(k==="none"&&!sortBy2))?TEAL:GRAY,fontSize:10,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{l}</button>
-                ))}
-              </div>
+            <div style={{padding:"6px 12px",background:WHITE,borderBottom:"1px solid "+GRAY_LT,display:"flex",alignItems:"center",gap:6,overflowX:"auto",scrollbarWidth:"none"}}>
+              <span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:GRAY,letterSpacing:"0.5px",textTransform:"uppercase",flexShrink:0}}>Sort</span>
+              <BrowseSortChip primary={sortBy} secondary={sortBy2} setPrimary={setSortBy} setSecondary={setSortBy2}/>
             </div>
             {filtSorted.length===0
               ?<div style={{padding:"60px 20px",textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:GRAY}}>No events match.</div>
@@ -1435,7 +1555,7 @@ const doRefresh=async()=>{
           </div>
         )}
         {tab==="map"&&(
-          <MapTab evts={mapEvts} userLoc={home} CATS={CATS} onOpen={openModal}/>
+          <MapTab allActive={active} userLoc={home} CATS={CATS} onOpen={openModal} today={TODAY} tomorrow={TOMORROW}/>
         )}
         {tab==="saved"&&(
           <div>
