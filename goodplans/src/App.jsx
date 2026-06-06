@@ -10,7 +10,7 @@ const CATS={
   "Art & Culture":{emoji:"🎨",color:"#BE185D",bg:"#FCE7F3",sub:["Exhibition","Performance Art","Theater","Workshop","Street Art"]},
   "Film":{emoji:"🎬",color:"#1D4ED8",bg:"#EFF6FF",sub:["Outdoor Screening","Arthouse","Documentary","Film Series"]},
   "Food & Drink":{emoji:"🍽️",color:"#059669",bg:"#ECFDF5",sub:["Street Fair","Markets & Fairs","Night Market","Tasting","Pop-up","Bar Night"]},
-  "Outdoors":{emoji:"🌿",color:"#15803D",bg:"#F0FDF4",sub:["Park Event","Waterfront","Walking Tour","Garden","Parades & Celebrations"]},
+  "Outdoors":{emoji:"🌿",color:"#15803D",bg:"#F0FDF4",sub:["Park Event","Waterfront","Walking Tour","Garden","Birding","Street Fair","Parades & Celebrations"]},
   "Sports":{emoji:"⚽",color:"#0369A1",bg:"#E0F2FE",sub:["Running","Kayaking","Yoga","Cycling","Fitness","Wellness","Martial Arts","Soccer","Baseball","Basketball"]},
   "Family":{emoji:"👨‍👩‍👧",color:"#D97706",bg:"#FFFBEB",sub:["Kids","Educational","Festival","Playground"]},
   "Talk & Learn":{emoji:"🎤",color:"#0891B2",bg:"#ECFEFF",sub:["Lecture","Panel","Book Launch","Literary & Books","History Tour"]},
@@ -223,29 +223,22 @@ function calcScore(ev,prof,beh,today,home){
   const catPref=prof.categories?.[cat]??30;
   if(catPref===0)return -1; // Excluded — 0% means user hid this category
   const rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
-  const dow=today.getDay(),hr=new Date().getHours(),mo=today.getMonth();
-  const we=dow===5||dow===6||dow===0,free=(ev.price||"").toLowerCase().includes("free");
+  const free=(ev.price||"").toLowerCase().includes("free");
   const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
   const subPrefRaw=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
   if(ev.sub&&subPrefRaw===0)return -1; // Excluded — user hid this subcategory
-  // Sub-pref is nested under parent: effective = parent% × sub%
   const effectiveSubPref=(catPref/100)*subPrefRaw;
   let s=catPref*0.55+(effectiveSubPref-50)*0.12;
-  if(d<1)s+=12;else if(d<3)s+=8;else if(d<7)s+=4;else if(d>15)s-=4;
+  // Nearby (distance) — granular, the closer the better
+  if(d<0.5)s+=14;else if(d<1)s+=12;else if(d<2)s+=10;else if(d<3)s+=7;else if(d<5)s+=4;else if(d<8)s+=2;else if(d>15)s-=4;
   if(beh.viewedCats?.[cat])s+=Math.min(beh.viewedCats[cat]*1.5,5);
   if(beh.savedCats?.[cat])s+=Math.min(beh.savedCats[cat]*3,7);
   if(beh.calCats?.[cat])s+=Math.min(beh.calCats[cat]*4,8);
   s+=({1:15,2:8,3:0})[ev.tier||2]??8;
   if(rl===1)s+=20;else if(rl<=3)s+=15;else if(de<=3)s+=12;else if(de<=7)s+=8;else if(de<=14)s+=4;
   if(rl>30)s-=5;
-  if(we&&["Outdoors","Food & Drink","Sports"].includes(cat))s+=8;
-  if(we&&cat==="Music")s+=6;
-  if((hr>=17||we)&&cat==="Comedy")s+=6;
-  if(!we&&cat==="Art & Culture")s+=4;
-  if(mo>=4&&mo<=8&&cat==="Outdoors")s+=6;
   if(free)s+=8;else{const n=parseFloat((ev.price||"").replace(/[^0-9.]/g,"")||"999");if(n<10)s+=5;else if(n<20)s+=3;else if(n<35)s+=1;}
-  // Steeper multiplier — 25% pref = 0.5x, 50% = 1.0x, 100% = 2.0x (clamped)
   const mult=Math.max(0.3,Math.min(2.0,catPref/50));
   s=s*mult;
   return Math.max(0,Math.min(100,Math.round(s)));
@@ -255,41 +248,35 @@ function calcBd(ev,prof,beh,today,home){
   const cat=ev.cat||"Other";
   const catPref=prof.categories?.[cat]??30;
   const rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
-  const dow=today.getDay(),hr=new Date().getHours(),mo=today.getMonth();
-  const we=dow===5||dow===6||dow===0,free=(ev.price||"").toLowerCase().includes("free");
+  const free=(ev.price||"").toLowerCase().includes("free");
   const d=kmdist(safeCoord(ev),home);
   const subKey=cat+"::"+(ev.sub||"");
   const subPrefRaw=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
   const subHidden=ev.sub&&subPrefRaw===0;
   const effectiveSubPref=(catPref/100)*subPrefRaw;
-  let taste=catPref*0.55+(effectiveSubPref-50)*0.12,bh=0,ed=0,urg=0,ctx=0,deal=0;
-  if(d<1)taste+=12;else if(d<3)taste+=8;else if(d<7)taste+=4;else if(d>15)taste-=4;
+  let taste=catPref*0.55+(effectiveSubPref-50)*0.12,near=0,bh=0,ed=0,urg=0,deal=0;
+  if(d<0.5)near=14;else if(d<1)near=12;else if(d<2)near=10;else if(d<3)near=7;else if(d<5)near=4;else if(d<8)near=2;else if(d>15)near=-4;
   if(beh.viewedCats?.[cat])bh+=Math.min(beh.viewedCats[cat]*1.5,5);
   if(beh.savedCats?.[cat])bh+=Math.min(beh.savedCats[cat]*3,7);
   if(beh.calCats?.[cat])bh+=Math.min(beh.calCats[cat]*4,8);
   ed=({1:15,2:8,3:0})[ev.tier||2]??8;
   if(rl===1)urg=20;else if(rl<=3)urg=15;else if(de<=3)urg=12;else if(de<=7)urg=8;else if(de<=14)urg=4;
   if(rl>30)urg=Math.max(0,urg-5);
-  if(we&&["Outdoors","Food & Drink","Sports"].includes(cat))ctx+=8;
-  if(we&&cat==="Music")ctx+=6;
-  if((hr>=17||we)&&cat==="Comedy")ctx+=6;
-  if(!we&&cat==="Art & Culture")ctx+=4;
-  if(mo>=4&&mo<=8&&cat==="Outdoors")ctx+=6;
   if(free)deal=8;else{const n=parseFloat((ev.price||"").replace(/[^0-9.]/g,"")||"999");if(n<10)deal=5;else if(n<20)deal=3;else if(n<35)deal=1;}
   const mult=(catPref===0||subHidden)?0:Math.max(0.3,Math.min(2.0,catPref/50));
-  const total=(catPref===0||subHidden)?0:Math.max(0,Math.min(100,Math.round((taste+bh+ed+urg+ctx+deal)*mult)));
+  const total=(catPref===0||subHidden)?0:Math.max(0,Math.min(100,Math.round((taste+near+bh+ed+urg+deal)*mult)));
   const why=[];
   if(catPref===0)why.push("Hidden — "+cat+" set to 0%");
   else if(subHidden)why.push("Hidden — "+ev.sub+" set to 0%");
   else{
     if(taste>12)why.push("Matches your "+cat+" taste");
-    if(d<2)why.push("Very close ("+d.toFixed(1)+"km)");else if(d<5)why.push("Nearby ("+d.toFixed(1)+"km)");
+    if(d<1)why.push("Very close ("+d.toFixed(1)+"km)");else if(d<3)why.push("Nearby ("+d.toFixed(1)+"km)");else if(d<5)why.push("A short hop ("+d.toFixed(1)+"km)");
     if(ev.tier===1)why.push("Top source pick");
     if(rl===1)why.push("One night only");else if(rl<=3)why.push("Short run");else if(de<=7)why.push("Ending soon");
     if(free)why.push("Free admission");
     if(catPref<50)why.push("Demoted — "+cat+" at "+catPref+"% ("+mult.toFixed(1)+"×)");
   }
-  return{taste:Math.round(taste*mult),bh:Math.round(bh*mult),ed:Math.round(ed*mult),urg:Math.round(urg*mult),ctx:Math.round(ctx*mult),deal:Math.round(deal*mult),total,why,d:d.toFixed(1),mult};
+  return{taste:Math.round(taste*mult),near:Math.round(near*mult),bh:Math.round(bh*mult),ed:Math.round(ed*mult),urg:Math.round(urg*mult),deal:Math.round(deal*mult),total,why,d:d.toFixed(1),mult};
 }
 
 function matchV(ev,vk){
@@ -400,7 +387,7 @@ function Smiley({size,color}){
 }
 
 function ScorePop({data,onClose}){
-  const rows=[["Taste",data.taste,26],["Behaviour",data.bh,15],["Editorial",data.ed,15],["Urgency",data.urg,20],["Context",data.ctx,10],["Deal",data.deal,14]];
+  const rows=[["Taste",data.taste,26],["Nearby",data.near,14],["Behaviour",data.bh,15],["Editorial",data.ed,15],["Urgency",data.urg,20],["Deal",data.deal,14]];
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:5100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
       <div style={{background:WHITE,borderRadius:20,padding:20,width:"100%",maxWidth:340}} onClick={e=>e.stopPropagation()}>
