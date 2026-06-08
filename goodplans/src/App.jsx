@@ -629,9 +629,20 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,fa
           ? <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>🏙️ Various locations</div>
           : <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.venue}</div>
         }
-        {!imprecise&&(()=>{const stops=ev.coord?nearestSubways(ev.coord,0.5):[];if(!stops.length)return null;const lines=stops[0].l.slice(0,3);return(<div style={{display:"flex",gap:2,marginTop:2,alignItems:"center"}}>{lines.map(line=><span key={line} style={{width:13,height:13,borderRadius:"50%",background:LINE_COLOR[line]||"#888",color:["N","Q","R","W"].includes(line)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{line}</span>)}<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:2}}>{Math.round(stops[0].d*1000)+"m"}</span></div>);})()}
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>{fd}{ts?" - "+ts:""}</div>
-        {!imprecise&&ev.bd?.tt&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginTop:1}}>{ev.bd.tt.mode==="transit"?"🚇":"🚶"}{" ~"+ev.bd.tt.mins+" min"}{ev.bd.tt.line?<span style={{marginLeft:3,background:LINE_COLOR[ev.bd.tt.line]||"#888",color:["N","Q","R","W"].includes(ev.bd.tt.line)?"#111":"#fff",borderRadius:10,padding:"0 4px",fontSize:8,fontWeight:800}}>{ev.bd.tt.line}</span>:null}{ev.src?" · "+ev.src:""}</div>}
+        {!imprecise&&ev.bd?.tt&&(()=>{
+          const tt=ev.bd.tt;
+          // Show all lines at the destination station (max 5) instead of just the line for this trip
+          const stops=ev.coord?nearestSubways(ev.coord,0.5):[];
+          const allLines=stops.length?stops[0].l.slice(0,5):(tt.line?[tt.line]:[]);
+          return (
+            <div style={{display:"flex",gap:2,marginTop:1,alignItems:"center",flexWrap:"wrap"}}>
+              <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY}}>{tt.mode==="transit"?"🚇":"🚶"}{" ~"+tt.mins+" min"}</span>
+              {allLines.map(line=><span key={line} style={{marginLeft:2,width:13,height:13,borderRadius:"50%",background:LINE_COLOR[line]||"#888",color:["N","Q","R","W"].includes(line)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{line}</span>)}
+              {ev.src&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:4}}>· {ev.src}</span>}
+            </div>
+          );
+        })()}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:7,paddingTop:6,borderTop:"1px solid "+GRAY_LT}}>
           <div style={{display:"flex",gap:5,alignItems:"center"}}>
             <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:free?"#059669":INK}}>{(()=>{const p=ev.price||"Free";if(/see website|see site|varies/i.test(p))return"🎫 Check site";return p;})()}</span>
@@ -1292,7 +1303,11 @@ export default function App(){
   const [busySlots,setBusySlots]=useState([]);   // {date, startH, endH} from calendar
   const [calStatus,setCalStatus]=useState("idle"); // idle | checking | ok | unauth | error
   const [calCheckedAt,setCalCheckedAt]=useState(null);
+  const [calList,setCalList]=useState([]);        // [{id,name,isDefault,isOwned}]
+  const [calId,setCalId]=useState("");            // selected calendar ID (empty = default)
+  const [calName,setCalName]=useState("");        // selected calendar name for UI
   const [calSyncing,setCalSyncing]=useState(false);
+  const [pushStatus,setPushStatus]=useState(null); // {subscriptions, relayConfigured, ...} or null
   const [events,setEvents]=useState(EV);
   const [lastRefreshed,setLastRefreshed]=useState(null);
   const [refreshing,setRefreshing]=useState(false);
@@ -1402,7 +1417,7 @@ export default function App(){
 
   useEffect(()=>{
     (async()=>{
-      const [pr,fv2,bh,evStore,gm,nt0,prior]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1"),sg("gp_prior_v1")]);
+      const [pr,fv2,bh,evStore,gm,nt0,prior,calPref]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1"),sg("gp_prior_v1"),sg("gp_cal_v1")]);
       if(nt0)setNotif(n=>({...n,...nt0,windows:nt0.windows||n.windows}));
 
       if(pr){setProf({...DP,...pr,categories:{...DP.categories,...(pr.categories||{})},vibes:{...DP.vibes,...(pr.vibes||{})},subcategories:{...DEFAULT_SUBS,...DP.subcategories,...(pr.subcategories||{})}});}
@@ -1423,15 +1438,20 @@ export default function App(){
         const url=gm.url||gmailUrl, key=gm.key||gmailKey;
         if(gm.url)setGmailUrl(gm.url);
         if(gm.key)setGmailKey(gm.key);
+        const savedCalId=calPref?.id||"";
+        if(savedCalId)setCalId(savedCalId);
+        if(calPref?.name)setCalName(calPref.name);
         // Auto-fetch calendar busy slots silently on load — dims conflicting events
         setCalStatus("checking");
-        fetch(url+"?action=busyDays&key="+encodeURIComponent(key))
+        const calParam=savedCalId?"&calendarId="+encodeURIComponent(savedCalId):"";
+        fetch(url+"?action=busyDays&key="+encodeURIComponent(key)+calParam)
           .then(r=>r.json())
           .then(data=>{
             if(data.busySlots){
               setBusySlots(data.busySlots);
               setCalStatus("ok");
               setCalCheckedAt(Date.now());
+              if(data.calendarName)setCalName(data.calendarName);
             }else if(data.error&&/not authorized|Calendar/i.test(data.error)){
               setCalStatus("unauth");
             }else{
@@ -1716,28 +1736,66 @@ export default function App(){
     return texts||toolResults;
   };
 
-const refreshCalendar=async()=>{
+const checkPushStatus=async()=>{
+  if(!gmailUrl)return;
+  try{
+    const r=await fetch(gmailUrl+"?action=pushStatus&key="+encodeURIComponent(gmailKey));
+    if(!r.ok){setPushStatus({error:"HTTP "+r.status});return;}
+    const data=await r.json();
+    setPushStatus(data);
+  }catch(e){setPushStatus({error:e.message});}
+};
+
+const refreshCalendar=async(overrideId)=>{
   if(!gmailUrl){showToast("Set your Apps Script URL first");return;}
   setCalStatus("checking");
+  const idToUse=overrideId!==undefined?overrideId:calId;
+  const calParam=idToUse?"&calendarId="+encodeURIComponent(idToUse):"";
   try{
-    const r=await fetch(gmailUrl+"?action=busyDays&key="+encodeURIComponent(gmailKey));
+    const r=await fetch(gmailUrl+"?action=busyDays&key="+encodeURIComponent(gmailKey)+calParam);
+    if(!r.ok){setCalStatus("error");showToast("Apps Script returned "+r.status+" — redeploy as new version (see help below)");return;}
     const data=await r.json();
     if(data.busySlots){
       setBusySlots(data.busySlots);
       setCalStatus("ok");
       setCalCheckedAt(Date.now());
-      showToast("✓ "+data.busySlots.length+" busy slot"+(data.busySlots.length===1?"":"s")+" found");
+      if(data.calendarName)setCalName(data.calendarName);
+      showToast("✓ "+data.busySlots.length+" busy slot"+(data.busySlots.length===1?"":"s")+" from "+(data.calendarName||"your calendar"));
     }else if(data.error&&/not authorized|Calendar/i.test(data.error)){
       setCalStatus("unauth");
       showToast("Calendar not authorized — see instructions below");
+    }else if(data.error&&/Unauthorized/i.test(data.error)){
+      setCalStatus("error");
+      showToast("Apps Script key wrong — check Sync tab");
+    }else if(data.busySlots===undefined&&data.calendars===undefined){
+      // Action didn't reach the handler — old deployed snapshot
+      setCalStatus("error");
+      showToast("Apps Script web app needs to be redeployed (see help below)");
     }else{
       setCalStatus("error");
       showToast(data.error||"Calendar check failed");
     }
   }catch(e){
     setCalStatus("error");
-    showToast("Could not reach Apps Script");
+    showToast("Could not reach Apps Script — "+e.message);
   }
+};
+
+const loadCalendarList=async()=>{
+  if(!gmailUrl)return;
+  try{
+    const r=await fetch(gmailUrl+"?action=listCalendars&key="+encodeURIComponent(gmailKey));
+    if(!r.ok)return;
+    const data=await r.json();
+    if(data.calendars){
+      setCalList(data.calendars);
+      // If no explicit choice yet, surface the default name
+      if(!calId&&!calName){
+        const def=data.calendars.find(c=>c.isDefault);
+        if(def)setCalName(def.name);
+      }
+    }
+  }catch(e){/* silent */}
 };
 
 const doRefresh=async()=>{
@@ -2089,7 +2147,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
         {tab==="profile"&&(
           <div style={{paddingBottom:60}}>
             <div style={{display:"flex",borderBottom:"1.5px solid "+GRAY_LT}}>
-              {[["prefs","Preferences"],["priorities","Priorities ✨"],["activity","Activity"],["sync","Sync"]].map(([t,l])=>(
+              {[["prefs","Preferences"],["priorities","Priorities"],["activity","Activity"],["sync","Sync"]].map(([t,l])=>(
                 <button key={t} onClick={()=>setProfTab(t)} style={{flex:1,padding:"12px 8px",background:"none",border:"none",color:profTab===t?TEAL:GRAY,borderBottom:"2.5px solid "+(profTab===t?TEAL:"transparent"),cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,textTransform:"uppercase"}}>{l}</button>
               ))}
             </div>
@@ -2210,7 +2268,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
             )}
             {profTab==="priorities"&&(
               <div style={{padding:16}}>
-                <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:800,color:INK,marginBottom:4}}>My Priorities ✨</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:800,color:INK,marginBottom:4}}>My Priorities</div>
                 <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:GRAY,marginBottom:14,lineHeight:1.5}}>Tell us what you're into — in plain language. Claude will use this to boost relevant events throughout the app, including ratings, sorting, and notifications.</div>
                 <textarea
                   value={priorities}
@@ -2348,33 +2406,106 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                     <span style={{fontSize:20}}>{calStatus==="ok"?"✅":calStatus==="unauth"?"🔒":calStatus==="error"?"⚠️":calStatus==="checking"?"⏳":"📅"}</span>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>
-                        {calStatus==="ok"?"Connected":calStatus==="unauth"?"Authorization needed":calStatus==="error"?"Can't reach Apps Script":calStatus==="checking"?"Checking…":"Not yet checked"}
+                        {calStatus==="ok"?"Connected"+(calName?" — "+calName:""):calStatus==="unauth"?"Authorization needed":calStatus==="error"?"Apps Script not reachable":calStatus==="checking"?"Checking…":"Not yet checked"}
                       </div>
                       <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,lineHeight:1.4}}>
-                        {calStatus==="ok"?busySlots.length+" busy slot"+(busySlots.length===1?"":"s")+" detected — events on those times appear dimmed":
+                        {calStatus==="ok"?busySlots.length+" busy slot"+(busySlots.length===1?"":"s")+" — events at those times appear dimmed":
                          calStatus==="unauth"?"One-time setup needed in Apps Script editor":
-                         calStatus==="error"?"Could not connect — check your Apps Script URL above":
+                         calStatus==="error"?"Your Apps Script is reachable for events but not for calendar — usually means the web app deployment needs updating":
                          "Will auto-detect time conflicts when connected"}
                       </div>
                     </div>
-                    <button onClick={refreshCalendar} disabled={calStatus==="checking"||!gmailUrl} style={{padding:"6px 10px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:calStatus==="checking"?"not-allowed":"pointer",opacity:calStatus==="checking"?0.6:1,flexShrink:0}}>
+                    <button onClick={()=>refreshCalendar()} disabled={calStatus==="checking"||!gmailUrl} style={{padding:"6px 10px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:calStatus==="checking"?"not-allowed":"pointer",opacity:calStatus==="checking"?0.6:1,flexShrink:0}}>
                       {calStatus==="checking"?"…":"↻ Recheck"}
                     </button>
                   </div>
+                  {/* Calendar picker — shown when we have a list of calendars */}
+                  {calStatus==="ok"&&(
+                    <div style={{marginTop:8,marginBottom:8}}>
+                      {calList.length===0?(
+                        <button onClick={loadCalendarList} style={{background:"none",border:"1px solid "+GRAY_LT,borderRadius:8,padding:"6px 12px",fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:TEAL,cursor:"pointer"}}>
+                          + Choose a different calendar
+                        </button>
+                      ):(
+                        <div>
+                          <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>Which calendar to check</div>
+                          <select value={calId} onChange={async e=>{
+                            const newId=e.target.value;
+                            const chosen=calList.find(c=>c.id===newId);
+                            setCalId(newId);
+                            if(chosen)setCalName(chosen.name);
+                            await ss("gp_cal_v1",{id:newId,name:chosen?.name||""});
+                            refreshCalendar(newId);
+                          }} style={{width:"100%",padding:"8px 10px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,boxSizing:"border-box",background:WHITE}}>
+                            <option value="">Default ({calList.find(c=>c.isDefault)?.name||"primary"})</option>
+                            {calList.filter(c=>!c.isDefault).map(c=>(
+                              <option key={c.id} value={c.id}>{c.name}{c.isOwned?"":" (shared)"}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {calStatus==="unauth"&&(
                     <div style={{background:CREAM,borderRadius:8,padding:"10px 12px",marginTop:8}}>
-                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>How to authorize (one-time, ~30 seconds):</div>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>How to authorize (one-time, ~30s):</div>
                       <ol style={{margin:0,paddingLeft:18,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.6}}>
-                        <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a> in a new tab</li>
+                        <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a></li>
                         <li>Open the Good Plans script project</li>
                         <li>In the function dropdown at top, select <code style={{background:GRAY_LT,padding:"1px 5px",borderRadius:3,fontFamily:"monospace"}}>testCalendar</code></li>
                         <li>Click <b>Run</b> — Google will pop up "This app needs access to your Calendar" → click <b>Allow</b></li>
-                        <li>Come back here and tap <b>↻ Recheck</b> above</li>
+                        <li>Tap <b>↻ Recheck</b> above</li>
+                      </ol>
+                    </div>
+                  )}
+                  {calStatus==="error"&&(
+                    <div style={{background:CREAM,borderRadius:8,padding:"10px 12px",marginTop:8}}>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>This usually means: the deployed web app version is stale</div>
+                      <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.6,marginBottom:6}}>
+                        Apps Script doesn't auto-update the deployed snapshot when you save. To refresh:
+                      </div>
+                      <ol style={{margin:0,paddingLeft:18,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.6}}>
+                        <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a> → your project</li>
+                        <li>Click <b>Deploy</b> (top right) → <b>Manage deployments</b></li>
+                        <li>Click the <b>✏️</b> pencil icon on the existing "Web app" deployment</li>
+                        <li>Change <b>Version</b> to <b>New version</b> → click <b>Deploy</b></li>
+                        <li>URL stays the same. Tap <b>↻ Recheck</b> above</li>
                       </ol>
                     </div>
                   )}
                   {calStatus==="ok"&&calCheckedAt&&(
                     <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>Last checked {new Date(calCheckedAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+                  )}
+                </div>
+                {/* ── Push notifications diagnostics ─────────────────────────── */}
+                <div style={{background:WHITE,borderRadius:12,padding:"14px 14px",marginBottom:14,border:"1.5px solid "+GRAY_LT}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase"}}>Background push</div>
+                    <button onClick={checkPushStatus} disabled={!gmailUrl} style={{padding:"4px 10px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,cursor:"pointer"}}>Check status</button>
+                  </div>
+                  {pushStatus===null?(
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>Tap "Check status" to see if push notifications are wired up correctly.</div>
+                  ):pushStatus.error?(
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:CORAL}}>Error: {pushStatus.error}</div>
+                  ):(
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.7}}>
+                      <div>{pushStatus.subscriptions>0?"✅":"❌"} <b>Subscriptions stored:</b> {pushStatus.subscriptions}</div>
+                      <div>{pushStatus.relayConfigured?"✅":"❌"} <b>Relay URL set:</b> {pushStatus.relayUrl||"not set"}</div>
+                      <div>{pushStatus.secretConfigured?"✅":"❌"} <b>Push secret set</b></div>
+                      <div>{pushStatus.hourlyTriggerActive?"✅":"❌"} <b>Hourly trigger active</b></div>
+                      {pushStatus.lastFired&&<div style={{marginTop:6,color:GRAY}}>Last fired: {new Date(pushStatus.lastFired).toLocaleString()}</div>}
+                      {pushStatus.lastResult&&<div style={{color:GRAY,marginTop:2}}>Result: {pushStatus.lastResult}</div>}
+                      {pushStatus.subscriptions===0&&(
+                        <div style={{marginTop:8,background:CREAM,borderRadius:8,padding:"8px 10px",fontSize:11,color:INK,lineHeight:1.5}}>
+                          Your phone hasn't registered a push subscription yet. Go to Profile → Preferences → tap <b>Turn off</b> then <b>Turn on</b> notifications. That re-runs the subscription registration.
+                        </div>
+                      )}
+                      {!pushStatus.hourlyTriggerActive&&pushStatus.subscriptions>0&&(
+                        <div style={{marginTop:8,background:CREAM,borderRadius:8,padding:"8px 10px",fontSize:11,color:INK,lineHeight:1.5}}>
+                          The hourly trigger isn't installed. Open Apps Script editor → function dropdown → <code style={{background:GRAY_LT,padding:"1px 4px",borderRadius:3}}>setupPushTrigger</code> → Run.
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 {refreshLog.length>0&&(
