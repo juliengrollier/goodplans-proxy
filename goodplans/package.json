@@ -16,4 +16,9 @@
     "vite": "^5.4.11",
     "vite-plugin-pwa": "^0.21.1"
   }
+},
+{
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
 }
