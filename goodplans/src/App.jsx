@@ -73,9 +73,10 @@ function urlBase64ToUint8Array(base64String){
 async function getSWRegistration(){
   if(!("serviceWorker" in navigator))return null;
   try{
-    // Service worker file lives in the same directory as the app
-    const swUrl=window.location.pathname.replace(/\/[^/]*$/,"/")+"/sw.js";
-    return await navigator.serviceWorker.register(swUrl,{scope:window.location.pathname.replace(/\/[^/]*$/,"/")+"/",updateViaCache:"none"});
+    // sw.js lives at the root of the Vite public/ folder → always /sw.js
+    const existing=await navigator.serviceWorker.getRegistration("/");
+    if(existing)return existing;
+    return await navigator.serviceWorker.register("/sw.js",{scope:"/",updateViaCache:"none"});
   }catch(e){console.warn("SW register failed:",e);return null;}
 }
 
@@ -1581,29 +1582,38 @@ export default function App(){
       showToast(isIOS?"Add Good Plans to Home Screen first":"Notifications not supported");
       return;
     }
-    if(Notification.permission==="denied"){showToast("Permission blocked — enable in browser Settings");return;}
-    const r=Notification.permission==="granted"?"granted":await Notification.requestPermission();
-    if(r!=="granted"){showToast("Permission denied");return;}
-    // Register service worker and Web Push subscription for background notifications
+    const perm=Notification.permission;
+    if(perm==="denied"){
+      showToast("Blocked — tap 🔒 in address bar → Site settings → Notifications → Allow, then reload");
+      return;
+    }
+    let r=perm;
+    if(perm!=="granted"){
+      r=await Notification.requestPermission();
+      if(r!=="granted"){
+        // Chrome's Quieter Notifications can block without showing any dialog
+        showToast("Chrome blocked it silently — Chrome Settings → Site settings → Notifications → find this site → Allow");
+        return;
+      }
+    }
+    // Permission granted — register SW and subscribe to push
     const reg=await getSWRegistration();
     if(reg&&VAPID_PUBLIC_KEY){
       const sub=await subscribePush(reg);
       if(sub){
         await registerSubWithAppsScript(gmailUrl,gmailKey,sub);
-        showToast("Notifications enabled (background push active)");
+        showToast("✓ Push notifications active (background alerts enabled)");
       }else{
-        showToast("Notifications enabled (in-app only — open app for alerts)");
+        showToast("✓ Notifications on (push sub failed — in-app only)");
       }
     }else{
-      showToast("Notifications enabled (in-app alerts when app is open)");
+      showToast("✓ Notifications on"+(reg?"":" — no SW, in-app alerts only"));
     }
     const next={...notif,enabled:true};
     setNotif(next);ss("gp_notif_v1",next);
-    // Listen for push-driven navigation from the service worker
     if(reg){
       navigator.serviceWorker.addEventListener("message",e=>{
         if(e.data?.type==="PUSH_NAV"&&e.data.url){
-          // Navigate to the specific event if there's an ?event=ID in the URL
           try{const u=new URL(e.data.url,window.location.origin);const id=u.searchParams.get("event");if(id){const ev=events.find(x=>x.id===id);if(ev)openModal(ev);}}catch{}
         }
       });
@@ -2062,6 +2072,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>{notifEnabled?"Notifications enabled":"Notifications off"}</div>
                       <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,lineHeight:1.4}}>{notifEnabled?"Alerts before saved & top-rated events":"Get notified before events start"}</div>
+                      {typeof Notification!=="undefined"&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY,marginTop:1}}>Browser: {Notification.permission}</div>}
                     </div>
                     <button onClick={notifEnabled?disableNotif:requestNotifPermission} style={{padding:"6px 10px",background:notifEnabled?CORAL:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>{notifEnabled?"Turn off":"Turn on"}</button>
                   </div>
