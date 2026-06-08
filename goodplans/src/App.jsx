@@ -35,7 +35,7 @@ const VIBES=[
   {key:"free",label:"Free Afternoon",emoji:"🌤️",desc:"Daytime, spontaneous, free"},
   {key:"late",label:"After Dark",emoji:"🌃",desc:"Starts after 9pm"},
   {key:"move",label:"Get Moving",emoji:"🏃",desc:"Do something physical"},
-  {key:"watch",label:"Watch the Game",emoji:"👟",desc:"Spectate live sport"},
+  {key:"watch",label:"Watch the Game",emoji:"👟",desc:"Spectate live sports"},
 ];
 
 const DP={
