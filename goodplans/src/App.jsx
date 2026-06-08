@@ -53,6 +53,55 @@ const DP={
 };
 
 const SK_P="gp_prefs_v5",SK_F="gp_favs_v3",SK_B="gp_beh_v3";
+
+// ─── Web Push ────────────────────────────────────────────────────────────────
+// VAPID public key — generated once, matches the VAPID_PUBLIC_KEY in Vercel env vars.
+// This key is intentionally public and safe to commit.
+// TODO: paste your generated public key here after running:
+//   npx web-push generate-vapid-keys
+const VAPID_PUBLIC_KEY = "BCTlVGd0u-gFI7sHMIDxRUo9YcCrvLn5FL8oyZI_4-8GxC8fXoY3vzY7ma6tVcoOEs4PlR1h91mC9-vneve5YDU";
+
+// Convert VAPID public key from base64url to Uint8Array for the browser API
+function urlBase64ToUint8Array(base64String){
+  const padding="=".repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  const raw=atob(base64);
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+
+// Register the service worker and return the registration
+async function getSWRegistration(){
+  if(!("serviceWorker" in navigator))return null;
+  try{
+    // Service worker file lives in the same directory as the app
+    const swUrl=window.location.pathname.replace(/\/[^/]*$/,"/")+"/sw.js";
+    return await navigator.serviceWorker.register(swUrl,{scope:window.location.pathname.replace(/\/[^/]*$/,"/")+"/",updateViaCache:"none"});
+  }catch(e){console.warn("SW register failed:",e);return null;}
+}
+
+// Subscribe this device to Web Push. Returns the subscription object or null.
+async function subscribePush(reg){
+  if(!VAPID_PUBLIC_KEY)return null;
+  try{
+    const sub=await reg.pushManager.subscribe({
+      userVisibleOnly:true,
+      applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    return sub.toJSON();
+  }catch(e){console.warn("Push subscribe failed:",e);return null;}
+}
+
+// Send subscription to Apps Script for storage + future pushes
+async function registerSubWithAppsScript(gmailUrl,gmailKey,sub){
+  if(!gmailUrl||!sub)return;
+  try{
+    await fetch(gmailUrl+"?action=registerPush&key="+encodeURIComponent(gmailKey),{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({subscription:sub}),
+    });
+  }catch(e){console.warn("Push registration to Apps Script failed:",e);}
+}
 const DEFAULT_SUBS=Object.fromEntries(Object.entries(CATS).flatMap(([cat,cfg])=>cfg.sub.map(s=>[cat+"::"+s,50])));
 const sg=async(k)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):null;}catch{return null;}};
 const ss=async(k,v)=>{try{if(v===null||v===undefined)localStorage.removeItem(k);else localStorage.setItem(k,JSON.stringify(v));}catch{}};
@@ -217,62 +266,182 @@ const nearestSubways=(coord,maxKm)=>{
   return out.sort((a,b)=>a.d-b.d).slice(0,2);
 };
 
+// Estimate travel time (minutes) from home to a coord using walking + subway heuristic.
+// Returns { mins, mode:'walk'|'transit', line:string|null }
+// Uses the hardcoded SUBWAY stations — no external API, works offline.
+function transitTime(home,coord){
+  const d=kmdist(home,coord);
+  // Very close — walk only
+  if(d<0.55)return{mins:Math.max(1,Math.round(d*14)),mode:"walk",line:null};
+  // Find nearest subway within 0.65km of each point
+  const uStops=nearestSubways(home,0.65);
+  const eStops=nearestSubways(coord,0.65);
+  if(!uStops.length||!eStops.length){
+    // No subway nearby — walking all the way (capped at 60 min)
+    return{mins:Math.min(60,Math.round(d*14)),mode:"walk",line:null};
+  }
+  const uS=uStops[0], eS=eStops[0];
+  // Same station — just walk from there
+  if(uS.n===eS.n)return{mins:Math.round(uS.d*14+eS.d*14),mode:"walk",line:null};
+  // Check shared line (direct ride vs transfer)
+  const shared=uS.l.find(l=>eS.l.includes(l))||null;
+  const transferPenalty=shared?0:5;
+  // Subway ride: crow-flies × 1.35 routing factor at avg 27 km/h NYC subway speed
+  const rideMins=kmdist(uS.c,eS.c)*1.35*(60/27);
+  const waitMins=2.5; // avg wait at station
+  const walkToMins=uS.d*14;
+  const walkFromMins=eS.d*14;
+  const totalMins=Math.round(walkToMins+waitMins+rideMins+transferPenalty+walkFromMins);
+  // If walking would be faster (e.g., just 2 stops away but stations are far), walk
+  const walkMins=Math.round(d*14);
+  if(walkMins<=totalMins&&d<1.5)return{mins:walkMins,mode:"walk",line:null};
+  return{mins:Math.max(3,totalMins),mode:"transit",line:shared};
+}
 
-// Single source of truth for scoring. Returns component breakdown (raw, each
-// clamped to its own max so the UI never shows e.g. 37/26), plus the multiplier
+
+// Compute a priority bonus (−15 to +20) based on a parsed priorityProfile.
+// pp comes from the user's natural-language priorities → Claude parse.
+// This is a transparent bonus: visible as its own row in the score breakdown.
+function calcPriority(ev,pp,today){
+  if(!pp)return 0;
+  let b=0;
+  const cat=ev.cat||"Other",sub=ev.sub||"";
+  const text=((ev.title||"")+" "+(ev.desc||"")).toLowerCase();
+  const free=(ev.price||"").toLowerCase().includes("free");
+  const dow=new Date().getDay(),hr=new Date().getHours();
+  const isWeekend=dow===0||dow===6||dow===5;
+  // Category matches
+  if((pp.favCats||[]).includes(cat))b+=10;
+  if((pp.avoidCats||[]).includes(cat))b-=10;
+  // Subcategory matches
+  if(sub&&(pp.favSubcats||[]).includes(sub))b+=8;
+  // Keyword hits in title/desc
+  const hits=(pp.keywords||[]).filter(k=>text.includes(k.toLowerCase())).length;
+  b+=Math.min(8,hits*3);
+  // Free bonus
+  if(pp.freeBonus&&free)b+=5;
+  // Context boosts
+  if(isWeekend&&(pp.weekendBoost||[]).includes(cat))b+=5;
+  if(hr>=17&&(pp.eveningBoost||[]).includes(cat))b+=4;
+  // Advance booking window: boost ticketed events exactly in the user's stated window
+  if(pp.advanceBooking&&ev.ticket&&today){
+    const daysAway=Math.round((evStart(ev)-today)/86400000);
+    const{minDays=4,maxDays=10}=pp.advanceBooking;
+    if(daysAway>=minDays&&daysAway<=maxDays)b+=14; // strong signal — exactly what they asked for
+  }
+  return Math.max(-15,Math.min(20,Math.round(b)));
+}
+// Check whether a Good Plans event's time slot overlaps with a calendar busy slot.
+// Only fires when the event has a specific known time (not "All day").
+// Multi-day runs are never dimmed — being busy one evening doesn't block a whole festival.
+// Assumes a ~2.5h default duration for Good Plans events (typical for NYC events).
+function isEventBusy(ev, busySlots){
+  if(!busySlots||!busySlots.length)return false;
+  if(!ev.E||!ev.time||ev.time==="All day"||ev.time==="Various")return false;
+  if(ev.X&&ev.X!==ev.E)return false; // multi-day run — never dim
+  const evStart=eHour(ev.time,ev.cat);
+  const evEnd=evStart+2.5; // assume ~2.5h
+  return busySlots.some(slot=>{
+    if(slot.date!==ev.E)return false;
+    // Overlap: ev starts before slot ends AND ev ends after slot starts
+    return evStart<slot.endH&&evEnd>slot.startH;
+  });
+}
+// Returns true if the event is a meaningful match.
+function matchesInterest(ev, interest){
+  if(!interest)return false;
+  const text=((ev.title||"")+" "+(ev.desc||"")).toLowerCase();
+  const catMatch=(interest.favCats||[]).includes(ev.cat);
+  const subMatch=ev.sub&&(interest.favSubcats||[]).includes(ev.sub);
+  const kwHits=(interest.keywords||[]).filter(k=>text.includes(k.toLowerCase())).length;
+  // Time filter: exclude events outside the stated preference
+  const h=eHour(ev.time,ev.cat),dow=new Date().getDay();
+  const isWeekend=dow===0||dow===5||dow===6;
+  if(interest.timeFilter==="daytime"&&h>=18)return false;
+  if(interest.timeFilter==="evening"&&h<17)return false;
+  if(interest.timeFilter==="weekend"&&!isWeekend)return false;
+  // Must have at least a category match OR a sub match OR 2+ keyword hits
+  return catMatch||subMatch||kwHits>=2;
+}
+
+// Compute how similar a new event is to something the user already saved.
+// Returns {score, matchedTitle} — score 0-12; 7+ is worth flagging.
+function similarToSaved(ev, favs){
+  const saved=Object.values(favs||{});
+  if(!saved.length)return{score:0,matchedTitle:null};
+  let best=0,matchedTitle=null;
+  for(const s of saved){
+    let sim=0;
+    if(s.cat===ev.cat)sim+=3;
+    if(s.sub&&s.sub===ev.sub)sim+=4;
+    // Keyword overlap in titles (meaningful words >3 chars)
+    const evW=(ev.title||"").toLowerCase().split(/\s+/).filter(w=>w.length>3);
+    const sW =(s.title ||"").toLowerCase().split(/\s+/).filter(w=>w.length>3);
+    sim+=Math.min(5,evW.filter(w=>sW.includes(w)).length*2);
+    if(sim>best){best=sim;matchedTitle=s.title;}
+  }
+  return{score:best,matchedTitle};
+}
 // applied to the TOTAL only, and the final 0-100 total.
-// Component maxes: Taste 42, Nearby 15, Behaviour 15, Editorial 15, Urgency 20.
-function calcBd(ev,prof,beh,today,home){
+// Component maxes: Taste 50, Nearby 15, Behaviour 15, Quality 15, Urgency 20.
+// "Nearby" uses estimated travel time (walking or subway), not raw distance.
+function calcBd(ev,prof,beh,today,home,pp){
   const cat=ev.cat||"Other";
   const catPref=prof.categories?.[cat]??30;
   const rl=runLen(ev),de=Math.round((evEnd(ev)-today)/86400000);
-  const free=(ev.price||"").toLowerCase().includes("free");
-  const d=kmdist(safeCoord(ev),home);
+  const coord=safeCoord(ev);
+  const d=kmdist(coord,home);
   const subKey=cat+"::"+(ev.sub||"");
   const subPrefRaw=(prof.subcategories?.[subKey]??DEFAULT_SUBS[subKey]??50);
   const subHidden=ev.sub&&subPrefRaw===0;
   const excluded=catPref===0||subHidden;
   const effectiveSubPref=(catPref/100)*subPrefRaw;
 
-  // Taste — dominant component, max 42 (cat pref + sub nudge)
-  let taste=Math.max(0,Math.min(42, catPref*0.36+(effectiveSubPref-50)*0.12));
-  // Nearby — distance, max 15
+  // Taste — dominant, max 50
+  let taste=Math.max(0,Math.min(50, catPref*0.44+(effectiveSubPref-50)*0.14));
+  // Nearby — travel time (walk or subway), max 15
+  const tt=transitTime(home,coord);
   let near=0;
-  if(d<0.5)near=15;else if(d<1)near=13;else if(d<2)near=10;else if(d<3)near=7;else if(d<5)near=4;else if(d<8)near=2;else near=0;
+  if(tt.mins<=5)near=15;else if(tt.mins<=10)near=13;else if(tt.mins<=15)near=10;
+  else if(tt.mins<=20)near=7;else if(tt.mins<=30)near=4;else if(tt.mins<=45)near=2;
   // Behaviour — max 15
   let bh=0;
   if(beh.viewedCats?.[cat])bh+=Math.min(beh.viewedCats[cat]*1.5,4);
   if(beh.savedCats?.[cat])bh+=Math.min(beh.savedCats[cat]*3,5);
   if(beh.calCats?.[cat])bh+=Math.min(beh.calCats[cat]*4,6);
   bh=Math.min(15,bh);
-  // Editorial — max 15
-  let ed=({1:15,2:8,3:0})[ev.tier||2]??8;
+  // Quality (source tier) — max 15
+  let qual=({1:15,2:8,3:0})[ev.tier||2]??8;
   // Urgency — max 20
   let urg=0;
   if(rl===1)urg=20;else if(rl<=3)urg=15;else if(de<=3)urg=12;else if(de<=7)urg=8;else if(de<=14)urg=4;
   if(rl>30)urg=Math.max(0,urg-5);
 
   const mult=excluded?0:Math.max(0.3,Math.min(2.0,catPref/50));
-  const raw=taste+near+bh+ed+urg;
+  const prio=excluded?0:calcPriority(ev,pp||null,today);
+  const raw=taste+near+bh+qual+urg+prio;
   const total=excluded?0:Math.max(0,Math.min(100,Math.round(raw*mult)));
 
+  const free=(ev.price||"").toLowerCase().includes("free");
   const why=[];
   if(catPref===0)why.push("Hidden — "+cat+" set to 0%");
   else if(subHidden)why.push("Hidden — "+ev.sub+" set to 0%");
   else{
-    if(taste>25)why.push("Strong "+cat+" match");else if(taste>14)why.push("Matches your "+cat+" taste");
-    if(d<1)why.push("Very close ("+d.toFixed(1)+"km)");else if(d<3)why.push("Nearby ("+d.toFixed(1)+"km)");else if(d<5)why.push("A short hop ("+d.toFixed(1)+"km)");
+    if(taste>30)why.push("Strong "+cat+" match");else if(taste>18)why.push("Matches your "+cat+" taste");
+    if(tt.mins<=5)why.push("Very close (~"+tt.mins+" min)");
+    else if(tt.mins<=15)why.push(tt.mode==="transit"?"🚇 ~"+tt.mins+" min"+(tt.line?" on "+tt.line:""):"🚶 ~"+tt.mins+" min walk");
+    else if(tt.mins<=25)why.push("~"+tt.mins+" min away");
     if(ev.tier===1)why.push("Top source pick");
     if(rl===1)why.push("One night only");else if(rl<=3)why.push("Short run");else if(de<=7)why.push("Ending soon");
     if(free)why.push("Free admission");
     if(catPref<50)why.push("Demoted — "+cat+" at "+catPref+"% ("+mult.toFixed(1)+"×)");
     else if(catPref>50)why.push("Boosted — "+cat+" at "+catPref+"% ("+mult.toFixed(1)+"×)");
   }
-  return{excluded,taste:Math.round(taste),near:Math.round(near),bh:Math.round(bh),ed,urg,mult,total,why,d:d.toFixed(1)};
+  return{excluded,taste:Math.round(taste),near:Math.round(near),bh:Math.round(bh),qual,urg,prio,mult,total,why,d:d.toFixed(1),tt};
 }
 
-function calcScore(ev,prof,beh,today,home){
-  const bd=calcBd(ev,prof,beh,today,home);
+function calcScore(ev,prof,beh,today,home,pp){
+  const bd=calcBd(ev,prof,beh,today,home,pp);
   return bd.excluded?-1:bd.total;
 }
 
@@ -384,8 +553,9 @@ function Smiley({size,color}){
 }
 
 function ScorePop({data,onClose}){
-  const rows=[["Taste",data.taste,42],["Nearby",data.near,15],["Behaviour",data.bh,15],["Editorial",data.ed,15],["Urgency",data.urg,20]];
-  const subtotal=(data.taste||0)+(data.near||0)+(data.bh||0)+(data.ed||0)+(data.urg||0);
+  const rows=[["Taste",data.taste,50],["Nearby",data.near,15],["Behaviour",data.bh,15],["Quality",data.qual,15],["Urgency",data.urg,20]];
+  if(data.prio!=null&&data.prio!==0)rows.push(["Priorities",data.prio,20]);
+  const subtotal=(data.taste||0)+(data.near||0)+(data.bh||0)+(data.qual||0)+(data.urg||0)+(data.prio||0);
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:5100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
       <div style={{background:WHITE,borderRadius:20,padding:20,width:"100%",maxWidth:340}} onClick={e=>e.stopPropagation()}>
@@ -419,7 +589,7 @@ function ScorePop({data,onClose}){
   );
 }
 
-function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
+function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,favs,busyDays}){
   const free=(ev.price||"").toLowerCase().includes("free");
   const cfg=CATS[ev.cat]||CATS.Other;
   const fd=friendlyDate(ev,today,tomorrow);
@@ -431,13 +601,17 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
     return t;
   })();
   const isToday=fd==="Today",isTom=fd==="Tomorrow";
+  const imprecise=isImprecise(ev);
+  const sim=similarToSaved(ev,favs||{});
+  // Dim when the event's time slot genuinely conflicts with a calendar entry
+  const isBusy=isEventBusy(ev,busyDays);
   const bgImg=ev.image||img;
-  const pillBg="rgba(0,0,0,0.62)";
   return (
-    <div onClick={()=>onOpen(ev)} style={{background:WHITE,borderRadius:16,overflow:"hidden",cursor:"pointer",border:"1.5px solid "+GRAY_LT,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",flexShrink:0,width:164}}>
+    <div onClick={()=>onOpen(ev)} style={{background:WHITE,borderRadius:16,overflow:"hidden",cursor:"pointer",border:"1.5px solid "+GRAY_LT,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",flexShrink:0,width:164,opacity:isBusy?0.4:1,transition:"opacity 0.15s"}}>
       <div style={{height:84,background:bgImg?"url("+bgImg+") center/cover":cfg.bg,position:"relative"}}>
         <button onClick={e=>{e.stopPropagation();onScore(ev.bd);}} style={{position:"absolute",top:6,right:6,background:TEAL,color:WHITE,border:"none",borderRadius:5,padding:"2px 6px",fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:800,cursor:"pointer"}}>{ev.sc||0}</button>
         {ev.bs&&<div style={{position:"absolute",top:6,left:8,background:CORAL,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:4}}>Book Soon</div>}
+        {sim.score>=7&&<div style={{position:"absolute",bottom:28,left:6,background:"#7C3AED",color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:7,fontWeight:700,padding:"2px 6px",borderRadius:4}}>🔄 Similar to saved</div>}
         <div style={{position:"absolute",bottom:6,left:6,right:6,display:"flex"}}>
           <span style={{background:cfg.color,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:6,boxShadow:bgImg?"0 1px 3px rgba(0,0,0,0.4)":"none"}}>{cfg.emoji+" "+ev.cat}</span>
         </div>
@@ -450,13 +624,16 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
           {isTom&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,color:WHITE,background:"#8B5CF6",padding:"2px 6px",borderRadius:8}}>Tomorrow</span>}
         </div>
         <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK,lineHeight:1.3,marginBottom:3,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{ev.title}</div>
-        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.venue}</div>
-        {(()=>{const stops=ev.coord?nearestSubways(ev.coord,0.5):[];if(!stops.length)return null;const lines=stops[0].l.slice(0,3);return(<div style={{display:"flex",gap:2,marginTop:2,alignItems:"center"}}>{lines.map(line=><span key={line} style={{width:13,height:13,borderRadius:"50%",background:LINE_COLOR[line]||"#888",color:["N","Q","R","W"].includes(line)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{line}</span>)}<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:2}}>{Math.round(stops[0].d*1000)+"m"}</span></div>);})()}
+        {imprecise
+          ? <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>🏙️ Various locations</div>
+          : <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.venue}</div>
+        }
+        {!imprecise&&(()=>{const stops=ev.coord?nearestSubways(ev.coord,0.5):[];if(!stops.length)return null;const lines=stops[0].l.slice(0,3);return(<div style={{display:"flex",gap:2,marginTop:2,alignItems:"center"}}>{lines.map(line=><span key={line} style={{width:13,height:13,borderRadius:"50%",background:LINE_COLOR[line]||"#888",color:["N","Q","R","W"].includes(line)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{line}</span>)}<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:2}}>{Math.round(stops[0].d*1000)+"m"}</span></div>);})()}
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>{fd}{ts?" - "+ts:""}</div>
-        {ev.km&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginTop:1}}>{"📍"+ev.km+"km"+(ev.src?" · "+ev.src:"")}</div>}
+        {!imprecise&&ev.bd?.tt&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginTop:1}}>{ev.bd.tt.mode==="transit"?"🚇":"🚶"}{" ~"+ev.bd.tt.mins+" min"}{ev.bd.tt.line?<span style={{marginLeft:3,background:LINE_COLOR[ev.bd.tt.line]||"#888",color:["N","Q","R","W"].includes(ev.bd.tt.line)?"#111":"#fff",borderRadius:10,padding:"0 4px",fontSize:8,fontWeight:800}}>{ev.bd.tt.line}</span>:null}{ev.src?" · "+ev.src:""}</div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:7,paddingTop:6,borderTop:"1px solid "+GRAY_LT}}>
           <div style={{display:"flex",gap:5,alignItems:"center"}}>
-            <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:free?"#059669":TEAL}}>{ev.price||"Free"}</span>
+            <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:free?"#059669":INK}}>{(()=>{const p=ev.price||"Free";if(/see website|see site|varies/i.test(p))return"🎫 Check site";return p;})()}</span>
             {ev.url&&<a href={ev.url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{fontSize:9,color:TEAL,textDecoration:"none"}}>{"↗"}</a>}
           </div>
           <div style={{display:"flex",gap:3}} onClick={e=>e.stopPropagation()}>
@@ -470,14 +647,15 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
   );
 }
 
-function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
+function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,busyDays}){
   const free=(ev.price||"").toLowerCase().includes("free");
   const cfg=CATS[ev.cat]||CATS.Other;
   const fd=friendlyDate(ev,today,tomorrow);
   const isToday=fd==="Today",isTom=fd==="Tomorrow";
+  const isBusy=isEventBusy(ev,busyDays||[]);
   const bgImg=ev.image||img;
   return (
-    <div onClick={()=>onOpen(ev)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:"1px solid "+GRAY_LT,cursor:"pointer"}}>
+    <div onClick={()=>onOpen(ev)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:"1px solid "+GRAY_LT,cursor:"pointer",opacity:isBusy?0.4:1,transition:"opacity 0.15s"}}>
       <div style={{width:56,height:56,borderRadius:12,background:bgImg?"url("+bgImg+") center/cover":cfg.bg,flexShrink:0,display:"flex",alignItems:"flex-end",justifyContent:"flex-start",position:"relative",overflow:"hidden"}}>
         {!bgImg&&<span style={{fontSize:24,margin:"auto"}}>{cfg.emoji}</span>}
         <span style={{background:cfg.color,color:WHITE,fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:700,padding:"1px 5px",borderTopRightRadius:5,boxShadow:bgImg?"0 1px 3px rgba(0,0,0,0.4)":"none"}}>{cfg.emoji}</span>
@@ -494,7 +672,7 @@ function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img}){
           <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>{fd}</span>
           <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:free?"#059669":TEAL}}>{ev.price||"Free"}</span>
           <button onClick={e=>{e.stopPropagation();onScore(ev.bd);}} style={{background:TEAL,color:WHITE,border:"none",borderRadius:4,padding:"2px 5px",fontFamily:"'Sora',sans-serif",fontSize:9,fontWeight:800,cursor:"pointer"}}>{ev.sc||0}</button>
-          {ev.km&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY}}>{"📍"+ev.km+"km"}</span>}
+          {ev.bd?.tt&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY}}>{ev.bd.tt.mode==="transit"?"🚇":"🚶"}{" ~"+ev.bd.tt.mins+" min"}</span>}
           {ev.url&&<a href={ev.url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{fontSize:9,color:TEAL,textDecoration:"none"}}>{"↗"}</a>}
         </div>
       </div>
@@ -616,10 +794,21 @@ function SortPill({sortKey,setSortKey}){
   );
 }
 
-function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,imgs,accent,noPad,sortKey,setSortKey,sortFn,catFilter,setCatFilter}){
+function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,imgs,accent,noPad,sortKey,setSortKey,sortFn,catFilter,setCatFilter,favsList,busyDays}){
   if(!evts||!evts.length)return null;
   const filtered=catFilter&&catFilter.length>0?evts.filter(e=>catFilter.includes(e.cat)):evts;
   const sorted=sortFn&&sortKey?sortFn(filtered,sortKey):filtered;
+  if(!sorted.length&&catFilter&&catFilter.length>0){
+    return (
+      <div style={{marginBottom:4}}>
+        <div style={{padding:"14px 16px 4px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:accent||GRAY}}>{title}</div>
+          {setCatFilter&&<CatFilterPill sel={catFilter||[]} setSel={setCatFilter}/>}
+        </div>
+        <div style={{padding:"8px 16px 16px",fontFamily:"'DM Sans',sans-serif",fontSize:12,color:GRAY}}>No {catFilter.join(" or ")} events in this section</div>
+      </div>
+    );
+  }
   return (
     <div style={{marginBottom:4}}>
       {title&&(
@@ -638,7 +827,7 @@ function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,
       )}
       <div style={{display:"flex",gap:10,overflowX:"auto",padding:"0 16px 16px",scrollbarWidth:"none"}}>
         {sorted.map(ev=>(
-          <Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={onFav} onOpen={onOpen} onCal={onCal} onShare={onShare} onScore={onScore} today={today} tomorrow={tomorrow} img={imgs?.[ev.cat]}/>
+          <Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={onFav} onOpen={onOpen} onCal={onCal} onShare={onShare} onScore={onScore} today={today} tomorrow={tomorrow} img={imgs?.[ev.cat]} favs={favsList||favs} busyDays={busyDays||[]}/>
         ))}
       </div>
     </div>
@@ -1096,6 +1285,11 @@ export default function App(){
   const [prof,setProf]=useState({...DP,categories:{...DP.categories},vibes:{...DP.vibes}});
   const [beh,setBeh]=useState({viewedCats:{},savedCats:{},calCats:{}});
   const [favs,setFavs]=useState({});
+  const [priorities,setPriorities]=useState(""); // raw text
+  const [pp,setPp]=useState(null);               // parsed priorityProfile
+  const [ppParsing,setPpParsing]=useState(false);// loading state
+  const [busySlots,setBusySlots]=useState([]);   // {date, startH, endH} from calendar
+  const [calSyncing,setCalSyncing]=useState(false);
   const [events,setEvents]=useState(EV);
   const [lastRefreshed,setLastRefreshed]=useState(null);
   const [refreshing,setRefreshing]=useState(false);
@@ -1205,14 +1399,33 @@ export default function App(){
 
   useEffect(()=>{
     (async()=>{
-      const [pr,fv2,bh,evStore,gm,nt0]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1")]);
+      const [pr,fv2,bh,evStore,gm,nt0,prior]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1"),sg("gp_prior_v1")]);
       if(nt0)setNotif(n=>({...n,...nt0,windows:nt0.windows||n.windows}));
 
       if(pr){setProf({...DP,...pr,categories:{...DP.categories,...(pr.categories||{})},vibes:{...DP.vibes,...(pr.vibes||{})},subcategories:{...DEFAULT_SUBS,...DP.subcategories,...(pr.subcategories||{})}});}
-      if(fv2)setFavs(fv2);
+      if(fv2){
+        // Auto-clean past saved events so the saved tab doesn't accumulate stale entries
+        const todayD=floorDay(new Date());
+        const cleaned=Object.fromEntries(Object.entries(fv2).filter(([,ev])=>evActive(ev,todayD)));
+        if(Object.keys(cleaned).length!==Object.keys(fv2).length){
+          setFavs(cleaned);ss(SK_F,cleaned);
+        }else{
+          setFavs(fv2);
+        }
+      }
       if(bh)setBeh(bh);
+      if(prior){setPriorities(prior.text||"");setPp(prior.profile||null);}
       if(evStore?.events&&evStore.events.length>0){setEvents(evStore.events);setLastRefreshed(evStore.refreshed||null);if(evStore.sourceMeta)setSourceMeta(evStore.sourceMeta);}
-      if(gm){if(gm.url)setGmailUrl(gm.url);if(gm.key)setGmailKey(gm.key);}
+      if(gm){
+        const url=gm.url||gmailUrl, key=gm.key||gmailKey;
+        if(gm.url)setGmailUrl(gm.url);
+        if(gm.key)setGmailKey(gm.key);
+        // Auto-fetch calendar busy slots silently on load — dims conflicting events
+        fetch(url+"?action=busyDays&key="+encodeURIComponent(key))
+          .then(r=>r.json())
+          .then(data=>{if(data.busySlots)setBusySlots(data.busySlots);})
+          .catch(()=>{});
+      }
       setReady(true);
     })();
   },[]);
@@ -1248,49 +1461,87 @@ export default function App(){
     const maxWin=windows[windows.length-1]||2;
     const already=new Set(notif.shown||[]);
     const fresh=[];
+    // ── Path A: same-day events starting within configured windows (1h, 2h…) ──
     for(const ev of events){
       if(!evCovers(ev,today2))continue;
       const startDT=new Date(ev.E+"T"+parseT(ev.time));
       const minsUntil=(startDT-now)/60000;
-      if(minsUntil<0||minsUntil>maxWin*60)continue; // not within the largest window yet, or already started
+      if(minsUntil<0||minsUntil>maxWin*60)continue;
       const isFav=!!favs[ev.id];
-      const score=calcScore(ev,prof,beh,today2,home2);
+      const score=calcScore(ev,prof,beh,today2,home2,pp);
       const d=kmdist(safeCoord(ev),home2);
       const qualifiesNearby=notif.includeNearby&&score>=(notif.minScore??50)&&d<=(notif.maxDistance??5)&&!isImprecise(ev);
       const qualifiesFav=notif.includeFavs&&isFav;
       if(!qualifiesNearby&&!qualifiesFav)continue;
-      // Find the smallest window the event currently falls inside
       let win=null;
       for(const w of windows){ if(minsUntil<=w*60){ win=w; break; } }
       if(win===null)continue;
       const key=ev.id+"@"+win;
       if(already.has(key))continue;
-      fresh.push({ev,win,isFav:qualifiesFav,score,d});
+      fresh.push({ev,win,isFav:qualifiesFav,score,d,kind:"soon"});
+    }
+    // ── Path B: advance booking alerts (ticketed events in user's stated window) ──
+    if(pp?.advanceBooking&&notifEnabled){
+      const{minDays=4,maxDays=10}=pp.advanceBooking;
+      for(const ev of events){
+        if(!ev.ticket)continue;
+        const daysAway=Math.round((evStart(ev)-today2)/86400000);
+        if(daysAway<minDays||daysAway>maxDays)continue;
+        const key=ev.id+"@book";
+        if(already.has(key))continue;
+        fresh.push({ev,win:null,isFav:!!favs[ev.id],score:0,d:kmdist(safeCoord(ev),home2),kind:"book",daysAway});
+      }
+    }
+    // ── Path C: "you liked something similar" ──
+    // When a new event is very similar to a saved event, fire once per event.
+    for(const ev of events){
+      const key=ev.id+"@similar";
+      if(already.has(key))continue;
+      if(evStart(ev)<today2)continue; // past
+      const{score:simScore,matchedTitle}=similarToSaved(ev,favs);
+      if(simScore<7)continue;
+      // Don't fire if user has already saved this event
+      if(favs[ev.id])continue;
+      fresh.push({ev,win:null,isFav:false,score:simScore,d:kmdist(safeCoord(ev),home2),kind:"similar",matchedTitle});
     }
     if(!fresh.length)return;
-    for(const {ev,isFav,d} of fresh){
+    for(const {ev,isFav,d,kind,daysAway} of fresh){
       try{
         const cfg=CATS[ev.cat]||CATS.Other;
-        const t=ev.time&&ev.time!=="All day"?ev.time:"soon";
-        const prefix=isFav?"★ ":(cfg.emoji||"📍")+" ";
-        const n=new Notification(prefix+ev.title,{
-          body:t+" · "+(ev.venue||"")+" · "+d.toFixed(1)+"km · "+(ev.price||"Free"),
-          tag:"gp-"+ev.id,icon:LOGO,badge:LOGO,
-        });
+        let title,body;
+        if(kind==="book"){
+          title="📅 Book ahead: "+ev.title;
+          body=(ev.venue||"")+" · in "+daysAway+" days · "+(ev.price||"Free");
+        }else if(kind==="similar"){
+          title="🔄 You might like: "+ev.title;
+          body="Similar to '"+matchedTitle+"' · "+(ev.venue||"")+" · "+(ev.price||"Free");
+        }else{
+          const t=ev.time&&ev.time!=="All day"?ev.time:"soon";
+          const prefix=isFav?"★ ":(cfg.emoji||"📍")+" ";
+          title=prefix+ev.title;
+          body=t+" · "+(ev.venue||"")+" · "+d.toFixed(1)+"km · "+(ev.price||"Free");
+        }
+        const n=new Notification(title,{body,tag:"gp-"+ev.id+(kind==="book"?"-book":""),icon:LOGO,badge:LOGO});
         n.onclick=()=>{window.focus();openModal(ev);n.close();};
       }catch(e){console.warn("Notification failed",e);}
     }
-    const newShown=[...(notif.shown||[]),...fresh.map(f=>f.ev.id+"@"+f.win)].slice(-100);
+    const newKeys=fresh.map(f=>f.kind==="book"?f.ev.id+"@book":f.kind==="similar"?f.ev.id+"@similar":f.ev.id+"@"+f.win);
+    const newShown=[...(notif.shown||[]),...newKeys].slice(-100);
     const next={...notif,shown:newShown};
     setNotif(next);ss("gp_notif_v1",next);
-  },[ready,notifEnabled,events.length,prof,beh,loc,favs,notif.minScore,notif.windows,notif.includeFavs,notif.includeNearby,notif.maxDistance]);
+  },[ready,notifEnabled,events.length,prof,beh,loc,favs,pp,notif.minScore,notif.windows,notif.includeFavs,notif.includeNearby,notif.maxDistance]);
 
   // Fire a test notification so the user can confirm it works
   const testNotif=async()=>{
-    if(typeof Notification==="undefined"){showToast("Notifications not supported here");return;}
+    if(typeof Notification==="undefined"){
+      const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+      showToast(isIOS?"Add Good Plans to Home Screen first for notifications":"Notifications not supported in this browser");
+      return;
+    }
+    if(Notification.permission==="denied"){showToast("Notifications blocked — change in browser/OS Settings");return;}
     if(Notification.permission!=="granted"){
       const r=await Notification.requestPermission();
-      if(r!=="granted"){showToast("Permission needed for notifications");return;}
+      if(r!=="granted"){showToast("Permission not granted");return;}
       const next={...notif,enabled:true};setNotif(next);ss("gp_notif_v1",next);
     }
     try{
@@ -1299,29 +1550,46 @@ export default function App(){
         icon:LOGO,badge:LOGO,tag:"gp-test",
       });
       n.onclick=()=>{window.focus();n.close();};
-      showToast("Test notification sent");
-    }catch(e){showToast("Couldn't send — check browser settings");}
+      showToast("Test notification sent ✓");
+    }catch(e){
+      const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+      if(isIOS)showToast("On iOS: add to Home Screen and open from there");
+      else showToast("Couldn't send — "+e.message);
+    }
   };
 
   const requestNotifPermission=async()=>{
-    if(typeof Notification==="undefined"){showToast("Notifications not supported in this browser");return;}
-    if(Notification.permission==="granted"){
-      const next={...notif,enabled:true};
-      setNotif(next);ss("gp_notif_v1",next);
-      showToast("Notifications enabled");
+    if(typeof Notification==="undefined"){
+      const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+      showToast(isIOS?"Add Good Plans to Home Screen first":"Notifications not supported");
       return;
     }
-    if(Notification.permission==="denied"){
-      showToast("Permission blocked — enable in browser settings");
-      return;
-    }
-    const r=await Notification.requestPermission();
-    if(r==="granted"){
-      const next={...notif,enabled:true};
-      setNotif(next);ss("gp_notif_v1",next);
-      showToast("Notifications enabled");
+    if(Notification.permission==="denied"){showToast("Permission blocked — enable in browser Settings");return;}
+    const r=Notification.permission==="granted"?"granted":await Notification.requestPermission();
+    if(r!=="granted"){showToast("Permission denied");return;}
+    // Register service worker and Web Push subscription for background notifications
+    const reg=await getSWRegistration();
+    if(reg&&VAPID_PUBLIC_KEY){
+      const sub=await subscribePush(reg);
+      if(sub){
+        await registerSubWithAppsScript(gmailUrl,gmailKey,sub);
+        showToast("Notifications enabled (background push active)");
+      }else{
+        showToast("Notifications enabled (in-app only — open app for alerts)");
+      }
     }else{
-      showToast("Permission denied");
+      showToast("Notifications enabled (in-app alerts when app is open)");
+    }
+    const next={...notif,enabled:true};
+    setNotif(next);ss("gp_notif_v1",next);
+    // Listen for push-driven navigation from the service worker
+    if(reg){
+      navigator.serviceWorker.addEventListener("message",e=>{
+        if(e.data?.type==="PUSH_NAV"&&e.data.url){
+          // Navigate to the specific event if there's an ?event=ID in the URL
+          try{const u=new URL(e.data.url,window.location.origin);const id=u.searchParams.get("event");if(id){const ev=events.find(x=>x.id===id);if(ev)openModal(ev);}}catch{}
+        }
+      });
     }
   };
   const disableNotif=()=>{
@@ -1516,12 +1784,11 @@ const doRefresh=async()=>{
 
   const sc=arr=>[...arr].map(ev=>({
     ...ev,
-    sc:calcScore(ev,prof,beh,floorDay(NOW),home),
+    sc:calcScore(ev,prof,beh,floorDay(NOW),home,pp),
     bs:bookSoon(ev,floorDay(NOW)),
-    bd:calcBd(ev,prof,beh,floorDay(NOW),home),
+    bd:calcBd(ev,prof,beh,floorDay(NOW),home,pp),
     km:kmdist(safeCoord(ev),home).toFixed(1),
   })).filter(ev=>ev.sc>=0).sort((a,b)=>b.sc-a.sc);
-
   const has=fc.length>0||fsub.length>0||fsrc.length>0||fh.length>0||fp.length>0||fd.length>0||fv.length>0||fms>0||fmk<50||fpx<100||(fq&&fq.length>0);
   const mf=ev=>{
     if(!evActive(ev,TODAY))return false;
@@ -1557,7 +1824,7 @@ const doRefresh=async()=>{
     }
     return true;
   };
-  const clr=()=>{setFc([]);setFsub([]);setFsrc([]);setFh([]);setFp([]);setFpx(100);setFd([]);setFv([]);setFms(0);setFmk(50);setFq("");};
+  const clr=()=>{setFc([]);setFsub([]);setFsrc([]);setFh([]);setFp([]);setFpx(100);setFd([]);setFv([]);setFms(0);setFmk(50);setFq("");setBusyDays([]);};
 
   // Home filtering: if user has set any filter, apply it to ALL home carousels.
   // Also demote long-running events from "Nearby Now" / "Tonight" — a 3-month
@@ -1585,7 +1852,7 @@ const nn=sc(active.filter(ev=>{
   // Starting next: events with known start times near user, starting soon,
 // but NOT already in Nearby Now (i.e., further out than ±2h or further than 5km).
 const _nnSet=new Set(nn.map(e=>e.id));
-const sn=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&hasKnownTime(ev)&&kmdist(safeCoord(ev),home)<8&&!_nnSet.has(ev.id)));
+const sn=sc(active.filter(ev=>hf(ev)&&evCovers(ev,TODAY)&&isFreshToday(ev)&&!isImprecise(ev)&&hasKnownTime(ev)&&kmdist(safeCoord(ev),home)<8&&!_nnSet.has(ev.id)&&eHour(ev.time,ev.cat)>nowH-0.25));
 // Sort by time-from-now ascending (nearest in time first), with negative (past) at the end
 sn.sort((a,b)=>{
   const ah=eHour(a.time,a.cat)-nowH,bh=eHour(b.time,b.cat)-nowH;
@@ -1602,6 +1869,15 @@ sn.sort((a,b)=>{
   const bk=sc(active.filter(ev=>hf(ev)&&bookSoon(ev,floorDay(NOW))));
   const sdo=sc(active.filter(ev=>hf(ev)&&ev.cat==="Sports"&&(ev.tags||[]).includes("do")));
   const swa=sc(active.filter(ev=>hf(ev)&&ev.cat==="Sports"&&(ev.tags||[]).includes("watch")));
+  // Interest carousels from parsed priorities
+  const interestCarousels=(pp?.interests||[]).map(interest=>({
+    interest,
+    evts:sc(active.filter(ev=>hf(ev)&&matchesInterest(ev,interest))),
+  })).filter(c=>c.evts.length>0);
+  // "Coming Up" carousel for planners (events 5-21 days away)
+  const cu=pp?.planningStyle==="planner"
+    ?sc(active.filter(ev=>hf(ev)&&!isImprecise(ev)&&(()=>{const d=Math.round((evStart(ev)-TODAY)/86400000);return d>=5&&d<=21;})()))
+    :[];
   const filt=sc(active.filter(mf));
   // Reusable sort builder — accepts primary + optional secondary key
   const sortEvts=(arr,primary,secondary)=>{
@@ -1619,7 +1895,10 @@ sn.sort((a,b)=>{
         return new Date(a.E)-new Date(b.E);
       },
       score:(a,b)=>(b.sc||0)-(a.sc||0),
-      distance:(a,b)=>parseFloat(a.km||"99")-parseFloat(b.km||"99"),
+      distance:(a,b)=>{
+        const tm=ev=>(ev.bd?.tt?.mins!=null?ev.bd.tt.mins:parseFloat(ev.km||"99")*14);
+        return tm(a)-tm(b);
+      },
       soonest:(a,b)=>{
         const am=minsUntil(a),bm=minsUntil(b);
         if(Math.abs(am-bm)>0.01)return am-bm;
@@ -1649,7 +1928,7 @@ sn.sort((a,b)=>{
   // Map tab: only events happening TODAY with valid coordinates
   const mapEvts=sc(active.filter(ev=>evCovers(ev,TODAY)));
   const favList=Object.values(favs);
-  const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs,sortFn:sortEvts};
+  const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs,sortFn:sortEvts,favsList:favs,busyDays:busySlots};
   // Per-carousel state: sort + category filter
 const [carCat,setCarCat]=useState({});
 const setCarCatKey=(k,v)=>setCarCat(p=>({...p,[k]:v}));
@@ -1702,6 +1981,10 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
             {swa.length>0&&<Carousel title="👟 Watch the Game" sub="Live sport to spectate" evts={swa} {...fp2} {...carP("swa")}/>}
             {bm.length>0&&<Carousel title="📅 Best This Month" sub="Top picks for the coming weeks" evts={bm} {...fp2} {...carP("bm")}/>}
             {bk.length>0&&<Carousel title="🔖 Book Soon" sub="These will sell out" evts={bk} accent={CORAL} {...fp2} {...carP("bk")}/>}
+            {cu.length>0&&<Carousel title="📆 Coming Up" sub="Planned for the next few weeks" evts={cu} {...fp2} {...carP("cu")}/>}
+            {interestCarousels.map(({interest,evts})=>(
+              <Carousel key={interest.name} title={interest.emoji+" "+interest.name} sub={interest.desc} evts={evts} {...fp2} {...carP("ic_"+interest.name)}/>
+            ))}
           </div>
         )}
         {tab==="browse"&&(
@@ -1714,8 +1997,8 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
             {filtSorted.length===0
               ?<div style={{padding:"60px 20px",textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:GRAY}}>No events match.</div>
               :vm==="list"
-                ?<div>{filtSorted.map(ev=><Row key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]}/>)}</div>
-                :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:10}}>{filtSorted.map(ev=><Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]}/>)}</div>
+                ?<div>{filtSorted.map(ev=><Row key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} busyDays={busyDays}/>)}</div>
+                :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:10}}>{filtSorted.map(ev=><Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} favs={favs} busyDays={busyDays}/>)}</div>
             }
           </div>
         )}
@@ -1742,7 +2025,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
         {tab==="profile"&&(
           <div style={{paddingBottom:60}}>
             <div style={{display:"flex",borderBottom:"1.5px solid "+GRAY_LT}}>
-              {[["prefs","Preferences"],["activity","Activity"],["sync","Sync"]].map(([t,l])=>(
+              {[["prefs","Preferences"],["priorities","Priorities ✨"],["activity","Activity"],["sync","Sync"]].map(([t,l])=>(
                 <button key={t} onClick={()=>setProfTab(t)} style={{flex:1,padding:"12px 8px",background:"none",border:"none",color:profTab===t?TEAL:GRAY,borderBottom:"2.5px solid "+(profTab===t?TEAL:"transparent"),cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,textTransform:"uppercase"}}>{l}</button>
               ))}
             </div>
@@ -1858,6 +2141,75 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {profTab==="priorities"&&(
+              <div style={{padding:16}}>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:800,color:INK,marginBottom:4}}>My Priorities ✨</div>
+                <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:GRAY,marginBottom:14,lineHeight:1.5}}>Tell us what you're into — in plain language. Claude will use this to boost relevant events throughout the app, including ratings, sorting, and notifications.</div>
+                <textarea
+                  value={priorities}
+                  onChange={e=>setPriorities(e.target.value)}
+                  placeholder={"Examples:\n• \"I love free jazz and weird outdoor events on weekends. Not into family stuff.\"\n• \"Prefer things within a 15-min walk or 2 subway stops. Big into live music and comedy.\"\n• \"We want to discover hidden local gems. Anything unique, only-in-NYC.\""}
+                  rows={7}
+                  style={{width:"100%",padding:"12px",borderRadius:10,border:"1.5px solid "+GRAY_LT,fontFamily:"'DM Sans',sans-serif",fontSize:12,color:INK,lineHeight:1.6,resize:"vertical",background:WHITE,outline:"none",boxSizing:"border-box",marginBottom:10}}
+                />
+                <button
+                  onClick={async()=>{
+                    if(!priorities.trim()){showToast("Write something first");return;}
+                    if(!gmailUrl){showToast("Set your Apps Script URL in Sync tab first");return;}
+                    setPpParsing(true);
+                    try{
+                      const resp=await fetch(gmailUrl+"?action=parsePriorities&key="+encodeURIComponent(gmailKey),{
+                        method:"POST",headers:{"Content-Type":"application/json"},
+                        body:JSON.stringify({text:priorities}),
+                      });
+                      const data=await resp.json();
+                      if(data.profile){
+                        setPp(data.profile);
+                        ss("gp_prior_v1",{text:priorities,profile:data.profile});
+                        showToast("Priorities saved ✓");
+                      }else{
+                        showToast(data.error||"Parse failed — try again");
+                      }
+                    }catch(e){showToast("Could not reach Apps Script");}
+                    finally{setPpParsing(false);}
+                  }}
+                  disabled={ppParsing||!priorities.trim()}
+                  style={{display:"block",width:"100%",padding:"12px",background:priorities.trim()?TEAL:GRAY,color:WHITE,border:"none",borderRadius:10,fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,cursor:priorities.trim()?"pointer":"default",marginBottom:14}}
+                >
+                  {ppParsing?"✨ Parsing with AI…":"✨ Save & Parse with AI"}
+                </button>
+                {pp&&(
+                  <div style={{background:TEAL+"15",borderRadius:10,padding:"12px 14px",border:"1px solid "+TEAL+"30"}}>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:TEAL,letterSpacing:"1px",textTransform:"uppercase",marginBottom:6}}>Active priorities</div>
+                    {pp.summary&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:INK,marginBottom:10,lineHeight:1.5}}>"{pp.summary}"</div>}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+                      {(pp.favCats||[]).map(c=><span key={c} style={{background:TEAL,color:WHITE,borderRadius:20,padding:"2px 10px",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700}}>{"↑ "+c}</span>)}
+                      {(pp.avoidCats||[]).map(c=><span key={c} style={{background:CORAL,color:WHITE,borderRadius:20,padding:"2px 10px",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700}}>{"↓ "+c}</span>)}
+                      {(pp.favSubcats||[]).map(c=><span key={c} style={{background:TEAL+"CC",color:WHITE,borderRadius:20,padding:"2px 10px",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:600}}>{"↑ "+c}</span>)}
+                      {pp.freeBonus&&<span style={{background:"#059669",color:WHITE,borderRadius:20,padding:"2px 10px",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700}}>Free events boosted</span>}
+                      {pp.maxTransitMins&&<span style={{background:GRAY_LT,color:INK,borderRadius:20,padding:"2px 10px",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:600}}>{"≤"+pp.maxTransitMins+" min"}</span>}
+                      {pp.advanceBooking&&<span style={{background:"#F59E0B",color:WHITE,borderRadius:20,padding:"2px 10px",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700}}>{"📅 Book "+pp.advanceBooking.minDays+"–"+pp.advanceBooking.maxDays+" days ahead"}</span>}
+                      {pp.planningStyle&&pp.planningStyle!=="balanced"&&<span style={{background:"#6366F1",color:WHITE,borderRadius:20,padding:"2px 10px",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700}}>{pp.planningStyle==="planner"?"📆 Plan ahead":"⚡ Last minute"}</span>}
+                    </div>
+                    {(pp.interests||[]).length>0&&(
+                      <div style={{marginTop:6}}>
+                        <div style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:GRAY,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:5}}>Your interest sections</div>
+                        {(pp.interests||[]).map(i=>(
+                          <div key={i.name} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid "+GRAY_LT}}>
+                            <span style={{fontSize:16}}>{i.emoji}</span>
+                            <div>
+                              <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>{i.name}</div>
+                              <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>{i.desc}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button onClick={()=>{setPp(null);ss("gp_prior_v1",{text:priorities,profile:null});showToast("Priorities cleared");}} style={{marginTop:10,background:"none",border:"none",color:GRAY,fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:"pointer",padding:0}}>Clear priorities</button>
+                  </div>
+                )}
               </div>
             )}
             {profTab==="activity"&&(
