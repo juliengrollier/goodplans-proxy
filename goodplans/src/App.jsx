@@ -1521,8 +1521,16 @@ export default function App(){
           title=prefix+ev.title;
           body=t+" · "+(ev.venue||"")+" · "+d.toFixed(1)+"km · "+(ev.price||"Free");
         }
-        const n=new Notification(title,{body,tag:"gp-"+ev.id+(kind==="book"?"-book":""),icon:LOGO,badge:LOGO});
-        n.onclick=()=>{window.focus();openModal(ev);n.close();};
+        // Android Chrome requires showNotification() via SW; new Notification() throws there
+        (async()=>{
+          const reg="serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+          if(reg){
+            reg.showNotification(title,{body,tag:"gp-"+ev.id+(kind==="book"?"-book":""),icon:"/icon-192.png",badge:"/icon-192.png"});
+          }else{
+            const n=new Notification(title,{body,tag:"gp-"+ev.id+(kind==="book"?"-book":""),icon:LOGO,badge:LOGO});
+            n.onclick=()=>{window.focus();openModal(ev);n.close();};
+          }
+        })();
       }catch(e){console.warn("Notification failed",e);}
     }
     const newKeys=fresh.map(f=>f.kind==="book"?f.ev.id+"@book":f.kind==="similar"?f.ev.id+"@similar":f.ev.id+"@"+f.win);
@@ -1545,16 +1553,25 @@ export default function App(){
       const next={...notif,enabled:true};setNotif(next);ss("gp_notif_v1",next);
     }
     try{
-      const n=new Notification("🎉 Good Plans test",{
-        body:"Notifications are working! You'll get alerts before saved & top-rated events.",
-        icon:LOGO,badge:LOGO,tag:"gp-test",
-      });
-      n.onclick=()=>{window.focus();n.close();};
+      // Android Chrome requires showNotification() via SW when a service worker is active.
+      // new Notification() throws "Illegal constructor" in that context.
+      const reg=await getSWRegistration();
+      if(reg){
+        await reg.showNotification("🎉 Good Plans test",{
+          body:"Notifications are working! You'll get alerts before saved & top-rated events.",
+          icon:"/icon-192.png",badge:"/icon-192.png",tag:"gp-test",
+        });
+      }else{
+        // Fallback for desktop without active SW
+        const n=new Notification("🎉 Good Plans test",{
+          body:"Notifications are working! You'll get alerts before saved & top-rated events.",
+          icon:LOGO,badge:LOGO,tag:"gp-test",
+        });
+        n.onclick=()=>{window.focus();n.close();};
+      }
       showToast("Test notification sent ✓");
     }catch(e){
-      const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
-      if(isIOS)showToast("On iOS: add to Home Screen and open from there");
-      else showToast("Couldn't send — "+e.message);
+      showToast("Couldn't send — "+e.message);
     }
   };
 
