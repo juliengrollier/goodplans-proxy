@@ -35,7 +35,7 @@ const VIBES=[
   {key:"free",label:"Free Afternoon",emoji:"🌤️",desc:"Daytime, spontaneous, free"},
   {key:"late",label:"After Dark",emoji:"🌃",desc:"Starts after 9pm"},
   {key:"move",label:"Get Moving",emoji:"🏃",desc:"Do something physical"},
-  {key:"watch",label:"Watch the Game",emoji:"👟",desc:"Spectate live sports"},
+  {key:"watch",label:"Watch the Game",emoji:"👟",desc:"Spectate live sport"},
 ];
 
 const DP={
@@ -272,31 +272,27 @@ const nearestSubways=(coord,maxKm)=>{
 // Uses the hardcoded SUBWAY stations — no external API, works offline.
 function transitTime(home,coord){
   const d=kmdist(home,coord);
-  // Very close — walk only
-  if(d<0.55)return{mins:Math.max(1,Math.round(d*14)),mode:"walk",line:null};
-  // Find nearest subway within 0.65km of each point
+  if(d<0.55)return{mins:Math.max(1,Math.round(d*14)),mode:"walk",line:null,toLine:null,direct:true};
   const uStops=nearestSubways(home,0.65);
   const eStops=nearestSubways(coord,0.65);
   if(!uStops.length||!eStops.length){
-    // No subway nearby — walking all the way (capped at 60 min)
-    return{mins:Math.min(60,Math.round(d*14)),mode:"walk",line:null};
+    return{mins:Math.min(60,Math.round(d*14)),mode:"walk",line:null,toLine:null,direct:true};
   }
   const uS=uStops[0], eS=eStops[0];
-  // Same station — just walk from there
-  if(uS.n===eS.n)return{mins:Math.round(uS.d*14+eS.d*14),mode:"walk",line:null};
-  // Check shared line (direct ride vs transfer)
+  if(uS.n===eS.n)return{mins:Math.round(uS.d*14+eS.d*14),mode:"walk",line:null,toLine:null,direct:true};
   const shared=uS.l.find(l=>eS.l.includes(l))||null;
   const transferPenalty=shared?0:5;
-  // Subway ride: crow-flies × 1.35 routing factor at avg 27 km/h NYC subway speed
   const rideMins=kmdist(uS.c,eS.c)*1.35*(60/27);
-  const waitMins=2.5; // avg wait at station
+  const waitMins=2.5;
   const walkToMins=uS.d*14;
   const walkFromMins=eS.d*14;
   const totalMins=Math.round(walkToMins+waitMins+rideMins+transferPenalty+walkFromMins);
-  // If walking would be faster (e.g., just 2 stops away but stations are far), walk
   const walkMins=Math.round(d*14);
-  if(walkMins<=totalMins&&d<1.5)return{mins:walkMins,mode:"walk",line:null};
-  return{mins:Math.max(3,totalMins),mode:"transit",line:shared};
+  if(walkMins<=totalMins&&d<1.5)return{mins:walkMins,mode:"walk",line:null,toLine:null,direct:true};
+  // For transfers: fromLine = best line at origin, toLine = best line at destination
+  const fromLine=shared||uS.l[0]||null;
+  const toLine=shared?null:(eS.l[0]||null); // only set when transfer needed
+  return{mins:Math.max(3,totalMins),mode:"transit",line:fromLine,toLine,direct:!!shared};
 }
 
 
@@ -555,6 +551,7 @@ function Smiley({size,color}){
 
 function ScorePop({data,onClose}){
   const rows=[["Taste",data.taste,50],["Nearby",data.near,15],["Behaviour",data.bh,15],["Quality",data.qual,15],["Urgency",data.urg,20]];
+  if(data.prio&&data.prio!==0)rows.push(["Priorities",data.prio,20]);
   if(data.prio!=null&&data.prio!==0)rows.push(["Priorities",data.prio,20]);
   const subtotal=(data.taste||0)+(data.near||0)+(data.bh||0)+(data.qual||0)+(data.urg||0)+(data.prio||0);
   return (
@@ -564,15 +561,22 @@ function ScorePop({data,onClose}){
           <span style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:800,color:INK}}>{"Score: "+data.total+"/100"+(data.d?" - "+data.d+"km":"")}</span>
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:GRAY}}>{"×"}</button>
         </div>
-        {rows.map(([l,v,mx])=>(
-          <div key={l} style={{marginBottom:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-              <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK}}>{l}</span>
-              <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:TEAL}}>{v+"/"+mx}</span>
+        {rows.map(([l,v,mx])=>{
+          const isPrio=l==="Priorities";
+          const pct=isPrio?Math.round((Math.abs(v)/20)*100):Math.round(Math.min(1,Math.max(0,v/mx))*100);
+          const barColor=isPrio&&v<0?CORAL:TEAL;
+          const valStr=isPrio?(v>0?"+"+v:String(v)):v+"/"+mx;
+          const valColor=isPrio&&v<0?CORAL:TEAL;
+          return(
+            <div key={l} style={{marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK}}>{l}</span>
+                <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:valColor}}>{valStr}</span>
+              </div>
+              <div style={{background:GRAY_LT,borderRadius:4,height:4}}><div style={{background:barColor,height:"100%",width:pct+"%",borderRadius:4}}/></div>
             </div>
-            <div style={{background:GRAY_LT,borderRadius:4,height:4}}><div style={{background:TEAL,height:"100%",width:Math.round(Math.min(1,v/mx)*100)+"%",borderRadius:4}}/></div>
-          </div>
-        ))}
+          );
+        })}
         {data.mult!=null&&(
           <div style={{display:"flex",justifyContent:"space-between",marginTop:10,paddingTop:8,borderTop:"1px solid "+GRAY_LT}}>
             <span style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK}}>{"Subtotal "+subtotal+" × "+data.mult.toFixed(1)+" pref"}</span>
@@ -632,14 +636,16 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,fa
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>{fd}{ts?" - "+ts:""}</div>
         {!imprecise&&ev.bd?.tt&&(()=>{
           const tt=ev.bd.tt;
-          // Show all lines at the destination station (max 5) instead of just the line for this trip
-          const stops=ev.coord?nearestSubways(ev.coord,0.5):[];
-          const allLines=stops.length?stops[0].l.slice(0,5):(tt.line?[tt.line]:[]);
-          return (
+          if(tt.mode==="walk")return(
+            <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginTop:1}}>🚶 {tt.mins} min{ev.src?" · "+ev.src:""}</div>
+          );
+          const LineBadge=({l})=>l?<span style={{width:13,height:13,borderRadius:"50%",background:LINE_COLOR[l]||"#888",color:["N","Q","R","W"].includes(l)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{l}</span>:null;
+          return(
             <div style={{display:"flex",gap:2,marginTop:1,alignItems:"center",flexWrap:"wrap"}}>
-              <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY}}>{tt.mode==="transit"?"🚇":"🚶"}{" ~"+tt.mins+" min"}</span>
-              {allLines.map(line=><span key={line} style={{marginLeft:2,width:13,height:13,borderRadius:"50%",background:LINE_COLOR[line]||"#888",color:["N","Q","R","W"].includes(line)?"#111":"#fff",fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{line}</span>)}
-              {ev.src&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:4}}>· {ev.src}</span>}
+              <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY}}>🚇 {tt.mins} min</span>
+              <LineBadge l={tt.line}/>
+              {tt.toLine&&<><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:8,color:GRAY}}>›</span><LineBadge l={tt.toLine}/></>}
+              {ev.src&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:2}}>· {ev.src}</span>}
             </div>
           );
         })()}
@@ -2283,19 +2289,24 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                     if(!gmailUrl){showToast("Set your Apps Script URL in Sync tab first");return;}
                     setPpParsing(true);
                     try{
-                      const resp=await fetch(gmailUrl+"?action=parsePriorities&key="+encodeURIComponent(gmailKey),{
-                        method:"POST",headers:{"Content-Type":"application/json"},
-                        body:JSON.stringify({text:priorities}),
-                      });
+                      // Must be GET — Apps Script rejects POST CORS preflight for JSON content-type
+                      const url=gmailUrl+"?action=parsePriorities&key="+encodeURIComponent(gmailKey)+"&text="+encodeURIComponent(priorities.slice(0,2000));
+                      const resp=await fetch(url);
+                      if(!resp.ok){
+                        showToast("Apps Script returned "+resp.status+" — redeploy as new version (see Sync tab)");
+                        return;
+                      }
                       const data=await resp.json();
                       if(data.profile){
                         setPp(data.profile);
                         ss("gp_prior_v1",{text:priorities,profile:data.profile});
                         showToast("Priorities saved ✓");
+                      }else if(data.error&&/Unauthorized/i.test(data.error)){
+                        showToast("Wrong Apps Script key — check Sync tab");
                       }else{
                         showToast(data.error||"Parse failed — try again");
                       }
-                    }catch(e){showToast("Could not reach Apps Script");}
+                    }catch(e){showToast("Network error — "+e.message);}
                     finally{setPpParsing(false);}
                   }}
                   disabled={ppParsing||!priorities.trim()}
@@ -2406,44 +2417,40 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                     <span style={{fontSize:20}}>{calStatus==="ok"?"✅":calStatus==="unauth"?"🔒":calStatus==="error"?"⚠️":calStatus==="checking"?"⏳":"📅"}</span>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>
-                        {calStatus==="ok"?"Connected"+(calName?" — "+calName:""):calStatus==="unauth"?"Authorization needed":calStatus==="error"?"Apps Script not reachable":calStatus==="checking"?"Checking…":"Not yet checked"}
+                        {calStatus==="ok"?"Connected"+(calName?" — "+calName:""):calStatus==="unauth"?"Authorization needed":calStatus==="error"?"Apps Script not reachable":calStatus==="checking"?"Checking…":"Not yet synced"}
                       </div>
                       <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,lineHeight:1.4}}>
                         {calStatus==="ok"?busySlots.length+" busy slot"+(busySlots.length===1?"":"s")+" — events at those times appear dimmed":
                          calStatus==="unauth"?"One-time setup needed in Apps Script editor":
-                         calStatus==="error"?"Your Apps Script is reachable for events but not for calendar — usually means the web app deployment needs updating":
-                         "Will auto-detect time conflicts when connected"}
+                         calStatus==="error"?"Redeploy Apps Script as new version (see instructions below)":
+                         "Sync to auto-dim events that clash with your schedule"}
                       </div>
                     </div>
-                    <button onClick={()=>refreshCalendar()} disabled={calStatus==="checking"||!gmailUrl} style={{padding:"6px 10px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:calStatus==="checking"?"not-allowed":"pointer",opacity:calStatus==="checking"?0.6:1,flexShrink:0}}>
-                      {calStatus==="checking"?"…":"↻ Recheck"}
+                    <button onClick={async()=>{
+                      // Load calendar list on first tap, then recheck
+                      if(calList.length===0)await loadCalendarList();
+                      refreshCalendar();
+                    }} disabled={calStatus==="checking"||!gmailUrl} style={{padding:"6px 12px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:calStatus==="checking"?"not-allowed":"pointer",opacity:calStatus==="checking"?0.6:1,flexShrink:0,whiteSpace:"nowrap"}}>
+                      {calStatus==="checking"?"⏳ …":"📅 Sync calendar"}
                     </button>
                   </div>
-                  {/* Calendar picker — shown when we have a list of calendars */}
-                  {calStatus==="ok"&&(
-                    <div style={{marginTop:8,marginBottom:8}}>
-                      {calList.length===0?(
-                        <button onClick={loadCalendarList} style={{background:"none",border:"1px solid "+GRAY_LT,borderRadius:8,padding:"6px 12px",fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:TEAL,cursor:"pointer"}}>
-                          + Choose a different calendar
-                        </button>
-                      ):(
-                        <div>
-                          <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>Which calendar to check</div>
-                          <select value={calId} onChange={async e=>{
-                            const newId=e.target.value;
-                            const chosen=calList.find(c=>c.id===newId);
-                            setCalId(newId);
-                            if(chosen)setCalName(chosen.name);
-                            await ss("gp_cal_v1",{id:newId,name:chosen?.name||""});
-                            refreshCalendar(newId);
-                          }} style={{width:"100%",padding:"8px 10px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,boxSizing:"border-box",background:WHITE}}>
-                            <option value="">Default ({calList.find(c=>c.isDefault)?.name||"primary"})</option>
-                            {calList.filter(c=>!c.isDefault).map(c=>(
-                              <option key={c.id} value={c.id}>{c.name}{c.isOwned?"":" (shared)"}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                  {/* Calendar picker — shown once list is loaded */}
+                  {calList.length>0&&(
+                    <div style={{marginBottom:8}}>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>Which calendar to check</div>
+                      <select value={calId} onChange={async e=>{
+                        const newId=e.target.value;
+                        const chosen=calList.find(c=>c.id===newId);
+                        setCalId(newId);
+                        if(chosen)setCalName(chosen.name);
+                        await ss("gp_cal_v1",{id:newId,name:chosen?.name||""});
+                        refreshCalendar(newId);
+                      }} style={{width:"100%",padding:"8px 10px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,boxSizing:"border-box",background:WHITE}}>
+                        <option value="">Default ({calList.find(c=>c.isDefault)?.name||"primary"})</option>
+                        {calList.filter(c=>!c.isDefault).map(c=>(
+                          <option key={c.id} value={c.id}>{c.name}{c.isOwned?"":" (shared)"}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
                   {calStatus==="unauth"&&(
