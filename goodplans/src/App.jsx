@@ -1290,6 +1290,8 @@ export default function App(){
   const [pp,setPp]=useState(null);               // parsed priorityProfile
   const [ppParsing,setPpParsing]=useState(false);// loading state
   const [busySlots,setBusySlots]=useState([]);   // {date, startH, endH} from calendar
+  const [calStatus,setCalStatus]=useState("idle"); // idle | checking | ok | unauth | error
+  const [calCheckedAt,setCalCheckedAt]=useState(null);
   const [calSyncing,setCalSyncing]=useState(false);
   const [events,setEvents]=useState(EV);
   const [lastRefreshed,setLastRefreshed]=useState(null);
@@ -1422,10 +1424,21 @@ export default function App(){
         if(gm.url)setGmailUrl(gm.url);
         if(gm.key)setGmailKey(gm.key);
         // Auto-fetch calendar busy slots silently on load — dims conflicting events
+        setCalStatus("checking");
         fetch(url+"?action=busyDays&key="+encodeURIComponent(key))
           .then(r=>r.json())
-          .then(data=>{if(data.busySlots)setBusySlots(data.busySlots);})
-          .catch(()=>{});
+          .then(data=>{
+            if(data.busySlots){
+              setBusySlots(data.busySlots);
+              setCalStatus("ok");
+              setCalCheckedAt(Date.now());
+            }else if(data.error&&/not authorized|Calendar/i.test(data.error)){
+              setCalStatus("unauth");
+            }else{
+              setCalStatus("error");
+            }
+          })
+          .catch(()=>setCalStatus("error"));
       }
       setReady(true);
     })();
@@ -1702,6 +1715,30 @@ export default function App(){
     const toolResults=d.content?.filter(b=>b.type==="mcp_tool_result").map(b=>b.content?.[0]?.text||"").join("")||"";
     return texts||toolResults;
   };
+
+const refreshCalendar=async()=>{
+  if(!gmailUrl){showToast("Set your Apps Script URL first");return;}
+  setCalStatus("checking");
+  try{
+    const r=await fetch(gmailUrl+"?action=busyDays&key="+encodeURIComponent(gmailKey));
+    const data=await r.json();
+    if(data.busySlots){
+      setBusySlots(data.busySlots);
+      setCalStatus("ok");
+      setCalCheckedAt(Date.now());
+      showToast("✓ "+data.busySlots.length+" busy slot"+(data.busySlots.length===1?"":"s")+" found");
+    }else if(data.error&&/not authorized|Calendar/i.test(data.error)){
+      setCalStatus("unauth");
+      showToast("Calendar not authorized — see instructions below");
+    }else{
+      setCalStatus("error");
+      showToast(data.error||"Calendar check failed");
+    }
+  }catch(e){
+    setCalStatus("error");
+    showToast("Could not reach Apps Script");
+  }
+};
 
 const doRefresh=async()=>{
     if(!gmailUrl){showToast("Set your Apps Script URL in Sync tab");setTab("sync");return;}
@@ -2024,8 +2061,8 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
             {filtSorted.length===0
               ?<div style={{padding:"60px 20px",textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:GRAY}}>No events match.</div>
               :vm==="list"
-                ?<div>{filtSorted.map(ev=><Row key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} busyDays={busyDays}/>)}</div>
-                :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:10}}>{filtSorted.map(ev=><Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} favs={favs} busyDays={busyDays}/>)}</div>
+                ?<div>{filtSorted.map(ev=><Row key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} busyDays={busySlots}/>)}</div>
+                :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:10}}>{filtSorted.map(ev=><Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} favs={favs} busyDays={busySlots}/>)}</div>
             }
           </div>
         )}
@@ -2304,6 +2341,42 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                 }} disabled={refreshing} style={{display:"block",width:"100%",padding:"11px",background:"none",color:CORAL,border:"1.5px solid "+CORAL,borderRadius:12,fontWeight:600,fontSize:12,cursor:refreshing?"not-allowed":"pointer",fontFamily:"'Sora',sans-serif",marginBottom:16}}>
                   🗑️ Clear cache &amp; reset
                 </button>
+                {/* ── Calendar conflict detection ─────────────────────────────── */}
+                <div style={{background:WHITE,borderRadius:12,padding:"14px 14px",marginBottom:14,border:"1.5px solid "+GRAY_LT}}>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:10}}>Google Calendar</div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+                    <span style={{fontSize:20}}>{calStatus==="ok"?"✅":calStatus==="unauth"?"🔒":calStatus==="error"?"⚠️":calStatus==="checking"?"⏳":"📅"}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>
+                        {calStatus==="ok"?"Connected":calStatus==="unauth"?"Authorization needed":calStatus==="error"?"Can't reach Apps Script":calStatus==="checking"?"Checking…":"Not yet checked"}
+                      </div>
+                      <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,lineHeight:1.4}}>
+                        {calStatus==="ok"?busySlots.length+" busy slot"+(busySlots.length===1?"":"s")+" detected — events on those times appear dimmed":
+                         calStatus==="unauth"?"One-time setup needed in Apps Script editor":
+                         calStatus==="error"?"Could not connect — check your Apps Script URL above":
+                         "Will auto-detect time conflicts when connected"}
+                      </div>
+                    </div>
+                    <button onClick={refreshCalendar} disabled={calStatus==="checking"||!gmailUrl} style={{padding:"6px 10px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:calStatus==="checking"?"not-allowed":"pointer",opacity:calStatus==="checking"?0.6:1,flexShrink:0}}>
+                      {calStatus==="checking"?"…":"↻ Recheck"}
+                    </button>
+                  </div>
+                  {calStatus==="unauth"&&(
+                    <div style={{background:CREAM,borderRadius:8,padding:"10px 12px",marginTop:8}}>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>How to authorize (one-time, ~30 seconds):</div>
+                      <ol style={{margin:0,paddingLeft:18,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.6}}>
+                        <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a> in a new tab</li>
+                        <li>Open the Good Plans script project</li>
+                        <li>In the function dropdown at top, select <code style={{background:GRAY_LT,padding:"1px 5px",borderRadius:3,fontFamily:"monospace"}}>testCalendar</code></li>
+                        <li>Click <b>Run</b> — Google will pop up "This app needs access to your Calendar" → click <b>Allow</b></li>
+                        <li>Come back here and tap <b>↻ Recheck</b> above</li>
+                      </ol>
+                    </div>
+                  )}
+                  {calStatus==="ok"&&calCheckedAt&&(
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>Last checked {new Date(calCheckedAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+                  )}
+                </div>
                 {refreshLog.length>0&&(
                   <div style={{background:WHITE,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+GRAY_LT}}>
                     <div style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:8}}>Refresh log</div>
