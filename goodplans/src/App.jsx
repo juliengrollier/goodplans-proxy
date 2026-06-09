@@ -1309,11 +1309,13 @@ export default function App(){
   const [busySlots,setBusySlots]=useState([]);   // {date, startH, endH} from calendar
   const [calStatus,setCalStatus]=useState("idle"); // idle | checking | ok | unauth | error
   const [calCheckedAt,setCalCheckedAt]=useState(null);
-  const [calList,setCalList]=useState([]);        // [{id,name,isDefault,isOwned}]
-  const [calId,setCalId]=useState("");            // selected calendar ID (empty = default)
-  const [calName,setCalName]=useState("");        // selected calendar name for UI
+  const [calList,setCalList]=useState([]);
+  const [calId,setCalId]=useState("");
+  const [calName,setCalName]=useState("");
   const [calSyncing,setCalSyncing]=useState(false);
-  const [pushStatus,setPushStatus]=useState(null); // {subscriptions, relayConfigured, ...} or null
+  const [gcalClientId,setGcalClientId]=useState(""); // Google OAuth Client ID
+  const [pushStatus,setPushStatus]=useState(null);
+  const gTokenRef=useRef(null); // in-memory Google OAuth access token (not persisted)
   const [events,setEvents]=useState(EV);
   const [lastRefreshed,setLastRefreshed]=useState(null);
   const [refreshing,setRefreshing]=useState(false);
@@ -1423,7 +1425,7 @@ export default function App(){
 
   useEffect(()=>{
     (async()=>{
-      const [pr,fv2,bh,evStore,gm,nt0,prior,calPref]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1"),sg("gp_prior_v1"),sg("gp_cal_v1")]);
+      const [pr,fv2,bh,evStore,gm,nt0,prior,calPref,gcalCfg]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1"),sg("gp_prior_v1"),sg("gp_cal_v1"),sg("gp_gcal_v2")]);
       if(nt0)setNotif(n=>({...n,...nt0,windows:nt0.windows||n.windows}));
 
       if(pr){setProf({...DP,...pr,categories:{...DP.categories,...(pr.categories||{})},vibes:{...DP.vibes,...(pr.vibes||{})},subcategories:{...DEFAULT_SUBS,...DP.subcategories,...(pr.subcategories||{})}});}
@@ -1444,6 +1446,7 @@ export default function App(){
         const url=gm.url||gmailUrl, key=gm.key||gmailKey;
         if(gm.url)setGmailUrl(gm.url);
         if(gm.key)setGmailKey(gm.key);
+        if(gcalCfg?.clientId)setGcalClientId(gcalCfg.clientId);
         const savedCalId=calPref?.id||"";
         if(savedCalId)setCalId(savedCalId);
         if(calPref?.name)setCalName(calPref.name);
@@ -1741,6 +1744,75 @@ export default function App(){
     const toolResults=d.content?.filter(b=>b.type==="mcp_tool_result").map(b=>b.content?.[0]?.text||"").join("")||"";
     return texts||toolResults;
   };
+
+// ── Google Calendar OAuth flow ────────────────────────────────────────────
+// Loads Google Identity Services, shows the Google account picker popup,
+// then calls the Calendar API directly in the browser — no Apps Script needed.
+const loadGIS=()=>new Promise((resolve,reject)=>{
+  if(window.google?.accounts?.oauth2){resolve();return;}
+  const s=document.createElement("script");
+  s.src="https://accounts.google.com/gsi/client";
+  s.onload=resolve;s.onerror=reject;
+  document.head.appendChild(s);
+});
+
+const fetchBusyWithToken=async(token,selectedId)=>{
+  const now=new Date(),end=new Date(now.getTime()+21*86400000);
+  const resp=await fetch("https://www.googleapis.com/calendar/v3/freeBusy",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({timeMin:now.toISOString(),timeMax:end.toISOString(),items:[{id:selectedId||"primary"}]}),
+  });
+  const data=await resp.json();
+  const busy=(data.calendars?.[selectedId||"primary"]?.busy)||[];
+  return busy.map(b=>{
+    const s=new Date(b.start),e=new Date(b.end);
+    return{date:s.toISOString().split("T")[0],startH:s.getHours()+s.getMinutes()/60,endH:e.getHours()+e.getMinutes()/60};
+  });
+};
+
+const syncWithGoogleOAuth=async()=>{
+  if(!gcalClientId){
+    showToast("Enter your Google OAuth Client ID first (see instructions below)");
+    return;
+  }
+  setCalStatus("checking");
+  try{
+    await loadGIS();
+    await new Promise((resolve,reject)=>{
+      const tc=window.google.accounts.oauth2.initTokenClient({
+        client_id:gcalClientId,
+        scope:"https://www.googleapis.com/auth/calendar.readonly",
+        callback:async(tokenResp)=>{
+          if(tokenResp.error){reject(new Error(tokenResp.error));return;}
+          const token=tokenResp.access_token;
+          gTokenRef.current=token;
+          // List all calendars
+          const lr=await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList",{
+            headers:{"Authorization":"Bearer "+token},
+          });
+          const ld=await lr.json();
+          const cals=(ld.items||[]).map(c=>({id:c.id,name:c.summary,isDefault:c.primary||false,isOwned:!c.accessRole||c.accessRole==="owner"}));
+          setCalList(cals);
+          // Fetch busy slots for primary or previously selected calendar
+          const useId=calId||(cals.find(c=>c.isDefault)?.id||"primary");
+          const slots=await fetchBusyWithToken(token,useId);
+          setBusySlots(slots);
+          const chosen=cals.find(c=>c.id===useId);
+          setCalName(chosen?.name||"Primary");
+          setCalStatus("ok");
+          setCalCheckedAt(Date.now());
+          showToast("✓ "+slots.length+" busy slot"+(slots.length===1?"":"s")+" from "+(chosen?.name||"calendar"));
+          resolve();
+        },
+      });
+      tc.requestAccessToken({prompt:calList.length?"":"select_account"});
+    });
+  }catch(e){
+    setCalStatus("error");
+    showToast("Calendar error — "+e.message);
+  }
+};
 
 const checkPushStatus=async()=>{
   if(!gmailUrl)return;
@@ -2410,78 +2482,64 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                 }} disabled={refreshing} style={{display:"block",width:"100%",padding:"11px",background:"none",color:CORAL,border:"1.5px solid "+CORAL,borderRadius:12,fontWeight:600,fontSize:12,cursor:refreshing?"not-allowed":"pointer",fontFamily:"'Sora',sans-serif",marginBottom:16}}>
                   🗑️ Clear cache &amp; reset
                 </button>
-                {/* ── Calendar conflict detection ─────────────────────────────── */}
+                {/* ── Google Calendar OAuth ──────────────────────────────────── */}
                 <div style={{background:WHITE,borderRadius:12,padding:"14px 14px",marginBottom:14,border:"1.5px solid "+GRAY_LT}}>
                   <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,letterSpacing:"1px",textTransform:"uppercase",marginBottom:10}}>Google Calendar</div>
-                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
-                    <span style={{fontSize:20}}>{calStatus==="ok"?"✅":calStatus==="unauth"?"🔒":calStatus==="error"?"⚠️":calStatus==="checking"?"⏳":"📅"}</span>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:calStatus==="idle"?0:10}}>
+                    <span style={{fontSize:20}}>{calStatus==="ok"?"✅":calStatus==="checking"?"⏳":"📅"}</span>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:INK}}>
-                        {calStatus==="ok"?"Connected"+(calName?" — "+calName:""):calStatus==="unauth"?"Authorization needed":calStatus==="error"?"Apps Script not reachable":calStatus==="checking"?"Checking…":"Not yet synced"}
+                        {calStatus==="ok"?"Connected"+(calName?" — "+calName:""):calStatus==="checking"?"Connecting…":"Connect to dim clashing events"}
                       </div>
-                      <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,lineHeight:1.4}}>
-                        {calStatus==="ok"?busySlots.length+" busy slot"+(busySlots.length===1?"":"s")+" — events at those times appear dimmed":
-                         calStatus==="unauth"?"One-time setup needed in Apps Script editor":
-                         calStatus==="error"?"Redeploy Apps Script as new version (see instructions below)":
-                         "Sync to auto-dim events that clash with your schedule"}
-                      </div>
+                      {calStatus==="ok"&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY}}>{busySlots.length+" busy slot"+(busySlots.length===1?"":"s")+" in next 3 weeks"+(calCheckedAt?" · "+new Date(calCheckedAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"")}</div>}
                     </div>
-                    <button onClick={async()=>{
-                      // Load calendar list on first tap, then recheck
-                      if(calList.length===0)await loadCalendarList();
-                      refreshCalendar();
-                    }} disabled={calStatus==="checking"||!gmailUrl} style={{padding:"6px 12px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:calStatus==="checking"?"not-allowed":"pointer",opacity:calStatus==="checking"?0.6:1,flexShrink:0,whiteSpace:"nowrap"}}>
-                      {calStatus==="checking"?"⏳ …":"📅 Sync calendar"}
+                    <button onClick={syncWithGoogleOAuth} disabled={calStatus==="checking"} style={{padding:"7px 13px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,cursor:calStatus==="checking"?"not-allowed":"pointer",opacity:calStatus==="checking"?0.6:1,flexShrink:0,whiteSpace:"nowrap"}}>
+                      {calStatus==="checking"?"⏳ …":calStatus==="ok"?"↻ Resync":"📅 Sync calendar"}
                     </button>
                   </div>
-                  {/* Calendar picker — shown once list is loaded */}
-                  {calList.length>0&&(
-                    <div style={{marginBottom:8}}>
-                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:GRAY,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>Which calendar to check</div>
-                      <select value={calId} onChange={async e=>{
-                        const newId=e.target.value;
-                        const chosen=calList.find(c=>c.id===newId);
-                        setCalId(newId);
-                        if(chosen)setCalName(chosen.name);
-                        await ss("gp_cal_v1",{id:newId,name:chosen?.name||""});
-                        refreshCalendar(newId);
-                      }} style={{width:"100%",padding:"8px 10px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,boxSizing:"border-box",background:WHITE}}>
-                        <option value="">Default ({calList.find(c=>c.isDefault)?.name||"primary"})</option>
-                        {calList.filter(c=>!c.isDefault).map(c=>(
-                          <option key={c.id} value={c.id}>{c.name}{c.isOwned?"":" (shared)"}</option>
-                        ))}
-                      </select>
-                    </div>
+                  {/* Calendar picker — after successful OAuth */}
+                  {calStatus==="ok"&&calList.length>0&&(
+                    <select value={calId} onChange={async e=>{
+                      const newId=e.target.value;
+                      const chosen=calList.find(c=>c.id===newId);
+                      setCalId(newId);
+                      if(chosen)setCalName(chosen.name);
+                      await ss("gp_cal_v1",{id:newId,name:chosen?.name||""});
+                      if(gTokenRef.current){
+                        const slots=await fetchBusyWithToken(gTokenRef.current,newId);
+                        setBusySlots(slots);setCalCheckedAt(Date.now());
+                        showToast("✓ "+slots.length+" slots from "+(chosen?.name||""));
+                      }
+                    }} style={{width:"100%",padding:"8px 10px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,background:WHITE,marginBottom:8}}>
+                      {calList.map(c=><option key={c.id} value={c.id}>{c.name}{c.isDefault?" (default)":""}</option>)}
+                    </select>
                   )}
-                  {calStatus==="unauth"&&(
-                    <div style={{background:CREAM,borderRadius:8,padding:"10px 12px",marginTop:8}}>
-                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>How to authorize (one-time, ~30s):</div>
-                      <ol style={{margin:0,paddingLeft:18,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.6}}>
-                        <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a></li>
-                        <li>Open the Good Plans script project</li>
-                        <li>In the function dropdown at top, select <code style={{background:GRAY_LT,padding:"1px 5px",borderRadius:3,fontFamily:"monospace"}}>testCalendar</code></li>
-                        <li>Click <b>Run</b> — Google will pop up "This app needs access to your Calendar" → click <b>Allow</b></li>
-                        <li>Tap <b>↻ Recheck</b> above</li>
-                      </ol>
-                    </div>
-                  )}
-                  {calStatus==="error"&&(
-                    <div style={{background:CREAM,borderRadius:8,padding:"10px 12px",marginTop:8}}>
-                      <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>This usually means: the deployed web app version is stale</div>
-                      <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.6,marginBottom:6}}>
-                        Apps Script doesn't auto-update the deployed snapshot when you save. To refresh:
+                  {/* Client ID setup — collapsed when already working */}
+                  {calStatus!=="ok"&&(
+                    <div style={{marginTop:8}}>
+                      <input
+                        value={gcalClientId}
+                        onChange={e=>setGcalClientId(e.target.value)}
+                        onBlur={async()=>{ await ss("gp_gcal_v2",{clientId:gcalClientId}); }}
+                        placeholder="Google OAuth Client ID (see setup below)"
+                        style={{width:"100%",padding:"8px 10px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:11,background:WHITE,boxSizing:"border-box"}}
+                      />
+                      <div style={{marginTop:10,background:CREAM,borderRadius:8,padding:"10px 12px"}}>
+                        <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>One-time setup (~5 min):</div>
+                        <ol style={{margin:0,paddingLeft:18,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.7}}>
+                          <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a> → your project → ⚙️ Settings → <b>View in Google Cloud Console</b></li>
+                          <li>In Cloud Console → <b>APIs & Services</b> → <b>Enable APIs</b> → search <b>Google Calendar API</b> → Enable</li>
+                          <li><b>APIs & Services</b> → <b>OAuth consent screen</b> → External → fill name → add your email as test user → Save</li>
+                          <li><b>Credentials</b> → <b>+ Create Credentials</b> → <b>OAuth Client ID</b> → Web application → add <code style={{background:GRAY_LT,padding:"1px 4px",borderRadius:3}}>https://goodplans-proxy.vercel.app</code> as Authorized JavaScript origin → Create</li>
+                          <li>Copy the <b>Client ID</b> → paste above → tap <b>Sync calendar</b></li>
+                        </ol>
                       </div>
-                      <ol style={{margin:0,paddingLeft:18,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.6}}>
-                        <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a> → your project</li>
-                        <li>Click <b>Deploy</b> (top right) → <b>Manage deployments</b></li>
-                        <li>Click the <b>✏️</b> pencil icon on the existing "Web app" deployment</li>
-                        <li>Change <b>Version</b> to <b>New version</b> → click <b>Deploy</b></li>
-                        <li>URL stays the same. Tap <b>↻ Recheck</b> above</li>
-                      </ol>
                     </div>
                   )}
-                  {calStatus==="ok"&&calCheckedAt&&(
-                    <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY}}>Last checked {new Date(calCheckedAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+                  {calStatus==="ok"&&(
+                    <button onClick={()=>{setCalStatus("idle");setCalList([]);setBusySlots([]);gTokenRef.current=null;}} style={{background:"none",border:"none",color:GRAY,fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:"pointer",padding:"4px 0",marginTop:4}}>
+                      Disconnect calendar
+                    </button>
                   )}
                 </div>
                 {/* ── Push notifications diagnostics ─────────────────────────── */}
