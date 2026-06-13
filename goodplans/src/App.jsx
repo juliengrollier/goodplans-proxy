@@ -594,7 +594,7 @@ function ScorePop({data,onClose}){
   );
 }
 
-function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,favs,busyDays}){
+function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,favs,busyDays,onSrcFilter}){
   const free=(ev.price||"").toLowerCase().includes("free");
   const cfg=CATS[ev.cat]||CATS.Other;
   const fd=friendlyDate(ev,today,tomorrow);
@@ -645,7 +645,7 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,fa
               <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY}}>🚇 {tt.mins} min</span>
               <LineBadge l={tt.line}/>
               {tt.toLine&&<><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:8,color:GRAY}}>›</span><LineBadge l={tt.toLine}/></>}
-              {ev.src&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:2}}>· {ev.src}</span>}
+              {ev.src&&<span onClick={e=>{e.stopPropagation();onSrcFilter&&onSrcFilter(ev.src.trim());}} style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:GRAY,marginLeft:2,cursor:onSrcFilter?"pointer":"default",textDecoration:onSrcFilter?"underline":"none"}}>· {ev.src}</span>}
             </div>
           );
         })()}
@@ -812,7 +812,7 @@ function SortPill({sortKey,setSortKey}){
   );
 }
 
-function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,imgs,accent,noPad,sortKey,setSortKey,sortFn,catFilter,setCatFilter,favsList,busyDays}){
+function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,imgs,accent,noPad,sortKey,setSortKey,sortFn,catFilter,setCatFilter,favsList,busyDays,onSrcFilter}){
   if(!evts||!evts.length)return null;
   const filtered=catFilter&&catFilter.length>0?evts.filter(e=>catFilter.includes(e.cat)):evts;
   const sorted=sortFn&&sortKey?sortFn(filtered,sortKey):filtered;
@@ -845,7 +845,7 @@ function Carousel({title,sub,evts,favs,onFav,onOpen,onCal,onShare,onScore,today,
       )}
       <div style={{display:"flex",gap:10,overflowX:"auto",padding:"0 16px 16px",scrollbarWidth:"none"}}>
         {sorted.map(ev=>(
-          <Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={onFav} onOpen={onOpen} onCal={onCal} onShare={onShare} onScore={onScore} today={today} tomorrow={tomorrow} img={imgs?.[ev.cat]} favs={favsList||favs} busyDays={busyDays||[]}/>
+          <Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={onFav} onOpen={onOpen} onCal={onCal} onShare={onShare} onScore={onScore} today={today} tomorrow={tomorrow} img={imgs?.[ev.cat]} favs={favsList||favs} busyDays={busyDays||[]} onSrcFilter={onSrcFilter}/>
         ))}
       </div>
     </div>
@@ -973,11 +973,11 @@ function FilterBar({fc,setFc,fsub,setFsub,fsrc,setFsrc,allSrcs,fh,setFh,fp,setFp
         {has&&<button onClick={onClear} style={{padding:"5px 10px",borderRadius:20,background:"none",border:"1.5px solid "+CORAL,color:CORAL,fontSize:11,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontWeight:600,flexShrink:0}}>{"✕ Clear"}</button>}
         <DD label="Date" opts={DATES} sel={fd} setSel={setFd} open={dd==="d"} setOpen={v=>setDd(v?"d":null)}/>
         <CatTreeDD fc={fc} setFc={setFc} fsub={fsub} setFsub={setFsub} open={dd==="c"} setOpen={v=>setDd(v?"c":null)}/>
+        {allSrcs&&allSrcs.length>0&&<DD label="Source" opts={allSrcs} sel={fsrc} setSel={setFsrc} open={dd==="src"} setOpen={v=>setDd(v?"src":null)}/>}
         <DD label="Vibe" opts={VIBES.map(v=>v.label)} sel={fv.map(k=>VIBES.find(v=>v.key===k)?.label||k)} setSel={ls=>setFv(ls.map(l=>VIBES.find(v=>v.label===l)?.key||l))} open={dd==="v"} setOpen={v=>setDd(v?"v":null)}/>
         <SP label="Rating" val={fms} setVal={setFms} min={0} max={90} step={10} fmt={v=>v>0?"★"+v+"+":"Any"} open={dd==="s"} setOpen={v=>setDd(v?"s":null)} on={fms>0}/>
         <SP label="Dist." val={fmk} setVal={setFmk} min={1} max={50} step={1} fmt={v=>v<50?v+"km":"Any"} open={dd==="k"} setOpen={v=>setDd(v?"k":null)} on={fmk<50}/>
         <SP label="Price" val={fpx==null?100:fpx} setVal={setFpx} min={0} max={100} step={5} fmt={priceLabel} open={dd==="p"} setOpen={v=>setDd(v?"p":null)} on={fpx!=null&&fpx<100}/>
-        {allSrcs&&allSrcs.length>0&&<DD label="Source" opts={allSrcs} sel={fsrc} setSel={setFsrc} open={dd==="src"} setOpen={v=>setDd(v?"src":null)}/>}
         {cnt!=null&&<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,flexShrink:0}}>{cnt}</span>}
       </div>
     </div>
@@ -1980,7 +1980,7 @@ const doRefresh=async()=>{
   const home=loc||[40.7186,-73.9865];
   const active=events.filter(ev=>evActive(ev,TODAY));
   // Unique source list for the Sources filter (sorted, non-empty)
-  const allSrcs=[...new Set(active.map(ev=>ev.src).filter(Boolean))].sort();
+  const allSrcs=[...new Set(active.map(ev=>(ev.src||"").trim()).filter(Boolean))].sort();
 
   const sc=arr=>[...arr].map(ev=>({
     ...ev,
@@ -2003,7 +2003,7 @@ const doRefresh=async()=>{
     if(fv.length>0&&!fv.some(k=>matchV(ev,k)))return false;
     if(fc.length>0&&!fc.includes(ev.cat))return false;
     if(fsub.length>0&&!fsub.includes(ev.sub))return false;
-    if(fsrc.length>0&&!fsrc.includes(ev.src))return false;
+    if(fsrc.length>0&&!fsrc.includes((ev.src||"").trim()))return false;
     if(fh.length>0&&!fh.includes(ev.hood))return false;
     if(fp.length>0){
       const free=(ev.price||"").toLowerCase().includes("free");
@@ -2128,7 +2128,8 @@ sn.sort((a,b)=>{
   // Map tab: only events happening TODAY with valid coordinates
   const mapEvts=sc(active.filter(ev=>evCovers(ev,TODAY)));
   const favList=Object.values(favs);
-  const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs,sortFn:sortEvts,favsList:favs,busyDays:busySlots};
+  const onSrcFilter=src=>{setFsrc(s=>s.includes(src)?s:[...s,src]);setTab("browse");};
+  const fp2={favs,onFav:toggleFav,onOpen:openModal,onCal:addCal,onShare:share,onScore:setSp,today:TODAY,tomorrow:TOMORROW,imgs,sortFn:sortEvts,favsList:favs,busyDays:busySlots,onSrcFilter};
   // Per-carousel state: sort + category filter
 const [carCat,setCarCat]=useState({});
 const setCarCatKey=(k,v)=>setCarCat(p=>({...p,[k]:v}));
@@ -2198,7 +2199,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
               ?<div style={{padding:"60px 20px",textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:GRAY}}>No events match.</div>
               :vm==="list"
                 ?<div>{filtSorted.map(ev=><Row key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} busyDays={busySlots}/>)}</div>
-                :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:10}}>{filtSorted.map(ev=><Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} favs={favs} busyDays={busySlots}/>)}</div>
+                :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:10}}>{filtSorted.map(ev=><Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} favs={favs} busyDays={busySlots} onSrcFilter={onSrcFilter}/>)}</div>
             }
           </div>
         )}
@@ -2525,14 +2526,24 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                         style={{width:"100%",padding:"8px 10px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:11,background:WHITE,boxSizing:"border-box"}}
                       />
                       <div style={{marginTop:10,background:CREAM,borderRadius:8,padding:"10px 12px"}}>
-                        <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>One-time setup (~5 min):</div>
+                        <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:700,color:INK,marginBottom:6}}>One-time setup (~8 min):</div>
                         <ol style={{margin:0,paddingLeft:18,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:INK,lineHeight:1.7}}>
-                          <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>script.google.com</a> → your project → ⚙️ Settings → <b>View in Google Cloud Console</b></li>
-                          <li>In Cloud Console → <b>APIs & Services</b> → <b>Enable APIs</b> → search <b>Google Calendar API</b> → Enable</li>
-                          <li><b>APIs & Services</b> → <b>OAuth consent screen</b> → External → fill name → add your email as test user → Save</li>
-                          <li><b>Credentials</b> → <b>+ Create Credentials</b> → <b>OAuth Client ID</b> → Web application → add <code style={{background:GRAY_LT,padding:"1px 4px",borderRadius:3}}>https://goodplans-proxy.vercel.app</code> as Authorized JavaScript origin → Create</li>
-                          <li>Copy the <b>Client ID</b> → paste above → tap <b>Sync calendar</b></li>
+                          <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noreferrer" style={{color:TEAL,fontWeight:700}}>console.cloud.google.com</a> → create a project named "Good Plans" (or reuse an existing one)</li>
+                          <li>Make sure your new project is selected in the top-left project dropdown</li>
+                          <li>Search bar at top → type <b>Google Calendar API</b> → open it → click <b>Enable</b></li>
+                          <li>Left menu → <b>APIs & Services</b> → <b>OAuth consent screen</b> (now called <b>Google Auth Platform</b>). If you see <b>Get started</b>, click it:
+                            <ul style={{margin:"3px 0",paddingLeft:14}}>
+                              <li>App name "Good Plans", your email → Next</li>
+                              <li>Audience: <b>External</b> → Next</li>
+                              <li>Contact email → Finish → Create</li>
+                            </ul>
+                          </li>
+                          <li><b>Audience</b> tab (left) → under <b>Test users</b> → <b>+ Add users</b> → add your Gmail → Save</li>
+                          <li><b>Clients</b> tab (left) → <b>+ Create client</b> → Application type <b>Web application</b> → name it "Good Plans Web"</li>
+                          <li>Under <b>Authorized JavaScript origins</b> → <b>+ Add URI</b> → paste <code style={{background:GRAY_LT,padding:"1px 4px",borderRadius:3,fontSize:10}}>https://goodplans-proxy.vercel.app</code> → <b>Create</b></li>
+                          <li>Copy the <b>Client ID</b> (ends in <code style={{background:GRAY_LT,padding:"1px 4px",borderRadius:3,fontSize:10}}>.apps.googleusercontent.com</code>) → paste above → tap <b>Sync calendar</b></li>
                         </ol>
+                        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:GRAY,marginTop:8,lineHeight:1.5}}>Note: Google reorganized this in 2025–26. The consent screen, Audience, and Clients are now tabs under "Google Auth Platform" rather than separate pages.</div>
                       </div>
                     </div>
                   )}
