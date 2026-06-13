@@ -1313,7 +1313,7 @@ export default function App(){
   const [calId,setCalId]=useState("");
   const [calName,setCalName]=useState("");
   const [calSyncing,setCalSyncing]=useState(false);
-  const [gcalClientId,setGcalClientId]=useState(""); // Google OAuth Client ID
+  const [gcalClientId,setGcalClientId]=useState("485243730775-p30fh8ams562nt6b6tm234p3kc3plecb.apps.googleusercontent.com"); // Google OAuth Client ID
   const [pushStatus,setPushStatus]=useState(null);
   const gTokenRef=useRef(null); // in-memory Google OAuth access token (not persisted)
   const [events,setEvents]=useState(EV);
@@ -2515,8 +2515,8 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                       {calList.map(c=><option key={c.id} value={c.id}>{c.name}{c.isDefault?" (default)":""}</option>)}
                     </select>
                   )}
-                  {/* Client ID setup — collapsed when already working */}
-                  {calStatus!=="ok"&&(
+                  {/* Client ID setup — only shown if user has cleared/overridden the default */}
+                  {calStatus!=="ok"&&gcalClientId!=="485243730775-p30fh8ams562nt6b6tm234p3kc3plecb.apps.googleusercontent.com"&&(
                     <div style={{marginTop:8}}>
                       <input
                         value={gcalClientId}
