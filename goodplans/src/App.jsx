@@ -92,15 +92,13 @@ async function subscribePush(reg){
   }catch(e){console.warn("Push subscribe failed:",e);return null;}
 }
 
-// Send subscription to Apps Script for storage + future pushes
+// Send subscription to Apps Script for storage + future pushes.
+// Uses GET (not POST+JSON) to avoid CORS preflight rejection by Apps Script.
 async function registerSubWithAppsScript(gmailUrl,gmailKey,sub){
   if(!gmailUrl||!sub)return;
   try{
-    await fetch(gmailUrl+"?action=registerPush&key="+encodeURIComponent(gmailKey),{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({subscription:sub}),
-    });
+    const subStr=encodeURIComponent(JSON.stringify(sub));
+    await fetch(gmailUrl+"?action=registerPush&key="+encodeURIComponent(gmailKey)+"&sub="+subStr);
   }catch(e){console.warn("Push registration to Apps Script failed:",e);}
 }
 const DEFAULT_SUBS=Object.fromEntries(Object.entries(CATS).flatMap(([cat,cfg])=>cfg.sub.map(s=>[cat+"::"+s,50])));
@@ -665,7 +663,7 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,fa
   );
 }
 
-function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,busyDays}){
+function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,busyDays,onSrcFilter}){
   const free=(ev.price||"").toLowerCase().includes("free");
   const cfg=CATS[ev.cat]||CATS.Other;
   const fd=friendlyDate(ev,today,tomorrow);
@@ -683,6 +681,7 @@ function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,bus
           {isToday&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:700,color:WHITE,background:CORAL,padding:"1px 5px",borderRadius:6}}>Today</span>}
           {isTom&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:700,color:WHITE,background:"#8B5CF6",padding:"1px 5px",borderRadius:6}}>Tomorrow</span>}
           {ev.sub&&<span style={{fontFamily:"'Sora',sans-serif",fontSize:8,fontWeight:600,color:cfg.color,background:cfg.bg,padding:"1px 5px",borderRadius:6}}>{ev.sub}</span>}
+          {ev.src&&<span onClick={e=>{e.stopPropagation();onSrcFilter&&onSrcFilter(ev.src.trim());}} style={{fontFamily:"'DM Sans',sans-serif",fontSize:8,color:GRAY,background:GRAY_LT,padding:"1px 5px",borderRadius:6,cursor:onSrcFilter?"pointer":"default"}}>{ev.src}</span>}
         </div>
         <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:INK,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:2}}>{ev.title}</div>
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:GRAY,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:2}}>{ev.venue}</div>
@@ -1298,6 +1297,31 @@ const withTimeout=(promise,ms,label)=>Promise.race([
   new Promise((_,reject)=>setTimeout(()=>reject(new Error((label||"Request")+" timed out after "+Math.round(ms/1000)+"s")),ms))
 ]);
 
+// ── Google Calendar OAuth utilities (module-level, not inside component) ─────
+function loadGIS(){
+  return new Promise((resolve,reject)=>{
+    if(window.google?.accounts?.oauth2){resolve();return;}
+    const s=document.createElement("script");
+    s.src="https://accounts.google.com/gsi/client";
+    s.onload=resolve;s.onerror=reject;
+    document.head.appendChild(s);
+  });
+}
+async function fetchBusyWithToken(token,selectedId){
+  const now=new Date(),end=new Date(now.getTime()+21*86400000);
+  const resp=await fetch("https://www.googleapis.com/calendar/v3/freeBusy",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({timeMin:now.toISOString(),timeMax:end.toISOString(),items:[{id:selectedId||"primary"}]}),
+  });
+  const data=await resp.json();
+  const busy=(data.calendars?.[selectedId||"primary"]?.busy)||[];
+  return busy.map(b=>{
+    const s=new Date(b.start),e=new Date(b.end);
+    return{date:s.toISOString().split("T")[0],startH:s.getHours()+s.getMinutes()/60,endH:e.getHours()+e.getMinutes()/60};
+  });
+}
+
 export default function App(){
   const [ready,setReady]=useState(false);
   const [prof,setProf]=useState({...DP,categories:{...DP.categories},vibes:{...DP.vibes}});
@@ -1425,7 +1449,7 @@ export default function App(){
 
   useEffect(()=>{
     (async()=>{
-      const [pr,fv2,bh,evStore,gm,nt0,prior,calPref,gcalCfg]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1"),sg("gp_prior_v1"),sg("gp_cal_v1"),sg("gp_gcal_v2")]);
+      const [pr,fv2,bh,evStore,gm,nt0,prior,calPref,gcalCfg,calSlots]=await Promise.all([sg(SK_P),sg(SK_F),sg(SK_B),sg("gp_events_v1"),sg("gp_gmail_v1"),sg("gp_notif_v1"),sg("gp_prior_v1"),sg("gp_cal_v1"),sg("gp_gcal_v2"),sg("gp_cal_slots_v1")]);
       if(nt0)setNotif(n=>({...n,...nt0,windows:nt0.windows||n.windows}));
 
       if(pr){setProf({...DP,...pr,categories:{...DP.categories,...(pr.categories||{})},vibes:{...DP.vibes,...(pr.vibes||{})},subcategories:{...DEFAULT_SUBS,...DP.subcategories,...(pr.subcategories||{})}});}
@@ -1450,24 +1474,31 @@ export default function App(){
         const savedCalId=calPref?.id||"";
         if(savedCalId)setCalId(savedCalId);
         if(calPref?.name)setCalName(calPref.name);
-        // Auto-fetch calendar busy slots silently on load — dims conflicting events
-        setCalStatus("checking");
-        const calParam=savedCalId?"&calendarId="+encodeURIComponent(savedCalId):"";
-        fetch(url+"?action=busyDays&key="+encodeURIComponent(key)+calParam)
-          .then(r=>r.json())
-          .then(data=>{
-            if(data.busySlots){
-              setBusySlots(data.busySlots);
-              setCalStatus("ok");
-              setCalCheckedAt(Date.now());
-              if(data.calendarName)setCalName(data.calendarName);
-            }else if(data.error&&/not authorized|Calendar/i.test(data.error)){
-              setCalStatus("unauth");
-            }else{
-              setCalStatus("error");
-            }
-          })
-          .catch(()=>setCalStatus("error"));
+        // Restore cached busy slots immediately — no network needed
+        if(calSlots&&calSlots.length>0){
+          setBusySlots(calSlots);
+          setCalStatus("ok");
+          setCalCheckedAt(Date.now());
+          // Silently attempt to refresh in the background using GIS with no UI prompt
+          setTimeout(async()=>{
+            try{
+              await loadGIS();
+              const tc=window.google.accounts.oauth2.initTokenClient({
+                client_id:GCAL_CLIENT_ID,
+                scope:"https://www.googleapis.com/auth/calendar.readonly",
+                callback:async(tokenResp)=>{
+                  if(tokenResp.error)return; // silent fail — no popup
+                  gTokenRef.current=tokenResp.access_token;
+                  const slots=await fetchBusyWithToken(tokenResp.access_token,savedCalId||"primary");
+                  setBusySlots(slots);
+                  setCalCheckedAt(Date.now());
+                  ss("gp_cal_slots_v1",slots);
+                },
+              });
+              tc.requestAccessToken({prompt:""}); // no UI if already consented
+            }catch(e){ /* silent */ }
+          },4000);
+        }
       }
       setReady(true);
     })();
@@ -1565,10 +1596,11 @@ export default function App(){
           body=t+" · "+(ev.venue||"")+" · "+d.toFixed(1)+"km · "+(ev.price||"Free");
         }
         // Android Chrome requires showNotification() via SW; new Notification() throws there
+        const notifUrl=window.location.origin+"/?event="+ev.id;
         (async()=>{
           const reg="serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
           if(reg){
-            reg.showNotification(title,{body,tag:"gp-"+ev.id+(kind==="book"?"-book":""),icon:"/icon-192.png",badge:"/icon-192.png"});
+            reg.showNotification(title,{body,tag:"gp-"+ev.id+(kind==="book"?"-book":""),icon:"/icon-192.png",badge:"/icon-192.png",data:{url:notifUrl}});
           }else{
             const n=new Notification(title,{body,tag:"gp-"+ev.id+(kind==="book"?"-book":""),icon:LOGO,badge:LOGO});
             n.onclick=()=>{window.focus();openModal(ev);n.close();};
@@ -1667,6 +1699,35 @@ export default function App(){
     showToast("Notifications disabled");
   };
 
+  // ── Handle notification tap → open correct event ──────────────────────────
+  // Runs on mount and whenever events load, so it works whether app was open or closed.
+  useEffect(()=>{
+    if(!ready)return;
+    // Case A: app was closed, notification opened it — ?event= is in the URL
+    try{
+      const u=new URL(window.location.href);
+      const evId=u.searchParams.get("event");
+      if(evId){
+        const ev=events.find(x=>x.id===evId)||EV.find(x=>x.id===evId);
+        if(ev){setTab("home");setTimeout(()=>openModal(ev),300);}
+        window.history.replaceState({},"",window.location.pathname);
+      }
+    }catch(e){}
+    // Case B: app was open, SW posts a PUSH_NAV message
+    if(!("serviceWorker" in navigator))return;
+    const handler=e=>{
+      if(e.data?.type==="PUSH_NAV"&&e.data.url){
+        try{
+          const u=new URL(e.data.url,window.location.origin);
+          const id=u.searchParams.get("event");
+          if(id){const ev=events.find(x=>x.id===id)||EV.find(x=>x.id===id);if(ev){setTab("home");openModal(ev);}}
+        }catch{}
+      }
+    };
+    navigator.serviceWorker.addEventListener("message",handler);
+    return()=>navigator.serviceWorker.removeEventListener("message",handler);
+  },[ready,events.length]);
+
     const showToast=m=>{setToast(m);setTimeout(()=>setToast(null),2800);};
   const track=(type,cat)=>{
     setBeh(p=>{
@@ -1746,30 +1807,6 @@ export default function App(){
   };
 
 // ── Google Calendar OAuth flow ────────────────────────────────────────────
-// Loads Google Identity Services, shows the Google account picker popup,
-// then calls the Calendar API directly in the browser — no Apps Script needed.
-const loadGIS=()=>new Promise((resolve,reject)=>{
-  if(window.google?.accounts?.oauth2){resolve();return;}
-  const s=document.createElement("script");
-  s.src="https://accounts.google.com/gsi/client";
-  s.onload=resolve;s.onerror=reject;
-  document.head.appendChild(s);
-});
-
-const fetchBusyWithToken=async(token,selectedId)=>{
-  const now=new Date(),end=new Date(now.getTime()+21*86400000);
-  const resp=await fetch("https://www.googleapis.com/calendar/v3/freeBusy",{
-    method:"POST",
-    headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
-    body:JSON.stringify({timeMin:now.toISOString(),timeMax:end.toISOString(),items:[{id:selectedId||"primary"}]}),
-  });
-  const data=await resp.json();
-  const busy=(data.calendars?.[selectedId||"primary"]?.busy)||[];
-  return busy.map(b=>{
-    const s=new Date(b.start),e=new Date(b.end);
-    return{date:s.toISOString().split("T")[0],startH:s.getHours()+s.getMinutes()/60,endH:e.getHours()+e.getMinutes()/60};
-  });
-};
 
 const syncWithGoogleOAuth=async()=>{
   if(!gcalClientId){
@@ -1797,11 +1834,15 @@ const syncWithGoogleOAuth=async()=>{
           // Fetch busy slots for primary or previously selected calendar
           const useId=calId||(cals.find(c=>c.isDefault)?.id||"primary");
           const slots=await fetchBusyWithToken(token,useId);
-          setBusySlots(slots);
           const chosen=cals.find(c=>c.id===useId);
+          setBusySlots(slots);
           setCalName(chosen?.name||"Primary");
+          setCalId(useId);
           setCalStatus("ok");
           setCalCheckedAt(Date.now());
+          // Persist so next session loads instantly without re-authing
+          ss("gp_cal_slots_v1",slots);
+          ss("gp_cal_v1",{id:useId,name:chosen?.name||"Primary"});
           showToast("✓ "+slots.length+" busy slot"+(slots.length===1?"":"s")+" from "+(chosen?.name||"calendar"));
           resolve();
         },
@@ -2024,7 +2065,7 @@ const doRefresh=async()=>{
     }
     return true;
   };
-  const clr=()=>{setFc([]);setFsub([]);setFsrc([]);setFh([]);setFp([]);setFpx(100);setFd([]);setFv([]);setFms(0);setFmk(50);setFq("");setBusyDays([]);};
+  const clr=()=>{setFc([]);setFsub([]);setFsrc([]);setFh([]);setFp([]);setFpx(100);setFd([]);setFv([]);setFms(0);setFmk(50);setFq("");setBusySlots([]);};
 
   // Home filtering: if user has set any filter, apply it to ALL home carousels.
   // Also demote long-running events from "Nearby Now" / "Tonight" — a 3-month
@@ -2198,7 +2239,10 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
             {filtSorted.length===0
               ?<div style={{padding:"60px 20px",textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:GRAY}}>No events match.</div>
               :vm==="list"
-                ?<div>{filtSorted.map(ev=><Row key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} busyDays={busySlots}/>)}</div>
+                ?<div>
+                    {fsrc.length>0&&<div style={{padding:"6px 16px",background:TEAL+"18",fontFamily:"'DM Sans',sans-serif",fontSize:11,color:TEAL,fontWeight:600}}>Showing {filtSorted.length} events · Source: {fsrc.join(", ")}</div>}
+                    {filtSorted.map(ev=><Row key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} busyDays={busySlots} onSrcFilter={onSrcFilter}/>)}
+                  </div>
                 :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:10}}>{filtSorted.map(ev=><Card key={ev.id} ev={ev} isFav={!!favs[ev.id]} onFav={toggleFav} onOpen={openModal} onCal={addCal} onShare={share} onScore={setSp} today={TODAY} tomorrow={TOMORROW} img={imgs[ev.cat]} favs={favs} busyDays={busySlots} onSrcFilter={onSrcFilter}/>)}</div>
             }
           </div>
