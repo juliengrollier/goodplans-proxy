@@ -1,14 +1,9 @@
 /**
  * Good Plans — Service Worker
  * Place this file at: goodplans/public/sw.js
- *
- * Responsibilities:
- *  - Receive Web Push events and display system notifications
- *  - Handle notification clicks (opens the app on the right event)
- *  - Cache nothing else — all data fetching happens in the app
  */
 
-const APP_NAME = "Good Plans";
+const APP_ORIGIN = self.location.origin;
 
 // ─── Push received from Apps Script → Vercel push relay ─────────────────────
 self.addEventListener("push", (event) => {
@@ -16,15 +11,15 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch {
-    payload = { title: APP_NAME, body: event.data?.text() || "New event alert" };
+    payload = { title: "Good Plans", body: event.data?.text() || "New event alert" };
   }
 
   const {
-    title = APP_NAME,
+    title = "Good Plans",
     body = "",
     url = "/",
-    icon = "/icons/icon-192.png",
-    badge = "/icons/badge-72.png",
+    icon = "/icon-192.png",
+    badge = "/icon-192.png",
     tag = "gp-push",
   } = payload;
 
@@ -34,9 +29,9 @@ self.addEventListener("push", (event) => {
       icon,
       badge,
       tag,
-      renotify: true,        // show even if same tag
+      renotify: true,
       requireInteraction: false,
-      data: { url },
+      data: { url: url.startsWith("http") ? url : APP_ORIGIN + url },
     })
   );
 });
@@ -44,21 +39,21 @@ self.addEventListener("push", (event) => {
 // ─── Notification tapped — open / focus app on the right event ───────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
+  const targetUrl = event.notification.data?.url || APP_ORIGIN + "/";
 
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((windowClients) => {
-        // If the app is already open, focus it and navigate
+        // If the app is already open, focus it and tell it which event to show
         for (const client of windowClients) {
-          if (client.url.includes(self.location.origin)) {
-            client.focus();
-            client.postMessage({ type: "PUSH_NAV", url: targetUrl });
-            return;
+          if (client.url.startsWith(APP_ORIGIN)) {
+            return client.focus().then(c => {
+              c.postMessage({ type: "PUSH_NAV", url: targetUrl });
+            });
           }
         }
-        // Otherwise open a new window
+        // App is closed — open it with the event URL
         return clients.openWindow(targetUrl);
       })
   );
