@@ -655,7 +655,7 @@ function Card({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,fa
           <div style={{display:"flex",gap:3}} onClick={e=>e.stopPropagation()}>
             <button onClick={()=>onCal(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:GRAY,padding:2}}>{"📅"}</button>
             <button onClick={()=>onShare(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:GRAY,padding:2}}>{"↗"}</button>
-            <button onClick={()=>onFav(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:isFav?TEAL:GRAY,padding:2}}>{isFav?"★":"☆"}</button>
+            <button onClick={()=>onFav(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:isFav?CORAL:GRAY,padding:2}}>{isFav?"♥":"♡"}</button>
           </div>
         </div>
       </div>
@@ -696,7 +696,7 @@ function Row({ev,isFav,onFav,onOpen,onCal,onShare,onScore,today,tomorrow,img,bus
       <div style={{display:"flex",flexDirection:"column",gap:5,flexShrink:0}} onClick={e=>e.stopPropagation()}>
         <button onClick={()=>onCal(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:GRAY,padding:2}}>{"📅"}</button>
         <button onClick={()=>onShare(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:GRAY,padding:2}}>{"↗"}</button>
-        <button onClick={()=>onFav(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,color:isFav?TEAL:GRAY,padding:2}}>{isFav?"★":"☆"}</button>
+        <button onClick={()=>onFav(ev)} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,color:isFav?CORAL:GRAY,padding:2}}>{isFav?"♥":"♡"}</button>
       </div>
     </div>
   );
@@ -923,6 +923,17 @@ function Modal({ev,isFav,onClose,onFav,onCal,onShare,today,tomorrow}){
   const cfg=CATS[ev.cat]||CATS.Other;
   const fd=friendlyDate(ev,today,tomorrow);
   const ts=ev.time&&ev.time!=="All day"?" - "+ev.time:"";
+  // Phone back button closes the modal instead of leaving the app
+  useEffect(()=>{
+    window.history.pushState({modal:true},"");
+    const onPop=()=>onClose();
+    window.addEventListener("popstate",onPop);
+    return()=>{
+      window.removeEventListener("popstate",onPop);
+      // If modal closed via UI (not back button), clean up the history entry
+      if(window.history.state?.modal)window.history.back();
+    };
+  },[]);
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:5000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
       <div style={{background:WHITE,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
@@ -952,7 +963,7 @@ function Modal({ev,isFav,onClose,onFav,onCal,onShare,today,tomorrow}){
             {ev.url&&<a href={ev.url} target="_blank" rel="noreferrer" style={{display:"block",padding:"13px",background:TEAL,color:WHITE,border:"none",borderRadius:12,fontWeight:700,fontSize:14,textDecoration:"none",textAlign:"center",fontFamily:"'Sora',sans-serif"}}>View event page</a>}
             <button onClick={()=>onCal(ev)} style={{display:"block",width:"100%",padding:"12px",background:CREAM,color:INK,border:"1.5px solid "+GRAY_LT,borderRadius:12,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Sora',sans-serif"}}>{"📅 Add to Google Calendar"}</button>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>onFav(ev)} style={{flex:1,padding:"12px",background:CREAM,color:isFav?TEAL:GRAY,border:"1.5px solid "+GRAY_LT,borderRadius:12,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Sora',sans-serif"}}>{isFav?"Saved":"Save"}</button>
+              <button onClick={()=>onFav(ev)} style={{flex:1,padding:"12px",background:isFav?CORAL+"18":CREAM,color:isFav?CORAL:GRAY,border:"1.5px solid "+(isFav?CORAL:GRAY_LT),borderRadius:12,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Sora',sans-serif"}}>{isFav?"♥ Saved":"♡ Save"}</button>
               <button onClick={()=>onShare(ev)} style={{flex:1,padding:"12px",background:CREAM,color:INK,border:"1.5px solid "+GRAY_LT,borderRadius:12,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Sora',sans-serif"}}>Share</button>
             </div>
           </div>
@@ -1355,7 +1366,7 @@ export default function App(){
   const [sp,setSp]=useState(null);
   const [expandedCats,setExpandedCats]=useState({});
   const toggleCatExpand=cat=>setExpandedCats(p=>({...p,[cat]:!p[cat]}));
-  const [profTab,setProfTab]=useState("prefs");
+  const [profTab,setProfTab]=useState("sync");
   const [toast,setToast]=useState(null);
   const [fc,setFc]=useState([]);
   const [fh,setFh]=useState([]);
@@ -1591,7 +1602,7 @@ export default function App(){
           body="Similar to '"+matchedTitle+"' · "+(ev.venue||"")+" · "+(ev.price||"Free");
         }else{
           const t=ev.time&&ev.time!=="All day"?ev.time:"soon";
-          const prefix=isFav?"★ ":(cfg.emoji||"📍")+" ";
+          const prefix=isFav?"♥ ":(cfg.emoji||"📍")+" ";
           title=prefix+ev.title;
           body=t+" · "+(ev.venue||"")+" · "+d.toFixed(1)+"km · "+(ev.price||"Free");
         }
@@ -2203,7 +2214,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
         </div>
       </header>
       <nav style={{display:"flex",background:WHITE,borderBottom:"1.5px solid "+GRAY_LT,position:"sticky",top:46,zIndex:40,overflowX:"auto",scrollbarWidth:"none"}}>
-        {[["home","Home"],["browse","Browse"],["map","Map"],["saved",favList.length?"★ "+favList.length:"Saved"]].map(([t,l])=>(
+        {[["home","Home"],["browse","Browse"],["map","Map"],["saved",favList.length?"♥ "+favList.length:"Saved"]].map(([t,l])=>(
           <button key={t} onClick={()=>setTab(t)} style={{flexShrink:0,padding:"9px 11px",background:"none",border:"none",color:tab===t?TEAL:GRAY,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,letterSpacing:"0.5px",textTransform:"uppercase",borderBottom:"2.5px solid "+(tab===t?TEAL:"transparent"),whiteSpace:"nowrap"}}>{l}</button>
         ))}
       </nav>
@@ -2254,7 +2265,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
           <div>
             {favList.length===0
               ?<div style={{padding:"60px 20px",textAlign:"center"}}>
-                <div style={{fontSize:36,marginBottom:12}}>{"☆"}</div>
+                <div style={{fontSize:36,marginBottom:12}}>{"♡"}</div>
                 <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:INK}}>Nothing saved yet</div>
                 <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:GRAY,marginTop:6}}>Tap the star on any event</div>
               </div>
@@ -2304,7 +2315,7 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                         <div style={{fontFamily:"'Sora',sans-serif",fontSize:10,fontWeight:700,color:GRAY,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>What triggers a notification</div>
                         <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
                           {chip(notif.includeNearby,"⭐ Top-rated nearby",()=>setN({includeNearby:!notif.includeNearby}))}
-                          {chip(notif.includeFavs,"★ Saved events",()=>setN({includeFavs:!notif.includeFavs}))}
+                          {chip(notif.includeFavs,"♥ Saved events",()=>setN({includeFavs:!notif.includeFavs}))}
                         </div>
                         {notif.includeNearby&&(
                           <>
@@ -2526,6 +2537,18 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                   showToast("Cache cleared");
                 }} disabled={refreshing} style={{display:"block",width:"100%",padding:"11px",background:"none",color:CORAL,border:"1.5px solid "+CORAL,borderRadius:12,fontWeight:600,fontSize:12,cursor:refreshing?"not-allowed":"pointer",fontFamily:"'Sora',sans-serif",marginBottom:16}}>
                   🗑️ Clear cache &amp; reset
+                </button>
+                <button onClick={async()=>{
+                  if(!gmailUrl){showToast("Set Apps Script URL first");return;}
+                  showToast("Fetching event images…");
+                  try{
+                    const r=await fetch(gmailUrl+"?action=runEnrich&key="+encodeURIComponent(gmailKey));
+                    const d=await r.json();
+                    if(d.ok)showToast("Image fetch started ("+d.current+"/"+d.total+" have images). Re-sync in ~3 min.");
+                    else showToast(d.error||"Could not start");
+                  }catch(e){showToast("Could not reach Apps Script");}
+                }} disabled={refreshing} style={{display:"block",width:"100%",padding:"11px",background:"none",color:TEAL,border:"1.5px solid "+TEAL,borderRadius:12,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",marginBottom:16}}>
+                  🖼️ Re-fetch event images
                 </button>
                 {/* ── Google Calendar OAuth ──────────────────────────────────── */}
                 <div style={{background:WHITE,borderRadius:12,padding:"14px 14px",marginBottom:14,border:"1.5px solid "+GRAY_LT}}>
