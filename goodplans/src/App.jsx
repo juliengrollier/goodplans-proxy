@@ -1350,6 +1350,7 @@ export default function App(){
   const [calSyncing,setCalSyncing]=useState(false);
   const [gcalClientId,setGcalClientId]=useState("485243730775-p30fh8ams562nt6b6tm234p3kc3plecb.apps.googleusercontent.com"); // Google OAuth Client ID
   const [pushStatus,setPushStatus]=useState(null);
+  const [deployVer,setDeployVer]=useState(null);
   const gTokenRef=useRef(null); // in-memory Google OAuth access token (not persisted)
   const [events,setEvents]=useState(EV);
   const [lastRefreshed,setLastRefreshed]=useState(null);
@@ -1864,6 +1865,16 @@ const syncWithGoogleOAuth=async()=>{
     setCalStatus("error");
     showToast("Calendar error — "+e.message);
   }
+};
+
+const checkDeployVersion=async()=>{
+  if(!gmailUrl){showToast("Set Apps Script URL first");return;}
+  try{
+    const r=await fetch(gmailUrl+"?action=version&key="+encodeURIComponent(gmailKey));
+    if(!r.ok){setDeployVer({error:"HTTP "+r.status});return;}
+    const d=await r.json();
+    setDeployVer(d);
+  }catch(e){setDeployVer({error:e.message});}
 };
 
 const checkPushStatus=async()=>{
@@ -2505,6 +2516,21 @@ const carP=(k)=>({sortKey:carSort[k]||(k==="nn"?"distance":(k==="sn"||k==="tn")?
                   <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,fontWeight:600,color:INK,marginBottom:5}}>Apps Script secret key</div>
                   <input value={gmailKey} onChange={e=>setGmailKey(e.target.value)} placeholder="your secret string" style={{width:"100%",padding:"9px 11px",border:"1.5px solid "+GRAY_LT,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:11,marginBottom:10,boxSizing:"border-box"}}/>
                   <button onClick={async()=>{await ss("gp_gmail_v1",{url:gmailUrl,key:gmailKey});showToast("Saved");}} style={{padding:"8px 14px",background:TEAL,color:WHITE,border:"none",borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save</button>
+                  <button onClick={checkDeployVersion} style={{marginLeft:8,padding:"8px 14px",background:"none",color:TEAL,border:"1.5px solid "+TEAL,borderRadius:8,fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Check deployment</button>
+                  {deployVer&&(
+                    <div style={{marginTop:10,background:deployVer.version==="v10-2026-06-09"?"#ECFDF5":"#FEF2F2",borderRadius:8,padding:"10px 12px",fontFamily:"'DM Sans',sans-serif",fontSize:11,lineHeight:1.6}}>
+                      {deployVer.error?(
+                        <div style={{color:CORAL}}>⚠️ {deployVer.error} — the web app isn't reachable. Redeploy needed.</div>
+                      ):deployVer.version==="v10-2026-06-09"?(
+                        <div style={{color:"#059669"}}>✅ Deployment is current ({deployVer.version}). Priorities, calendar & push endpoints are live.</div>
+                      ):(
+                        <div style={{color:CORAL}}>
+                          ⚠️ <b>Stale deployment</b> — got "{deployVer.version||"old version"}". Your saved code has newer features that aren't deployed yet.
+                          <div style={{marginTop:6,color:INK}}>Fix: Apps Script editor → <b>Deploy</b> → <b>Manage deployments</b> → ✏️ edit → Version: <b>New version</b> → Deploy.</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{background:lastRefreshed?TEAL+"12":GRAY+"12",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
                   <span style={{fontSize:18}}>🔄</span>
