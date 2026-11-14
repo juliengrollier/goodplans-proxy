@@ -79,9 +79,10 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.5, color: "var(--ink2)" }}><b style={{ color: "var(--ink)" }}>This week's don't-miss. </b>{highlights.text}</p>
         ) : highlights?.status === "loading" ? (
           <p className="muted" style={{ margin: "10px 0 0", fontSize: 14 }}>Writing your week's highlights…</p>
+        ) : String(highlights?.status || "").startsWith("error") ? (
+          <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>Weekly highlights unavailable: {String(highlights.status).slice(7)}</p>
         ) : null}
       </div>
-      <Forecast weather={weather} today={today} />
       <div className="hscroll" style={{ padding: "8px 16px 16px" }}>
         <button className={"chip" + (freeUntil != null ? " on" : "")} onClick={openFree}><Icon name="clock" size={15} /> {freeText}</button>
         <button className="chip" onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
