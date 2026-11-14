@@ -95,4 +95,6 @@ a{color:inherit}
 .gp-me{width:18px;height:18px;border-radius:50%;background:#1B1F3B;border:4px solid #fff;box-shadow:0 0 0 6px rgba(27,31,59,.18)}
 [data-theme="dark"] .gp-me{background:#FBF7EF;border-color:#141833}
 input[type=range]{width:100%;accent-color:var(--ink)}
+.gp-tiles-light { filter: saturate(.55) brightness(1.04); }
+.gp-tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.9) saturate(.5); }
 `;

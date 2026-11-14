@@ -152,6 +152,7 @@ export function Dialog({ title, onClose, children }) {
 }
 
 // ── Leaflet map (loaded from unpkg once), category pins
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
 let leafletPromise = null;
 function loadLeaflet() {
   if (window.L) return Promise.resolve(window.L);
@@ -186,7 +187,11 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
   const draw = () => {
     const L = window.L, m = mapRef.current; if (!L || !m) return;
     if (tileRef.current) m.removeLayer(tileRef.current);
-    tileRef.current = L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`, { maxZoom: 19, attribution: '© OpenStreetMap © CARTO' }).addTo(m);
+    // CARTO raster tiles need a key since Sept 2026 (free up to 5M tiles/month). Without one, fall back to
+    // OpenStreetMap tiles, darkened with a CSS filter in dark mode.
+    tileRef.current = CARTO_KEY
+      ? L.tileLayer(`https://basemaps.cartocdn.com/rastertiles/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, { maxZoom: 19, attribution: "© OpenStreetMap © CARTO" }).addTo(m)
+      : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap", className: dark ? "gp-tiles-dark" : "gp-tiles-light" }).addTo(m);
     layerRef.current.clearLayers();
     L.marker(home, { icon: L.divIcon({ className: "", html: '<div class="gp-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(layerRef.current);
     events.forEach((ev) => {
