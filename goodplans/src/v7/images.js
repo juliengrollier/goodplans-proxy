@@ -3,7 +3,10 @@
 // generic site image (e.g. a newsletter banner) and replaced by the venue photo.
 import { useEffect, useState } from "react";
 
-export const API_BASE = (import.meta.env.VITE_API_BASE || "https://goodplans-proxy.vercel.app").replace(/\/$/, "");
+// The API functions live in the goodplans-proxy Vercel project: same origin when the app is served from it
+// (production or a preview of the same branch), else its production address.
+export const API_BASE = (import.meta.env.VITE_API_BASE ||
+  (/^goodplans-proxy/.test(location.hostname) ? "" : "https://goodplans-proxy.vercel.app")).replace(/\/$/, "");
 const KEY = "gp_img_v8";
 const DAY = 86400000;
 const TTL = { event: 14 * DAY, venue: 2 * DAY, none: 1 * DAY };
