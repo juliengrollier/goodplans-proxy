@@ -50,7 +50,9 @@ async function highlights({ taste, weather, picks }) {
   const list = (picks || []).slice(0, 15).map((p) => ({ title: clip(p.title, 120), when: clip(p.when, 40), venue: clip(p.venue, 60), cat: clip(p.cat, 30), price: clip(p.price, 30), why: (p.why || []).slice(0, 3).map((w) => clip(w, 40)) }));
   const system = `You write the weekly "don't miss" note at the top of Good Plans, a personal NYC events app for a couple living on the Lower East Side. Write one short paragraph of 60 to 90 words, warm, concise and confident, like a friend with good taste. Name 3 or 4 events from the list, with their day, and say in a few words why each fits. Mention the weather only if it changes the plan. Use only the facts given; do not invent details, prices or times. No greeting, no sign-off, no emojis, no markdown, no lists.`;
   const user = `What they like: ${clip(taste, 400)}\nWeather this week: ${clip(weather, 300)}\nTop picks, best first:\n${JSON.stringify(list)}`;
-  return clip(await claude(system, user, 400), 900);
+  const text = clip(await claude(system, user, 1500), 900);
+  if (!text) throw new Error("Claude returned no text");
+  return text;
 }
 
 export default async function handler(req, res) {

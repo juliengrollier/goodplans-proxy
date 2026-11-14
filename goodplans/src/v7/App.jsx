@@ -307,13 +307,14 @@ export default function App() {
     if (picks.length < 3) return;
     const hash = picks.slice(0, 6).map((e) => e.id).sort().join("|");
     const day = isoDay(today);
-    if (hl && hl.day === day && (hl.hash === hash || Date.now() - hl.at < 12 * 3600000)) return;
+    if (hl && hl.text && hl.day === day && (hl.hash === hash || Date.now() - hl.at < 12 * 3600000)) return;
     setHlStatus("loading");
     const wx = weather?.byDate ? Object.entries(weather.byDate).slice(0, 7).map(([d, v]) => `${DAYS[new Date(d + "T12:00:00").getDay()]} ${v.hi}°F, ${v.pmax}% rain`).join("; ") : "unknown";
     postJSON("/api/enrich", {
       mode: "highlights", taste: tasteSummary(eprof, taste, Object.keys(CATS)), weather: wx,
       picks: picks.map((e) => ({ title: e.title, when: whenLabel(e, today), venue: (e.venue || "").split(",")[0], cat: e.cat, price: e.price, why: e.why })),
     }).then((d) => {
+      if (!d.text) throw new Error("empty response");
       const v = { text: d.text, hash, day, at: Date.now() };
       setHl(v); setHlStatus("idle");
       try { localStorage.setItem(HL_KEY, JSON.stringify(v)); } catch { /* full */ }
