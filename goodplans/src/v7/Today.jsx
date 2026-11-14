@@ -57,6 +57,7 @@ function Forecast({ weather, today }) {
 }
 
 function renderHighlights(text, ids, data, onOpen) {
+  text = text.replace(/\[\[[^\]]*$/, "").trim();
   const out = []; let last = 0, k = 0; const re = /\[\[(\d+)\|([^\]]+)\]\]/g; let m;
   while ((m = re.exec(text))) {
     if (m.index > last) out.push(text.slice(last, m.index));
