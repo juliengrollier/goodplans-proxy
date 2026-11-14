@@ -194,10 +194,10 @@ export function fitsFree(ev, freeUntil, today) {
 // ── Sections for Today
 const dedupe = (arr) => { const seen = new Set(); return arr.filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
-export function buildToday(scored, { today, freeUntil, eprof }) {
+export function buildToday(scored, { today, freeUntil, eprof, pinned = [] }) {
   const live = scored.filter((e) => !e.hidden);
   const now = nowMinutes();
-  const used = new Set();
+  const used = new Set(pinned);
   const take = (arr, n) => { const out = []; for (const e of arr) { if (used.has(e.id)) continue; out.push(e); used.add(e.id); if (out.length === n) break; } return out; };
 
   const nowSoon = dedupe(live.filter((e) => {

@@ -274,7 +274,12 @@ export default function App() {
   const effFree = freeUntil != null && freeUntil > nowMinutes() ? freeUntil : null;
 
   const visible = useMemo(() => scored.filter((e) => !e.hidden && evActive(e, today) && !isOver(e, today)), [scored, today]);
-  const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof }), [scored, today, effFree, eprof]);
+  // The week's top picks: shown on Today and used as the only source for the "don't miss" paragraph, so the text never mentions something that is not on screen
+  const weekPicks = useMemo(() => {
+    const seen = new Set();
+    return visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+  }, [visible, today]);
+  const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof, pinned: weekPicks.map((e) => e.id) }), [scored, today, effFree, eprof, weekPicks]);
 
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
   const tagBusy = useRef(false);
@@ -299,15 +304,14 @@ export default function App() {
     })();
   }, [ready, visible.length, tags]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Weekly "don't miss" paragraph, rewritten when the top picks change (at most every 12 h) or the day changes
+  // ── Weekly "don't miss" paragraph, rewritten when the top picks change or the day changes
   useEffect(() => {
     if (!ready || aiOff.current || !visible.length) return;
-    const seen = new Set();
-    const picks = visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
+    const picks = weekPicks;
     if (picks.length < 3) return;
     const hash = picks.slice(0, 6).map((e) => e.id).sort().join("|");
     const day = isoDay(today);
-    if (hl && hl.text && hl.day === day && (hl.hash === hash || Date.now() - hl.at < 12 * 3600000)) return;
+    if (hl && hl.text && hl.day === day && hl.hash === hash) return;
     setHlStatus("loading");
     const wx = weather?.byDate ? Object.entries(weather.byDate).slice(0, 7).map(([d, v]) => `${DAYS[new Date(d + "T12:00:00").getDay()]} ${v.hi}°F, ${v.pmax}% rain`).join("; ") : "unknown";
     postJSON("/api/enrich", {
@@ -392,7 +396,7 @@ export default function App() {
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
-          onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
+          weekPicks={weekPicks} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
