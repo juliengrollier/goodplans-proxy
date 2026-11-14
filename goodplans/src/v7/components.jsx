@@ -1,0 +1,268 @@
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Glyph, Icon, glyphSvgString } from "./icons.jsx";
+import { catColor, catIcon } from "./theme.js";
+import { whenLabel, isFree, weatherBadge } from "./engine.js";
+import { useEventImage, dropImage } from "./images.js";
+import { LINE_COLOR } from "../lib/core.js";
+
+export const ActionsCtx = createContext({ onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0 });
+
+export function CatBullet({ cat, size = 30, dark }) {
+  const c = catColor(cat, dark);
+  return (
+    <span style={{ width: size, height: size, borderRadius: "50%", background: c, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <Glyph name={catIcon(cat)} size={Math.round(size * 0.56)} color={c} />
+    </span>
+  );
+}
+
+export function PriceTag({ ev }) {
+  if (isFree(ev)) return <span className="tag tag-free">Free</span>;
+  const p = (ev.price || "").split("/")[0].trim();
+  return p ? <span className="tag tag-plain">{p.length > 14 ? p.slice(0, 13) + "…" : p}</span> : null;
+}
+
+// Travel time with the transport mode icon (and the subway line bullet when known)
+export function Travel({ tt, size = 13, muted }) {
+  if (!tt) return null;
+  const walk = tt.mode === "walk";
+  return (
+    <span className="row" style={{ gap: 4, whiteSpace: "nowrap", color: muted ? "var(--ink3)" : "inherit" }}>
+      <Icon name={walk ? "walk" : "train"} size={size + 3} width={2.2} />
+      {tt.mins} min
+      {!walk && tt.line && <span style={{ width: size + 5, height: size + 5, borderRadius: "50%", background: LINE_COLOR[tt.line] || "#808183", color: /[NQRW]/.test(tt.line) ? "#1B1F3B" : "#fff", fontSize: size - 3, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{tt.line}</span>}
+    </span>
+  );
+}
+
+// What to expect: Claude keywords when available, else the sub-category
+export function Keywords({ ev, max = 3, size = "sm" }) {
+  const k = (ev.kw && ev.kw.length ? ev.kw : ev.sub ? [ev.sub.toLowerCase()] : []).slice(0, max);
+  if (!k.length) return null;
+  return (
+    <div className="row" style={{ gap: 5, flexWrap: "wrap" }}>
+      {k.map((w) => <span key={w} className="kw" style={size === "lg" ? { height: 28, fontSize: 13, padding: "0 11px" } : null}>{w}</span>)}
+    </div>
+  );
+}
+
+export function WeatherTag({ ev }) {
+  const b = weatherBadge(ev);
+  if (!b) return null;
+  return <span className={"tag tag-" + b.tone} style={{ gap: 4 }}><Icon name={b.icon} size={13} width={2.4} />{b.text}</span>;
+}
+
+// Thumbs up / down / save on every card. Clicks don't open the card.
+export function CardActions({ ev, size = 34, onNfm }) {
+  const a = useContext(ActionsCtx);
+  const t = a.thumbOf(ev.id), saved = a.isSaved(ev.id);
+  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  const btn = (on) => ({ width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: on ? "var(--navy)" : "var(--chip)", color: on ? "var(--onnavy)" : "var(--ink)", flexShrink: 0 });
+  const is = Math.round(size * 0.5);
+  return (
+    <div className="row" style={{ gap: 6 }}>
+      <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1)} onClick={stop(() => a.onReact(ev, t === 1 ? "undo" : "up"))}><Icon name="up" size={is} /></button>
+      <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1)} onClick={stop(() => (onNfm ? onNfm(ev) : a.onReact(ev, t === -1 ? "undo" : "down")))}><Icon name="down" size={is} /></button>
+      <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={btn(saved)} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is} fill={saved ? "currentColor" : "none"} /></button>
+    </div>
+  );
+}
+
+// Real picture when one is found (poster, then venue), else a typographic poster in the category colour
+export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit }) {
+  const img = useEventImage(ev);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [img?.src]);
+  const c = catColor(ev.cat, dark);
+  if (img?.src && !broken) {
+    return (
+      <div style={{ position: "relative", height, borderRadius: radius, overflow: "hidden", background: "var(--media)" }}>
+        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {credit && img.credit && <span style={{ position: "absolute", right: 8, bottom: 6, fontSize: 10, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>{img.credit}</span>}
+      </div>
+    );
+  }
+  return (
+    <div style={{ height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+      {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><Glyph name={catIcon(ev.cat)} size={Math.min(96, Math.round((typeof height === "number" ? height : 200) * 0.42))} color={c} /></div> : <Glyph name={catIcon(ev.cat)} size={big ? 46 : 30} color={c} />}
+      {!hideTitle && <span className="disp clamp2" style={{ fontSize: big ? 28 : 18, lineHeight: 1, letterSpacing: -0.3 }}>{ev.title}</span>}
+    </div>
+  );
+}
+
+export function Flags({ ev }) {
+  return (
+    <>
+      {ev.busy && <span className="tag tag-warn">Clashes with your calendar</span>}
+      <WeatherTag ev={ev} />
+    </>
+  );
+}
+
+const tap = (fn, ev) => ({ role: "button", tabIndex: 0, onClick: () => fn(ev), onKeyDown: (e) => { if (e.key === "Enter") fn(ev); } });
+
+export function HeroCard({ ev, dark, today, onOpen, label }) {
+  return (
+    <div {...tap(onOpen, ev)} className="card" style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+      <div style={{ position: "relative" }}>
+        <Media ev={ev} dark={dark} height={190} big />
+        {label && <span className="tag tag-white" style={{ position: "absolute", top: 10, left: 10 }}>{label}</span>}
+      </div>
+      <div style={{ padding: "0 6px 4px", display: "flex", flexDirection: "column", gap: 7, width: "100%" }}>
+        <div className="row" style={{ gap: 8 }}>
+          <CatBullet cat={ev.cat} size={26} dark={dark} />
+          <span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span>
+        </div>
+        <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
+        <Keywords ev={ev} max={4} />
+        <div className="row" style={{ gap: 10, flexWrap: "wrap", fontSize: 14, fontWeight: 800 }}>
+          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} />
+          <span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span>
+        </div>
+        {ev.why?.length > 0 && <div className="muted" style={{ fontSize: 13 }}>{ev.why.slice(0, 3).join(" · ")}</div>}
+        <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "space-between" }}>
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}><Flags ev={ev} /></div>
+          <CardActions ev={ev} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CompactCard({ ev, dark, today, onOpen, label }) {
+  return (
+    <div {...tap(onOpen, ev)} className="card-sm" style={{ padding: 8, display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+      <div style={{ width: 84, flexShrink: 0 }}><Media ev={ev} dark={dark} height={104} radius={16} hideTitle /></div>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+        {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet cat={ev.cat} size={16} dark={dark} />{(ev.venue || "").split(",")[0]}</span>}
+        <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
+        <Keywords ev={ev} max={3} />
+        <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, flexWrap: "wrap" }}>
+          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} />
+        </span>
+        <div className="row" style={{ gap: 6, justifyContent: "space-between", marginTop: 2 }}>
+          <div className="row" style={{ gap: 6, minWidth: 0, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} />}</div>
+          <CardActions ev={ev} size={30} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PosterCard({ ev, dark, today, onOpen }) {
+  return (
+    <div {...tap(onOpen, ev)} style={{ width: 176, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer" }}>
+      <Media ev={ev} dark={dark} height={200} radius={24} hideTitle />
+      <div className="row" style={{ gap: 6 }}><CatBullet cat={ev.cat} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{(ev.venue || "").split(",")[0]}</span></div>
+      <div className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.12 }}>{ev.title}</div>
+      <Keywords ev={ev} max={2} />
+      <div style={{ fontSize: 13, fontWeight: 800 }}>{whenLabel(ev, today)}</div>
+      <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700 }}><Travel tt={ev.tt} muted /><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
+      <WeatherTag ev={ev} />
+      <CardActions ev={ev} size={30} />
+    </div>
+  );
+}
+
+export const ResultRow = CompactCard;
+
+export function SectionHead({ title, n, color, icon }) {
+  return (
+    <div className="sec-h">
+      {icon && <Icon name={icon} size={22} />}
+      <h2>{title}</h2>
+      {color && <svg width="56" height="14" viewBox="0 0 64 14" aria-hidden="true"><path d="M3 7c8-6 14 6 22 0s14-6 22 0 10 4 14 0" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" /></svg>}
+      {n != null && <span className="n">{n}</span>}
+    </div>
+  );
+}
+
+export function TabBar({ tab, setTab, plansCount }) {
+  const items = [["today", "Today"], ["explore", "Explore"], ["map", "Map"], ["plans", "Plans"], ["me", "Me"]];
+  return (
+    <nav className="tabbar" aria-label="Main">
+      {items.map(([k, l]) => (
+        <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)} style={{ position: "relative" }}>
+          <span className="tab-ic"><Icon name={k} size={22} width={tab === k ? 2.4 : 2.2} /></span>
+          <span>{l}</span>
+          {k === "plans" && plansCount > 0 && tab !== "plans" && <span style={{ position: "absolute", top: 2, right: "24%", minWidth: 16, height: 16, borderRadius: 8, background: "#F2611D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{plansCount}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+export function Dialog({ title, onClose, children }) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
+        <div className="row" style={{ marginBottom: 14 }}>
+          <span className="disp" style={{ fontSize: 22 }}>{title}</span>
+          <button onClick={onClose} aria-label="Close" style={{ marginLeft: "auto", border: "none", background: "var(--chip)", width: 36, height: 36, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={18} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Leaflet map (loaded from unpkg once), category pins
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
+let leafletPromise = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletPromise) return leafletPromise;
+  leafletPromise = new Promise((resolve, reject) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet"; link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(link);
+    const s = document.createElement("script");
+    s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    s.onload = () => resolve(window.L); s.onerror = reject;
+    document.body.appendChild(s);
+  });
+  return leafletPromise;
+}
+
+export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14 }) {
+  const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    loadLeaflet().then((L) => {
+      if (!alive || !ref.current || mapRef.current) return;
+      const m = L.map(ref.current, { zoomControl: false, attributionControl: interactive, dragging: interactive, scrollWheelZoom: interactive, doubleClickZoom: interactive, touchZoom: interactive, boxZoom: false, keyboard: false }).setView(home, zoom);
+      mapRef.current = m; layerRef.current = L.layerGroup().addTo(m);
+      setTimeout(() => m.invalidateSize(), 120);
+      draw();
+    }).catch(() => setErr("Map could not load"));
+    return () => { alive = false; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; tileRef.current = null; } };
+    // eslint-disable-next-line
+  }, []);
+  const draw = () => {
+    const L = window.L, m = mapRef.current; if (!L || !m) return;
+    if (tileRef.current) m.removeLayer(tileRef.current);
+    // CARTO raster tiles need a key since Sept 2026 (free up to 5M tiles/month). Without one, fall back to
+    // OpenStreetMap tiles, darkened with a CSS filter in dark mode.
+    tileRef.current = CARTO_KEY
+      ? L.tileLayer(`https://basemaps.cartocdn.com/rastertiles/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, { maxZoom: 19, attribution: "© OpenStreetMap © CARTO" }).addTo(m)
+      : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap", className: dark ? "gp-tiles-dark" : "gp-tiles-light" }).addTo(m);
+    layerRef.current.clearLayers();
+    L.marker(home, { icon: L.divIcon({ className: "", html: '<div class="gp-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(layerRef.current);
+    events.forEach((ev) => {
+      const c = catColor(ev.cat, dark), sel = ev.id === selectedId, sz = sel ? 44 : 34;
+      const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${glyphSvgString(catIcon(ev.cat), sel ? 20 : 16, c)}</div>`;
+      const mk = L.marker(ev.coord, { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }), interactive: !!onPick });
+      if (onPick) mk.on("click", () => onPick(ev));
+      mk.addTo(layerRef.current);
+    });
+  };
+  useEffect(() => { draw(); }); // redraw on every render (cheap: few dozen markers)
+  useEffect(() => { if (mapRef.current) mapRef.current.setView(home, mapRef.current.getZoom()); }, [home[0], home[1]]);
+  return (
+    <div style={{ position: "relative", height, borderRadius: interactive ? 0 : 20, overflow: "hidden", background: "var(--mapbg)" }}>
+      <div ref={ref} style={{ position: "absolute", inset: 0 }} />
+      {err && <div className="muted" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{err}</div>}
+    </div>
+  );
+}
