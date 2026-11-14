@@ -28,7 +28,7 @@ const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
 const TAGS_KEY = "gp_tags_v8";
-const HL_KEY = "gp_hl_v8";
+const HL_KEY = "gp_hl_v9";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
   const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -275,10 +275,11 @@ export default function App() {
 
   const visible = useMemo(() => scored.filter((e) => !e.hidden && evActive(e, today) && !isOver(e, today)), [scored, today]);
   // The week's top picks: shown on Today and used as the only source for the "don't miss" paragraph, so the text never mentions something that is not on screen
-  const weekPicks = useMemo(() => {
+  const weekPool = useMemo(() => {
     const seen = new Set();
-    return visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+    return visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
   }, [visible, today]);
+  const weekPicks = useMemo(() => weekPool.slice(0, 5), [weekPool]);
   const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof, pinned: weekPicks.map((e) => e.id) }), [scored, today, effFree, eprof, weekPicks]);
 
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
@@ -307,9 +308,9 @@ export default function App() {
   // ── Weekly "don't miss" paragraph, rewritten when the top picks change or the day changes
   useEffect(() => {
     if (!ready || aiOff.current || !visible.length) return;
-    const picks = weekPicks;
+    const picks = weekPool;
     if (picks.length < 3) return;
-    const hash = picks.slice(0, 6).map((e) => e.id).sort().join("|");
+    const hash = picks.map((e) => e.id).sort().join("|");
     const day = isoDay(today);
     if (hl && hl.text && hl.day === day && hl.hash === hash) return;
     setHlStatus("loading");
@@ -319,7 +320,7 @@ export default function App() {
       picks: picks.map((e) => ({ title: e.title, when: whenLabel(e, today), venue: (e.venue || "").split(",")[0], cat: e.cat, price: e.price, why: e.why })),
     }).then((d) => {
       if (!d.text) throw new Error("empty response");
-      const v = { text: d.text, hash, day, at: Date.now() };
+      const v = { text: d.text, ids: picks.map((e) => e.id), hash, day, at: Date.now() };
       setHl(v); setHlStatus("idle");
       try { localStorage.setItem(HL_KEY, JSON.stringify(v)); } catch { /* full */ }
     }).catch((e) => { setHlStatus("error: " + (e.message || "network") + (e.status ? " (" + e.status + ")" : "")); if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
@@ -397,7 +398,7 @@ export default function App() {
         {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
-          highlights={hl?.day === isoDay(today) ? { text: hl.text, status: hlStatus } : { text: null, status: hlStatus }} />}
+          highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}

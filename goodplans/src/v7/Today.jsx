@@ -56,6 +56,20 @@ function Forecast({ weather, today }) {
   );
 }
 
+function renderHighlights(text, ids, data, onOpen) {
+  const out = []; let last = 0, k = 0; const re = /\[\[(\d+)\|([^\]]+)\]\]/g; let m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const ev = data.find((e) => e.id === ids[+m[1] - 1]);
+    out.push(ev
+      ? <button key={k++} onClick={() => onOpen(ev)} style={{ border: "none", background: "none", padding: 0, font: "inherit", fontWeight: 800, color: "var(--ink)", textDecoration: "underline", textDecorationColor: "var(--ink3, #999)", textUnderlineOffset: 3, cursor: "pointer" }}>{m[2]}</button>
+      : m[2]);
+    last = re.lastIndex;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
 export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [] }) {
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -76,7 +90,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + w.hi + "°F" + (w.rainy ? " · rain later" : "") : ""}</div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{g.title}</h1>
         {highlights?.text ? (
-          <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.5, color: "var(--ink2)" }}><b style={{ color: "var(--ink)" }}>This week's don't-miss. </b>{highlights.text}</p>
+          <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.5, color: "var(--ink2)" }}><b style={{ color: "var(--ink)" }}>This week's don't-miss. </b>{renderHighlights(highlights.text, highlights.ids, data, onOpen)}</p>
         ) : highlights?.status === "loading" ? (
           <p className="muted" style={{ margin: "10px 0 0", fontSize: 14 }}>Writing your week's highlights…</p>
         ) : String(highlights?.status || "").startsWith("error") ? (

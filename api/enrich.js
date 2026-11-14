@@ -47,10 +47,10 @@ Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "..."}}`;
 }
 
 async function highlights({ taste, weather, picks }) {
-  const list = (picks || []).slice(0, 15).map((p) => ({ title: clip(p.title, 120), when: clip(p.when, 40), venue: clip(p.venue, 60), cat: clip(p.cat, 30), price: clip(p.price, 30), why: (p.why || []).slice(0, 3).map((w) => clip(w, 40)) }));
-  const system = `You write the weekly "don't miss" note at the top of Good Plans, a personal NYC events app for a couple living on the Lower East Side. Write one short paragraph of 60 to 90 words, warm, concise and confident, like a friend with good taste. Name 3 or 4 events from the list, with their day, and say in a few words why each fits. Mention the weather only if it changes the plan. Use only the facts given; do not invent details, prices or times. No greeting, no sign-off, no emojis, no markdown, no lists.`;
+  const list = (picks || []).slice(0, 15).map((p, i) => ({ n: i + 1, title: clip(p.title, 120), when: clip(p.when, 40), venue: clip(p.venue, 60), cat: clip(p.cat, 30), price: clip(p.price, 30), why: (p.why || []).slice(0, 3).map((w) => clip(w, 40)) }));
+  const system = `You write the weekly "don't miss" note at the top of Good Plans, a personal NYC events app for a couple living on the Lower East Side. Write ONE paragraph of at most 90 words: crisp, dense, to the point, confident, like a friend with good taste. Cover 5 to 8 of the listed events, grouped by day or by mood, each with its day and a few words on why it fits. Mark every event you name by wrapping a short form of its name like this: [[n|name]], where n is the event's number in the list, for example [[3|Rockefeller tree lighting]]. Mention the weather only if it changes the plan. Use only the facts given; do not invent details, prices or times. No greeting, no sign-off, no emojis, no markdown, no lists.`;
   const user = `What they like: ${clip(taste, 400)}\nWeather this week: ${clip(weather, 300)}\nTop picks, best first:\n${JSON.stringify(list)}`;
-  const text = clip(await claude(system, user, 1500), 900);
+  const text = clip(await claude(system, user, 1500), 1400);
   if (!text) throw new Error("Claude returned no text");
   return text;
 }
