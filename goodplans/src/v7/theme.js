@@ -97,4 +97,6 @@ a{color:inherit}
 input[type=range]{width:100%;accent-color:var(--ink)}
 .gp-tiles-light { filter: saturate(.55) brightness(1.04); }
 .gp-tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.9) saturate(.5); }
+/* Keep Leaflet's internal z-indexes (400–1000) inside the map so sheets, dialogs and the tab bar stay on top */
+.leaflet-container { isolation: isolate; z-index: 0; }
 `;
