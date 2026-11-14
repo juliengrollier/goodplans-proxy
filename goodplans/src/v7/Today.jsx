@@ -3,7 +3,8 @@ import { Logo, Icon } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet } from "./components.jsx";
 import { catColor } from "./theme.js";
 import { startMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
-import { DAYS, MONTHS } from "../lib/core.js";
+import { DAYS, MONTHS, evCovers } from "../lib/core.js";
+import { Travel } from "./components.jsx";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -19,7 +20,43 @@ function soonLabel(ev) {
   return d < 60 ? "In " + d + " min" : "At " + fmtClock(sm);
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing }) {
+const FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const wxIcon = (pp) => (pp >= 50 ? "rain" : pp >= 25 ? "cloud" : "sun");
+
+// Next ~12 hours in 3-hour steps, then the next days
+function Forecast({ weather, today }) {
+  if (!weather?.hours?.length) return null;
+  const nowIso = isoDay(new Date()) + "T" + String(new Date().getHours()).padStart(2, "0");
+  const start = weather.hours.findIndex((h) => h.t.slice(0, 13) >= nowIso);
+  const hrs = start < 0 ? [] : [0, 3, 6, 9, 12].map((k) => weather.hours[start + k]).filter(Boolean);
+  const days = Object.entries(weather.byDate).filter(([d]) => d > isoDay(today)).slice(0, 5);
+  const t = isoDay(today), w = weather.byDate[t];
+  const restRain = weather.hours.slice(Math.max(start, 0), Math.max(start, 0) + 10).find((h) => h.pp >= 50);
+  const note = weather.now?.rainingNow ? "Raining now: indoor picks go first."
+    : restRain ? "Rain likely from " + fmtClock(parseInt(restRain.t.slice(11, 13)) * 60) + ": outdoor plans are flagged."
+    : w && w.hi < 45 ? "Dry but cold: outdoor plans need a warm layer."
+    : "Dry for the next few hours: good time for outdoor plans.";
+  const cell = (key, top, icon, temp, pp, strong) => (
+    <div key={key} style={{ flexShrink: 0, width: 58, padding: "8px 0", borderRadius: 16, background: strong ? "var(--navy)" : "var(--card)", color: strong ? "var(--onnavy)" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, border: "1px solid var(--line)" }}>
+      <span style={{ fontSize: 11, fontWeight: 800, opacity: 0.8 }}>{top}</span>
+      <Icon name={icon} size={20} />
+      <span style={{ fontSize: 14, fontWeight: 800 }}>{temp}°</span>
+      <span style={{ fontSize: 10.5, fontWeight: 700, opacity: pp >= 25 ? 1 : 0.55 }}>{pp}%</span>
+    </div>
+  );
+  return (
+    <div style={{ padding: "0 0 6px" }}>
+      <div className="hscroll" style={{ gap: 6 }}>
+        {hrs.map((h, i) => cell(h.t, i === 0 ? "Now" : fmtClock(parseInt(h.t.slice(11, 13)) * 60).replace(":00", ""), wxIcon(h.pp), i === 0 && weather.now ? weather.now.temp : h.temp, h.pp, i === 0))}
+        <div style={{ width: 1, flexShrink: 0, background: "var(--line)", margin: "6px 2px" }} />
+        {days.map(([d, v]) => cell(d, DAYS[new Date(d + "T12:00:00").getDay()], wxIcon(v.pmax), v.hi, v.pmax))}
+      </div>
+      <div className="row muted" style={{ gap: 6, padding: "8px 20px 0", fontSize: 13, fontWeight: 700 }}><Icon name={wxIcon(restRain ? 60 : 0)} size={15} />{note}</div>
+    </div>
+  );
+}
+
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights }) {
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
@@ -38,8 +75,14 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
       <div style={{ padding: "18px 20px 14px" }}>
         <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + w.hi + "°F" + (w.rainy ? " · rain later" : "") : ""}</div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{g.title}</h1>
+        {highlights?.text ? (
+          <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.5, color: "var(--ink2)" }}><b style={{ color: "var(--ink)" }}>This week's don't-miss. </b>{highlights.text}</p>
+        ) : highlights?.status === "loading" ? (
+          <p className="muted" style={{ margin: "10px 0 0", fontSize: 14 }}>Writing your week's highlights…</p>
+        ) : null}
       </div>
-      <div className="hscroll" style={{ paddingBottom: 16 }}>
+      <Forecast weather={weather} today={today} />
+      <div className="hscroll" style={{ padding: "8px 16px 16px" }}>
         <button className={"chip" + (freeUntil != null ? " on" : "")} onClick={openFree}><Icon name="clock" size={15} /> {freeText}</button>
         <button className="chip" onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
         {w?.rainy && <span className="chip" style={{ cursor: "default" }}><Icon name="rain" size={15} /> Indoor first tonight</span>}
@@ -64,9 +107,15 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           </button>
           {nowSoon.slice(0, 3).map((ev) => (
             <button key={ev.id} onClick={() => onOpen(ev)} className="row" style={{ gap: 10, padding: "0 4px", border: "none", background: "none", textAlign: "left" }}>
-              <span className={"tag " + (soonLabel(ev) === "On now" ? "pill-dark" : "tag-soon")} style={soonLabel(ev) === "On now" ? { background: "var(--navy)", color: "var(--onnavy)" } : {}}>{soonLabel(ev)}</span>
-              <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 700 }}>{ev.title}</span>
-              <span className="muted" style={{ fontSize: 13 }}>{ev.tt?.mins} min</span>
+              <CatBullet cat={ev.cat} size={30} dark={dark} />
+              <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                <span className="ell" style={{ fontSize: 15, fontWeight: 800 }}>{ev.title}</span>
+                <span className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 700 }}>
+                  <span style={{ color: soonLabel(ev) === "On now" ? "var(--free-ink)" : "var(--soon-ink)" }}>{soonLabel(ev)}</span>
+                  <Travel tt={ev.tt} size={12} muted />
+                </span>
+              </span>
+              <Icon name="chev" size={16} />
             </button>
           ))}
           {!nowSoon.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing starting nearby in the next couple of hours. Tonight's picks are below.</div>}
@@ -82,6 +131,29 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           </div>
         </>
       )}
+
+      {(() => {
+        if (!weather?.byDate) return null;
+        const shown = new Set([...tonight, ...weekend, ...book].map((e) => e.id));
+        for (let k = 0; k < 3; k++) {
+          const d = new Date(today); d.setDate(today.getDate() + k);
+          const w2 = weather.byDate[isoDay(d)];
+          if (!w2 || !(w2.rainy || w2.pmax >= 60)) continue;
+          const swaps = data.filter((e) => !e.outdoor && evCovers(e, d) && !shown.has(e.id)).sort((a, b) => b.sc - a.sc).slice(0, 3);
+          if (!swaps.length) return null;
+          const dayName = k === 0 ? "today" : k === 1 ? "tomorrow" : FULL[d.getDay()];
+          return (
+            <>
+              <SectionHead title="Rainy-day swaps" icon="rain" n={"Rain " + dayName} />
+              <div className="muted" style={{ padding: "0 20px 10px", fontSize: 14, marginTop: -4 }}>{w2.pmax}% chance of rain {dayName}. Good indoor picks instead:</div>
+              <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                {swaps.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+              </div>
+            </>
+          );
+        }
+        return null;
+      })()}
 
       {wildcard && (
         <>

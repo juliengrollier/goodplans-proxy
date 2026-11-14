@@ -65,7 +65,9 @@ export function effectiveProf(prof, taste) {
 export const isFree = (ev) => /free|pwyw|pay what/i.test(ev.price || "") && !/\$\d/.test((ev.price || "").split("/")[0]);
 export const priceNum = (ev) => { const n = parseFloat((ev.price || "").replace(/[^0-9.]/g, "")); return isNaN(n) ? null : n; };
 export const isOutdoor = (ev) =>
-  (ev.tags || []).includes("outdoor") || ev.cat === "Outdoors" || /outdoor|waterfront|park event|walking tour|parade|street fair/i.test(ev.sub || "");
+  (ev.tags || []).includes("outdoor") || ev.cat === "Outdoors" ||
+  /outdoor|open[- ]air|waterfront|park event|walking tour|parade|street fair|rooftop/i.test([ev.sub, ...(ev.kw || [])].join(" ")) ||
+  (/\b(park|pier|plaza|garden|green|beach|lawn)\b/i.test((ev.venue || "").split(",")[0]) && !/square garden|garden (theat|hall)|park (ave|slope)/i.test(ev.venue || ""));
 
 // ── Time
 export function startMinutes(ev) {
@@ -130,7 +132,9 @@ export async function fetchWeather(coord) {
     if (byDate[day] && h >= 16 && h <= 23) byDate[day].evening = Math.max(byDate[day].evening, d.hourly.precipitation_probability[i] ?? 0);
   });
   Object.values(byDate).forEach((v) => { v.rainy = v.evening >= 50; });
-  return { byDate, now: { temp: Math.round(d.current?.temperature_2m ?? 0), rainingNow: (d.current?.precipitation ?? 0) > 0.1 }, at: Date.now() };
+  // Hourly list kept for the forecast strip: [{t:"YYYY-MM-DDTHH:00", temp, pp}]
+  const hours = (d.hourly?.time || []).map((t, i) => ({ t, temp: Math.round(d.hourly.temperature_2m?.[i] ?? 0), pp: d.hourly.precipitation_probability?.[i] ?? 0 }));
+  return { byDate, hours, now: { temp: Math.round(d.current?.temperature_2m ?? 0), rainingNow: (d.current?.precipitation ?? 0) > 0.1 }, at: Date.now() };
 }
 
 // ── Scoring wrapper: core score + follows, sensitivities, weather, hidden
@@ -163,7 +167,18 @@ export function scoreEvent(ev, ctx) {
   if (runLen(ev) === 1) why.push("One night only");
   else if (Math.round((evEnd(ev) - today) / 86400000) <= 5 && runLen(ev) > 3) why.push("Ends soon");
   if (ev.tier === 1 && ev.src) why.push("Picked by " + ev.src);
-  return { ...ev, sc: Math.max(0, Math.min(100, Math.round(s))), bd, hidden, why, followed, rain, dark, busy, outdoor, tt: bd.tt };
+  return { ...ev, sc: Math.max(0, Math.min(100, Math.round(s))), bd, hidden, why, followed, rain, dark, busy, outdoor, tt: bd.tt, wx: w || null };
+}
+
+// ── Weather badge for an outdoor event (null when nothing worth saying)
+export function weatherBadge(ev) {
+  if (!ev.outdoor || !ev.wx) return null;
+  const { hi, pmax } = ev.wx;
+  if (ev.rain) return { icon: "rain", text: "Rain likely", tone: "warn" };
+  if (hi && hi < 48) return { icon: "layer", text: "Cold out · " + hi + "°", tone: "plain" };
+  if (ev.dark) return { icon: "moon", text: "Ends after dark", tone: "plain" };
+  if (pmax < 25 && hi >= 55 && hi <= 84) return { icon: "sun", text: "Great weather", tone: "free" };
+  return null;
 }
 
 // ── Free-until filter

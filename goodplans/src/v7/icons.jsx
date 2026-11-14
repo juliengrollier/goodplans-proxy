@@ -65,11 +65,20 @@ const UI = {
   bell: <><path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
   link: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
   refresh: <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />,
+  explore: <><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></>,
+  walk: <><circle cx="13" cy="4.5" r="1.8" /><path d="M10 21l2.5-6.5L15 17v4M9 12l1.5-4.5 3.5 1 2 3.5M12.5 14.5l-1-3.5" /></>,
+  train: <><rect x="6" y="3" width="12" height="13" rx="3" /><path d="M6 10h12M9 20l-1.5 1.5M15 20l1.5 1.5M9 16l-1 4M15 16l1 4" /><circle cx="9.5" cy="13" r=".6" /><circle cx="14.5" cy="13" r=".6" /></>,
+  filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+  down2: <path d="M6 9l6 6 6-6" />,
+  layer: <path d="M8 3l4 3 4-3 4 3-2 4h-2v11H8V10H6L4 6z" />,
+  cloud: <path d="M7 18a4.5 4.5 0 0 1-.7-9A6 6 0 0 1 17.6 9 4.5 4.5 0 0 1 17 18z" />,
+  thumbup: <path d="M7 10v11H4V10zM7 10l4-7c1.7 0 2.5 1.2 2.2 2.8L12.6 9H19a2 2 0 0 1 2 2.3l-1.2 7.4A2 2 0 0 1 17.8 21H7" />,
+  save: <path d="M7 3h10a1 1 0 0 1 1 1v17l-6-4-6 4V4a1 1 0 0 1 1-1z" />,
 };
 
-export function Icon({ name, size = 22, color = "currentColor", width = 2.2 }) {
+export function Icon({ name, size = 22, color = "currentColor", width = 2.2, fill = "none" }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block", flexShrink: 0 }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block", flexShrink: 0 }}>
       {UI[name]}
     </svg>
   );

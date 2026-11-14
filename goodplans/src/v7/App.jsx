@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CSS, FONTS_HREF } from "./theme.js";
-import { TabBar } from "./components.jsx";
+import { TabBar, ActionsCtx } from "./components.jsx";
+import { EMPTY_FILTERS } from "./Filters.jsx";
+import { API_BASE } from "./images.js";
 import Today from "./Today.jsx";
 import Explore from "./Explore.jsx";
 import MapView from "./MapView.jsx";
@@ -10,10 +12,10 @@ import EventSheet from "./EventSheet.jsx";
 import { FreeUntilDialog, Surprise } from "./Extras.jsx";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
-  fetchWeather, fitsFree, isOver, nowMinutes, isoDay, safeCoord, floorDay, evActive,
+  fetchWeather, fitsFree, isOver, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
 } from "./engine.js";
 import {
-  DP, SK_P, SK_F, SK_B, DEFAULT_SUBS, sg, ss, daysUntil,
+  DP, SK_P, SK_F, SK_B, DEFAULT_SUBS, sg, ss, daysUntil, CATS, DAYS,
   getSWRegistration, subscribePush, registerSubWithAppsScript,
 } from "../lib/core.js";
 
@@ -25,6 +27,15 @@ const ENV_URL = import.meta.env.VITE_GP_URL || LEGACY_URL;
 const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
+const TAGS_KEY = "gp_tags_v8";
+const HL_KEY = "gp_hl_v8";
+const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
+async function fetchJSONPost(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.error || "HTTP " + r.status); e.status = r.status; throw e; }
+  return d;
+}
 
 const mergeProf = (pr) => ({
   ...DP, ...(pr || {}),
@@ -71,6 +82,11 @@ export default function App() {
   const [surprise, setSurprise] = useState(null); // {ev, seen:Set} | null
   const [toastMsg, setToastMsg] = useState("");
   const [tick, setTick] = useState(0); // re-evaluate "now" every few minutes
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
+  const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
+  const [hlStatus, setHlStatus] = useState("idle");
+  const aiOff = useRef(false); // set when the enrich function is unavailable (no key), to stop retrying this session
   const toastT = useRef(null);
 
   const dark = theme === "dark" || (theme === "system" && sysDark);
@@ -235,12 +251,14 @@ export default function App() {
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
   const scored = useMemo(() => {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
-    return events.map((e) => {
+    return events.map((e0) => {
+      const t = tags[e0.id];
+      const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : e0;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
-  }, [events, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
+  }, [events, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
   const scoreOne = useCallback((e) => {
     const s = scoreEvent({ ...e, coord: safeCoord(e) }, { eprof, beh, today, home, taste, weather, busySlots });
     s.calChecked = calStatus === "ok"; return s;
@@ -257,6 +275,50 @@ export default function App() {
 
   const visible = useMemo(() => scored.filter((e) => !e.hidden && evActive(e, today) && !isOver(e, today)), [scored, today]);
   const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof }), [scored, today, effFree, eprof]);
+
+  // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
+  const tagBusy = useRef(false);
+  useEffect(() => {
+    if (!ready || aiOff.current || tagBusy.current) return;
+    const todo = visible.filter((e) => !tags[e.id]).slice(0, 160);
+    if (!todo.length) return;
+    tagBusy.current = true;
+    (async () => {
+      let acc = { ...tags };
+      for (let i = 0; i < todo.length; i += 40) {
+        try {
+          const d = await postJSON("/api/enrich", { mode: "tags", events: todo.slice(i, i + 40).map(({ id, title, desc, cat, sub, venue, price, time }) => ({ id, title, desc, cat: cat, sub, venue, price, time })) });
+          acc = { ...acc, ...(d.tags || {}) };
+          // Events Claude skipped still get an entry, so they aren't sent again and again
+          todo.slice(i, i + 40).forEach((e) => { if (!acc[e.id]) acc[e.id] = { k: [], cat: null }; });
+          setTags(acc);
+          try { localStorage.setItem(TAGS_KEY, JSON.stringify(Object.fromEntries(Object.entries(acc).slice(-1500)))); } catch { /* full */ }
+        } catch (e) { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; break; }
+      }
+      tagBusy.current = false;
+    })();
+  }, [ready, visible.length, tags]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Weekly "don't miss" paragraph, rewritten when the top picks change (at most every 12 h) or the day changes
+  useEffect(() => {
+    if (!ready || aiOff.current || !visible.length) return;
+    const seen = new Set();
+    const picks = visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
+    if (picks.length < 3) return;
+    const hash = picks.slice(0, 6).map((e) => e.id).sort().join("|");
+    const day = isoDay(today);
+    if (hl && hl.day === day && (hl.hash === hash || Date.now() - hl.at < 12 * 3600000)) return;
+    setHlStatus("loading");
+    const wx = weather?.byDate ? Object.entries(weather.byDate).slice(0, 7).map(([d, v]) => `${DAYS[new Date(d + "T12:00:00").getDay()]} ${v.hi}°F, ${v.pmax}% rain`).join("; ") : "unknown";
+    postJSON("/api/enrich", {
+      mode: "highlights", taste: tasteSummary(eprof, taste, Object.keys(CATS)), weather: wx,
+      picks: picks.map((e) => ({ title: e.title, when: whenLabel(e, today), venue: (e.venue || "").split(",")[0], cat: e.cat, price: e.price, why: e.why })),
+    }).then((d) => {
+      const v = { text: d.text, hash, day, at: Date.now() };
+      setHl(v); setHlStatus("idle");
+      try { localStorage.setItem(HL_KEY, JSON.stringify(v)); } catch { /* full */ }
+    }).catch((e) => { setHlStatus("error"); if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
+  }, [ready, visible.length > 0, isoDay(today), weather ? 1 : 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Event sheet and deep links
   const openEvent = useCallback((ev) => { setOpenEv(ev.id); track(ev, "viewedCats"); }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -316,14 +378,23 @@ export default function App() {
 
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
+  const actions = {
+    onReact: (ev, kind, reason) => react(ev, kind, reason),
+    onSave: (ev) => toggleSave(ev),
+    isSaved: (id) => !!favs[id],
+    thumbOf: (id) => taste.thumbs[id] || 0,
+  };
+
   return (
-    <div className="gp-app" style={{ minHeight: "100vh", paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}>
+    <ActionsCtx.Provider value={actions}>
+    <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
-          onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing} />}
-        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} />}
-        {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} />}
+          onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
+          highlights={hl?.day === isoDay(today) ? { text: hl.text, status: hlStatus } : { text: null, status: hlStatus }} />}
+        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
+        {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
@@ -343,5 +414,6 @@ export default function App() {
         onOpen={(ev) => openEvent(ev)} onAnother={() => setSurprise(pickSurprise(surprise.seen))} onClose={() => setSurprise(null)} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
+    </ActionsCtx.Provider>
   );
 }

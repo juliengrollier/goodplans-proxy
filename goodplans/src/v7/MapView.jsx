@@ -1,42 +1,53 @@
-import React, { useMemo, useState } from "react";
-import { LeafletMap, CompactCard } from "./components.jsx";
-import { startMinutes, nowMinutes } from "./engine.js";
-import { evCovers, evStart, evEnd, isImprecise, eHour } from "../lib/core.js";
+import React, { useMemo, useRef, useState } from "react";
+import { LeafletMap, Media, CatBullet, Keywords, Travel, PriceTag, CardActions, WeatherTag } from "./components.jsx";
+import FilterBar, { applyFilters } from "./Filters.jsx";
+import { whenLabel } from "./engine.js";
+import { isImprecise } from "../lib/core.js";
 
-const MODES = [["now", "Now"], ["tonight", "Tonight"], ["weekend", "Weekend"], ["week", "7 days"]];
+// Large preview card for a tapped pin. Swipe up (or tap) opens the full profile; swipe down dismisses.
+function Peek({ ev, dark, today, onOpen, onClose }) {
+  const y0 = useRef(null);
+  const [dy, setDy] = useState(0);
+  const start = (e) => { y0.current = e.touches[0].clientY; };
+  const move = (e) => { if (y0.current != null) setDy(Math.max(-140, Math.min(160, e.touches[0].clientY - y0.current))); };
+  const end = () => { if (dy < -50) onOpen(ev); else if (dy > 60) onClose(); setDy(0); y0.current = null; };
+  return (
+    <div onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+      style={{ position: "absolute", left: 10, right: 10, bottom: "calc(74px + env(safe-area-inset-bottom))", zIndex: 30, transform: `translateY(${dy}px)`, transition: y0.current == null ? "transform .2s" : "none" }}>
+      <div className="card" role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ padding: 10, display: "flex", flexDirection: "column", gap: 8, cursor: "pointer", boxShadow: "0 12px 34px rgba(27,31,59,.28)" }}>
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: "var(--line)", margin: "0 auto" }} aria-hidden="true" />
+        <Media ev={ev} dark={dark} height={150} radius={18} hideTitle />
+        <div style={{ padding: "0 4px 2px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="row" style={{ gap: 8 }}><CatBullet cat={ev.cat} size={22} dark={dark} /><span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
+          <div className="disp clamp2" style={{ fontSize: 20, lineHeight: 1.1 }}>{ev.title}</div>
+          <Keywords ev={ev} max={4} />
+          <div className="row" style={{ gap: 10, fontSize: 14, fontWeight: 800, flexWrap: "wrap" }}><span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} /><WeatherTag ev={ev} /></div>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>Swipe up for details</span>
+            <CardActions ev={ev} size={34} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-export default function MapView({ scored, home, dark, today, onOpen }) {
-  const [mode, setMode] = useState("tonight");
+export default function MapView({ scored, home, dark, today, onOpen, filters, setFilters }) {
   const [sel, setSel] = useState(null);
-  const pins = useMemo(() => {
-    const now = nowMinutes();
-    const dow = today.getDay();
-    const fri = new Date(today); fri.setDate(today.getDate() + (dow === 0 ? -2 : dow === 6 ? -1 : 5 - dow));
-    const sun = new Date(fri); sun.setDate(fri.getDate() + 2);
-    const wk = new Date(today); wk.setDate(today.getDate() + 7);
-    return scored.filter((e) => !e.hidden && !isImprecise(e)).filter((e) => {
-      if (mode === "now") { const sm = startMinutes(e); return evCovers(e, today) && sm != null && sm >= now - 90 && sm <= now + 150; }
-      if (mode === "tonight") return evCovers(e, today) && (startMinutes(e) ?? eHour(e.time, e.cat) * 60) >= 16 * 60;
-      if (mode === "weekend") return evStart(e) <= sun && evEnd(e) >= (dow === 0 || dow >= 5 ? today : fri);
-      return evStart(e) <= wk;
-    }).sort((a, b) => b.sc - a.sc).slice(0, 60);
-  }, [scored, mode, today]);
-  const selEv = pins.find((p) => p.id === sel?.id) || null;
+  const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
+  const pins = useMemo(() => applyFilters(scored.filter((e) => !isImprecise(e)), filters, today).sort((a, b) => b.sc - a.sc).slice(0, 120), [scored, filters, today]);
+  const selEv = pins.find((p) => p.id === sel) || null;
 
   return (
     <div style={{ position: "fixed", inset: 0, maxWidth: 480, margin: "0 auto" }}>
-      <LeafletMap events={pins} home={home} dark={dark} height="100%" interactive onPick={setSel} selectedId={selEv?.id} zoom={14} />
-      <div style={{ position: "absolute", top: "calc(12px + env(safe-area-inset-top))", left: 16, right: 16, zIndex: 500 }}>
-        <div className="seg" style={{ gridTemplateColumns: "repeat(4,1fr)", background: "var(--card)", boxShadow: "0 4px 14px rgba(27,31,59,.15)" }}>
-          {MODES.map(([k, l]) => <button key={k} className={mode === k ? "on" : ""} onClick={() => { setMode(k); setSel(null); }}>{l}</button>)}
+      <LeafletMap events={pins} home={home} dark={dark} height="100%" interactive onPick={(ev) => setSel(ev.id)} selectedId={selEv?.id} zoom={14} />
+      <div style={{ position: "absolute", top: "calc(10px + env(safe-area-inset-top))", left: 8, right: 8, zIndex: 30 }}>
+        <FilterBar f={filters} setF={(f) => { setFilters(f); setSel(null); }} dark={dark} counts={counts} floating />
+        <div className="muted" style={{ marginTop: 6, fontSize: 12, fontWeight: 800, background: "var(--card)", display: "inline-block", padding: "4px 10px", borderRadius: 12 }}>
+          {pins.length} on the map{filters.when === "any" ? " · tip: pick a time in When" : ""}
         </div>
-        <div className="muted" style={{ marginTop: 8, fontSize: 12, fontWeight: 700, background: "var(--card)", display: "inline-block", padding: "4px 10px", borderRadius: 12 }}>{pins.length} on the map</div>
       </div>
-      {selEv && (
-        <div style={{ position: "absolute", left: 12, right: 12, bottom: "calc(96px + env(safe-area-inset-bottom))", zIndex: 500 }}>
-          <CompactCard ev={selEv} dark={dark} today={today} onOpen={onOpen} />
-        </div>
-      )}
+      {selEv && <Peek key={selEv.id} ev={selEv} dark={dark} today={today} onOpen={onOpen} onClose={() => setSel(null)} />}
     </div>
   );
 }

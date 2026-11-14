@@ -1,7 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Glyph, Icon, glyphSvgString } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
-import { whenLabel, travelLabel, isFree } from "./engine.js";
+import { whenLabel, isFree, weatherBadge } from "./engine.js";
+import { useEventImage, dropImage } from "./images.js";
+import { LINE_COLOR } from "../lib/core.js";
+
+export const ActionsCtx = createContext({ onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0 });
 
 export function CatBullet({ cat, size = 30, dark }) {
   const c = catColor(cat, dark);
@@ -18,17 +22,70 @@ export function PriceTag({ ev }) {
   return p ? <span className="tag tag-plain">{p.length > 14 ? p.slice(0, 13) + "…" : p}</span> : null;
 }
 
-// Photo if the feed has one, else a typographic poster in the category colour
-export function Media({ ev, dark, height, radius = 18, big, hideTitle }) {
+// Travel time with the transport mode icon (and the subway line bullet when known)
+export function Travel({ tt, size = 13, muted }) {
+  if (!tt) return null;
+  const walk = tt.mode === "walk";
+  return (
+    <span className="row" style={{ gap: 4, whiteSpace: "nowrap", color: muted ? "var(--ink3)" : "inherit" }}>
+      <Icon name={walk ? "walk" : "train"} size={size + 3} width={2.2} />
+      {tt.mins} min
+      {!walk && tt.line && <span style={{ width: size + 5, height: size + 5, borderRadius: "50%", background: LINE_COLOR[tt.line] || "#808183", color: /[NQRW]/.test(tt.line) ? "#1B1F3B" : "#fff", fontSize: size - 3, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{tt.line}</span>}
+    </span>
+  );
+}
+
+// What to expect: Claude keywords when available, else the sub-category
+export function Keywords({ ev, max = 3, size = "sm" }) {
+  const k = (ev.kw && ev.kw.length ? ev.kw : ev.sub ? [ev.sub.toLowerCase()] : []).slice(0, max);
+  if (!k.length) return null;
+  return (
+    <div className="row" style={{ gap: 5, flexWrap: "wrap" }}>
+      {k.map((w) => <span key={w} className="kw" style={size === "lg" ? { height: 28, fontSize: 13, padding: "0 11px" } : null}>{w}</span>)}
+    </div>
+  );
+}
+
+export function WeatherTag({ ev }) {
+  const b = weatherBadge(ev);
+  if (!b) return null;
+  return <span className={"tag tag-" + b.tone} style={{ gap: 4 }}><Icon name={b.icon} size={13} width={2.4} />{b.text}</span>;
+}
+
+// Thumbs up / down / save on every card. Clicks don't open the card.
+export function CardActions({ ev, size = 34, onNfm }) {
+  const a = useContext(ActionsCtx);
+  const t = a.thumbOf(ev.id), saved = a.isSaved(ev.id);
+  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  const btn = (on) => ({ width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: on ? "var(--navy)" : "var(--chip)", color: on ? "var(--onnavy)" : "var(--ink)", flexShrink: 0 });
+  const is = Math.round(size * 0.5);
+  return (
+    <div className="row" style={{ gap: 6 }}>
+      <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1)} onClick={stop(() => a.onReact(ev, t === 1 ? "undo" : "up"))}><Icon name="up" size={is} /></button>
+      <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1)} onClick={stop(() => (onNfm ? onNfm(ev) : a.onReact(ev, t === -1 ? "undo" : "down")))}><Icon name="down" size={is} /></button>
+      <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={btn(saved)} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is} fill={saved ? "currentColor" : "none"} /></button>
+    </div>
+  );
+}
+
+// Real picture when one is found (poster, then venue), else a typographic poster in the category colour
+export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit }) {
+  const img = useEventImage(ev);
   const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [img?.src]);
   const c = catColor(ev.cat, dark);
-  if (ev.image && !broken) {
-    return <img src={ev.image} alt="" loading="lazy" onError={() => setBroken(true)} style={{ width: "100%", height, objectFit: "cover", borderRadius: radius, display: "block", background: "var(--media)" }} />;
+  if (img?.src && !broken) {
+    return (
+      <div style={{ position: "relative", height, borderRadius: radius, overflow: "hidden", background: "var(--media)" }}>
+        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {credit && img.credit && <span style={{ position: "absolute", right: 8, bottom: 6, fontSize: 10, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>{img.credit}</span>}
+      </div>
+    );
   }
   return (
     <div style={{ height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
-      {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><Glyph name={catIcon(ev.cat)} size={96} color={c} /></div> : <Glyph name={catIcon(ev.cat)} size={big ? 46 : 36} color={c} />}
-      {!hideTitle && <span className="disp clamp2" style={{ fontSize: big ? 28 : 21, lineHeight: 1, letterSpacing: -0.3 }}>{ev.title}</span>}
+      {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><Glyph name={catIcon(ev.cat)} size={Math.min(96, Math.round((typeof height === "number" ? height : 200) * 0.42))} color={c} /></div> : <Glyph name={catIcon(ev.cat)} size={big ? 46 : 30} color={c} />}
+      {!hideTitle && <span className="disp clamp2" style={{ fontSize: big ? 28 : 18, lineHeight: 1, letterSpacing: -0.3 }}>{ev.title}</span>}
     </div>
   );
 }
@@ -37,84 +94,82 @@ export function Flags({ ev }) {
   return (
     <>
       {ev.busy && <span className="tag tag-warn">Clashes with your calendar</span>}
-      {ev.rain && <span className="tag tag-warn">Rain likely</span>}
-      {ev.dark && !ev.rain && <span className="tag tag-plain">Ends after dark</span>}
+      <WeatherTag ev={ev} />
     </>
   );
 }
 
+const tap = (fn, ev) => ({ role: "button", tabIndex: 0, onClick: () => fn(ev), onKeyDown: (e) => { if (e.key === "Enter") fn(ev); } });
+
 export function HeroCard({ ev, dark, today, onOpen, label }) {
   return (
-    <button onClick={() => onOpen(ev)} className="card" style={{ border: "none", textAlign: "left", padding: 10, display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.55 : 1 }}>
+    <div {...tap(onOpen, ev)} className="card" style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
-        <Media ev={ev} dark={dark} height={160} big />
+        <Media ev={ev} dark={dark} height={190} big />
         {label && <span className="tag tag-white" style={{ position: "absolute", top: 10, left: 10 }}>{label}</span>}
       </div>
-      <div style={{ padding: "0 6px 6px", display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+      <div style={{ padding: "0 6px 4px", display: "flex", flexDirection: "column", gap: 7, width: "100%" }}>
         <div className="row" style={{ gap: 8 }}>
           <CatBullet cat={ev.cat} size={26} dark={dark} />
           <span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span>
         </div>
         <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
-        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14, fontWeight: 800 }}>{whenLabel(ev, today)} · {travelLabel(ev.tt)}</span>
+        <Keywords ev={ev} max={4} />
+        <div className="row" style={{ gap: 10, flexWrap: "wrap", fontSize: 14, fontWeight: 800 }}>
+          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} />
           <span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span>
         </div>
         {ev.why?.length > 0 && <div className="muted" style={{ fontSize: 13 }}>{ev.why.slice(0, 3).join(" · ")}</div>}
-        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}><Flags ev={ev} /></div>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "space-between" }}>
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}><Flags ev={ev} /></div>
+          <CardActions ev={ev} />
+        </div>
       </div>
-    </button>
+    </div>
   );
 }
 
 export function CompactCard({ ev, dark, today, onOpen, label }) {
-  const c = catColor(ev.cat, dark);
   return (
-    <button onClick={() => onOpen(ev)} className="card-sm" style={{ border: "none", textAlign: "left", padding: 8, display: "flex", gap: 12, alignItems: "center", width: "100%", opacity: ev.busy ? 0.55 : 1 }}>
-      {ev.image ? <div style={{ width: 76, height: 76, flexShrink: 0 }}><Media ev={ev} dark={dark} height={76} radius={16} /></div> :
-        <div style={{ width: 76, height: 76, borderRadius: 16, background: c, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Glyph name={catIcon(ev.cat)} size={34} color={c} /></div>}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-        {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="ell" style={{ fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}>{(ev.venue || "").split(",")[0]}</span>}
+    <div {...tap(onOpen, ev)} className="card-sm" style={{ padding: 8, display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+      <div style={{ width: 84, flexShrink: 0 }}><Media ev={ev} dark={dark} height={104} radius={16} hideTitle /></div>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+        {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet cat={ev.cat} size={16} dark={dark} />{(ev.venue || "").split(",")[0]}</span>}
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
-        <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700 }}>
-          <span className="ell">{whenLabel(ev, today)} · {travelLabel(ev.tt)}</span>
-          <span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span>
+        <Keywords ev={ev} max={3} />
+        <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, flexWrap: "wrap" }}>
+          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} />
         </span>
-        {(ev.busy || ev.rain) && <span className="row" style={{ gap: 6 }}><Flags ev={ev} /></span>}
+        <div className="row" style={{ gap: 6, justifyContent: "space-between", marginTop: 2 }}>
+          <div className="row" style={{ gap: 6, minWidth: 0, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} />}</div>
+          <CardActions ev={ev} size={30} />
+        </div>
       </div>
-    </button>
+    </div>
   );
 }
 
 export function PosterCard({ ev, dark, today, onOpen }) {
   return (
-    <button onClick={() => onOpen(ev)} style={{ border: "none", background: "none", padding: 0, textAlign: "left", width: 156, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, color: "var(--ink)" }}>
-      <div style={{ width: 156 }}>{ev.image ? <Media ev={ev} dark={dark} height={196} radius={24} /> : <Media ev={ev} dark={dark} height={196} radius={24} />}</div>
-      {ev.image && <div className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.1 }}>{ev.title}</div>}
+    <div {...tap(onOpen, ev)} style={{ width: 176, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer" }}>
+      <Media ev={ev} dark={dark} height={200} radius={24} hideTitle />
+      <div className="row" style={{ gap: 6 }}><CatBullet cat={ev.cat} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{(ev.venue || "").split(",")[0]}</span></div>
+      <div className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.12 }}>{ev.title}</div>
+      <Keywords ev={ev} max={2} />
       <div style={{ fontSize: 13, fontWeight: 800 }}>{whenLabel(ev, today)}</div>
-      <div className="muted" style={{ fontSize: 13 }}>{travelLabel(ev.tt)} · <b style={{ color: "var(--ink)" }}>{isFree(ev) ? "Free" : (ev.price || "").split("/")[0]}</b></div>
-    </button>
+      <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700 }}><Travel tt={ev.tt} muted /><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
+      <WeatherTag ev={ev} />
+      <CardActions ev={ev} size={30} />
+    </div>
   );
 }
 
-export function ResultRow({ ev, dark, today, onOpen }) {
-  const c = catColor(ev.cat, dark);
-  return (
-    <button onClick={() => onOpen(ev)} className="card-sm" style={{ border: "none", textAlign: "left", padding: "8px 14px 8px 8px", display: "flex", gap: 12, alignItems: "center", width: "100%", opacity: ev.busy ? 0.55 : 1 }}>
-      <div style={{ width: 58, height: 58, borderRadius: 16, background: c, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Glyph name={catIcon(ev.cat)} size={28} color={c} /></div>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-        <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.15 }}>{ev.title}</span>
-        <span className="muted ell" style={{ fontSize: 13 }}>{whenLabel(ev, today)} · {travelLabel(ev.tt)}</span>
-        {ev.followed && <span style={{ fontSize: 12, fontWeight: 800, color: "var(--ink2)" }}>You follow this venue</span>}
-      </div>
-      <PriceTag ev={ev} />
-    </button>
-  );
-}
+export const ResultRow = CompactCard;
 
-export function SectionHead({ title, n, color }) {
+export function SectionHead({ title, n, color, icon }) {
   return (
     <div className="sec-h">
+      {icon && <Icon name={icon} size={22} />}
       <h2>{title}</h2>
       {color && <svg width="56" height="14" viewBox="0 0 64 14" aria-hidden="true"><path d="M3 7c8-6 14 6 22 0s14-6 22 0 10 4 14 0" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" /></svg>}
       {n != null && <span className="n">{n}</span>}
@@ -128,9 +183,9 @@ export function TabBar({ tab, setTab, plansCount }) {
     <nav className="tabbar" aria-label="Main">
       {items.map(([k, l]) => (
         <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)} style={{ position: "relative" }}>
-          <Icon name={k} size={22} width={tab === k ? 2.4 : 2.2} />
+          <span className="tab-ic"><Icon name={k} size={22} width={tab === k ? 2.4 : 2.2} /></span>
           <span>{l}</span>
-          {k === "plans" && plansCount > 0 && tab !== "plans" && <span style={{ position: "absolute", top: 4, right: "22%", minWidth: 16, height: 16, borderRadius: 8, background: "#F2611D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{plansCount}</span>}
+          {k === "plans" && plansCount > 0 && tab !== "plans" && <span style={{ position: "absolute", top: 2, right: "24%", minWidth: 16, height: 16, borderRadius: 8, background: "#F2611D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{plansCount}</span>}
         </button>
       ))}
     </nav>

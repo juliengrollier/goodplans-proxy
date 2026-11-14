@@ -53,7 +53,7 @@ body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink)}
 ::-webkit-scrollbar{display:none}
 button{font-family:inherit;color:inherit;cursor:pointer}
 a{color:inherit}
-.gp-app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+.gp-app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 .disp{font-family:'Fredoka',system-ui,sans-serif;font-weight:600}
 .muted{color:var(--ink3)}
 .row{display:flex;align-items:center}
@@ -78,14 +78,20 @@ a{color:inherit}
 .sec-h .n{margin-left:auto;font-size:14px;font-weight:700;color:var(--ink3)}
 .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));width:calc(100% - 32px);max-width:448px;height:66px;border-radius:33px;background:var(--tab);display:grid;grid-template-columns:repeat(5,1fr);padding:6px;box-shadow:0 10px 30px rgba(27,31,59,.3);z-index:50}
-.tabbar button{border:none;background:none;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--tab-ink);font-size:11px;font-weight:700}
-.tabbar button.on{background:var(--tab-on);color:var(--tab-on-ink);font-weight:800}
+.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:480px;height:calc(64px + env(safe-area-inset-bottom));padding:6px 8px env(safe-area-inset-bottom);border-radius:24px 24px 0 0;background:var(--tab);display:grid;grid-template-columns:repeat(5,1fr);box-shadow:0 -6px 24px rgba(27,31,59,.18);z-index:50}
+.tabbar button{border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--tab-ink);font-size:11px;font-weight:700}
+.tabbar .tab-ic{width:52px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center}
+.tabbar button.on{color:var(--tab-on);font-weight:800}
+.tabbar button.on .tab-ic{background:var(--tab-on);color:var(--tab-on-ink)}
+.kw{height:22px;padding:0 8px;border-radius:11px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;white-space:nowrap;background:transparent;border:1.5px solid var(--line);color:var(--ink2)}
+.actionbar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:480px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--card);border-radius:24px 24px 0 0;box-shadow:0 -6px 24px rgba(27,31,59,.16);display:flex;gap:8px;align-items:center;z-index:110}
+[data-theme="dark"] .actionbar{border-top:1px solid var(--line)}
+.roundbtn{width:52px;height:52px;border-radius:26px;border:none;background:var(--chip);color:var(--ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .sheet{position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;max-width:480px;margin:0 auto;animation:up .22s ease}
 @keyframes up{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
 .overlay{position:fixed;inset:0;z-index:120;background:rgba(15,18,40,.45);display:flex;align-items:flex-end;justify-content:center}
 .dialog{background:var(--bg);width:100%;max-width:480px;border-radius:28px 28px 0 0;padding:20px 20px calc(24px + env(safe-area-inset-bottom));max-height:85vh;overflow-y:auto}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));background:var(--navy);color:var(--onnavy);padding:12px 18px;border-radius:22px;font-weight:700;font-size:14px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:90%}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));background:var(--navy);color:var(--onnavy);padding:12px 18px;border-radius:22px;font-weight:700;font-size:14px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:90%}
 .input{width:100%;height:48px;border-radius:24px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:0 16px;font-size:15px;font-family:inherit;outline:none}
 .seg{display:grid;border-radius:20px;background:var(--chip);padding:4px;gap:4px}
 .seg button{border:none;background:none;border-radius:16px;height:36px;font-size:13px;font-weight:700;color:var(--ink)}

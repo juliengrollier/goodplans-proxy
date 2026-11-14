@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
-import { CatBullet, Media, PriceTag, Dialog } from "./components.jsx";
+import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel } from "./components.jsx";
 import { catColor } from "./theme.js";
-import { whenLabel, travelLabel, venueLabel, isFree } from "./engine.js";
+import { whenLabel, venueLabel, weatherBadge } from "./engine.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
@@ -29,10 +29,17 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
     } catch {}
   };
 
+  // Swipe down from the top of the page to close
+  const sheetRef = useRef(null), y0 = useRef(null);
+  const onTouchStart = (e) => { y0.current = sheetRef.current?.scrollTop <= 0 ? e.touches[0].clientY : null; };
+  const onTouchEnd = (e) => { if (y0.current != null && e.changedTouches[0].clientY - y0.current > 110) onClose(); y0.current = null; };
+  const wb = weatherBadge(ev);
+
   return (
-    <div className="sheet" role="dialog" aria-label={ev.title}>
-      <div style={{ position: "relative", margin: "calc(12px + env(safe-area-inset-top)) 12px 0" }}>
-        <Media ev={ev} dark={dark} height={280} radius={30} big hideTitle />
+    <div className="sheet" role="dialog" aria-label={ev.title} ref={sheetRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div style={{ width: 44, height: 5, borderRadius: 3, background: "var(--line)", margin: "8px auto 0" }} aria-hidden="true" />
+      <div style={{ position: "relative", margin: "calc(8px + env(safe-area-inset-top)) 12px 0" }}>
+        <Media ev={ev} dark={dark} height={300} radius={30} big hideTitle credit />
         <button onClick={onClose} aria-label="Back" style={{ position: "absolute", top: 14, left: 14, width: 44, height: 44, borderRadius: 22, border: "none", background: "#fff", color: "#1B1F3B", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(27,31,59,.15)" }}><Icon name="back" size={20} width={2.6} /></button>
         {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: 21, right: 14, height: 30, fontSize: 13 }}>One night only</span>}
       </div>
@@ -44,10 +51,11 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
         </div>
         <h1 className="disp" style={{ margin: 0, fontSize: 32, lineHeight: 1.02 }}>{ev.title}</h1>
         <div style={{ fontSize: 15, color: "var(--ink2)" }}>{ev.venue}</div>
+        <div style={{ marginTop: 4 }}><Keywords ev={ev} max={5} size="lg" /></div>
       </div>
 
       <div style={{ margin: "16px 16px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {[["When", whenLabel(ev, today)], ["Getting there", travelLabel(ev.tt) || "—"], ["Price", null], ["Booking", ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
+        {[["When", whenLabel(ev, today)], ["Getting there", ev.tt ? <Travel tt={ev.tt} size={16} /> : "—"], ["Price", null], ["Booking", ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
           <div key={k} className="card-sm" style={{ padding: "12px 14px", borderRadius: 20 }}>
             <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>{k}</div>
             {v != null ? <div className="disp" style={{ fontSize: 17, marginTop: 2 }}>{v}</div> : <div style={{ marginTop: 4 }}><PriceTag ev={ev} /></div>}
@@ -67,8 +75,14 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
       ) : ev.calChecked ? (
         <div className="row" style={{ margin: "12px 16px 0", gap: 10, padding: "12px 16px", borderRadius: 20, background: "var(--free-bg)", color: "var(--free-ink)" }}><Icon name="calcheck" size={20} /><span style={{ fontSize: 14, fontWeight: 700 }}>No clash in your calendar.</span></div>
       ) : null}
-      {(ev.rain || ev.dark) && (
-        <div className="row" style={{ margin: "10px 16px 0", gap: 10, padding: "12px 16px", borderRadius: 20, background: "var(--chip)" }}><Icon name={ev.rain ? "rain" : "moon"} size={20} /><span style={{ fontSize: 14, fontWeight: 700 }}>{ev.rain ? "Rain is likely this evening and it's outdoors." : "Outdoors, and it ends after sunset — bring a layer."}</span></div>
+      {ev.wx && (
+        <div className="row" style={{ margin: "10px 16px 0", gap: 12, padding: "12px 16px", borderRadius: 20, background: wb?.tone === "warn" ? "var(--warn-bg)" : wb?.tone === "free" ? "var(--free-bg)" : "var(--chip)", color: wb?.tone === "warn" ? "var(--warn-ink)" : wb?.tone === "free" ? "var(--free-ink)" : "var(--ink)" }}>
+          <Icon name={wb?.icon || (ev.wx.pmax >= 50 ? "rain" : ev.wx.pmax >= 25 ? "cloud" : "sun")} size={22} />
+          <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>
+            {ev.wx.hi}° high, {ev.wx.pmax}% chance of rain{ev.wx.evening != null ? ` (${ev.wx.evening}% in the evening)` : ""}.
+            {ev.outdoor ? (ev.rain ? " It's outdoors: have a plan B." : ev.dark ? " Outdoors and ends after dark: bring a layer." : wb?.tone === "free" ? " Great day to be outside." : " It's outdoors.") : " Indoors, so the weather won't matter."}
+          </span>
+        </div>
       )}
 
       <div style={{ padding: "22px 20px 0", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -105,14 +119,15 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
           {ev.url && <a href={ev.url} target="_blank" rel="noreferrer" className="row" style={{ gap: 6, fontSize: 14, fontWeight: 800 }}>Open on {ev.src || "the source site"} <Icon name="link" size={15} /></a>}
         </div>
       )}
-      <div style={{ height: 120 }} />
+      <div style={{ height: 110 }} />
 
-      <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "calc(100% - 24px)", maxWidth: 456, bottom: "calc(16px + env(safe-area-inset-bottom))", height: 68, borderRadius: 34, background: "var(--card)", boxShadow: "0 10px 30px rgba(27,31,59,.2)", padding: 8, display: "flex", gap: 8, alignItems: "center", zIndex: 110, border: dark ? "1px solid var(--line)" : "none" }}>
+      <div className="actionbar">
+        <button className="roundbtn" aria-label="Back" onClick={onClose}><Icon name="back" size={24} width={2.6} /></button>
         <button className="pill pill-dark" style={{ flex: 1, height: 52, borderRadius: 26 }} onClick={() => onSave(ev)}>
-          <Icon name={saved ? "check" : "plans"} size={20} /> {saved ? "In your plans" : "Add to plans"}
+          <Icon name="save" size={20} fill={saved ? "currentColor" : "none"} /> {saved ? "In your plans" : "Add to plans"}
         </button>
-        <button aria-label="Add to Google Calendar" onClick={addCal} style={{ width: 52, height: 52, borderRadius: 26, border: "none", background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="cal" size={22} /></button>
-        <button aria-label="Share" onClick={share} style={{ width: 52, height: 52, borderRadius: 26, border: "none", background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="share" size={22} /></button>
+        <button className="roundbtn" aria-label="Add to Google Calendar" onClick={addCal}><Icon name="cal" size={22} /></button>
+        <button className="roundbtn" aria-label="Share" onClick={share}><Icon name="share" size={22} /></button>
       </div>
 
       {nfm && (
