@@ -56,7 +56,7 @@ function Forecast({ weather, today }) {
   );
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights }) {
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [] }) {
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
@@ -121,6 +121,16 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           ))}
           {!nowSoon.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing starting nearby in the next couple of hours. Tonight's picks are below.</div>}
         </div>
+      )}
+
+      {weekPicks.length > 0 && (
+        <>
+          <SectionHead title="Don't miss this week" n={weekPicks.length + " pick" + (weekPicks.length > 1 ? "s" : "")} color={catColor("Art & Culture", dark)} />
+          <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <HeroCard ev={weekPicks[0]} dark={dark} today={today} onOpen={onOpen} label={null} />
+            {weekPicks.slice(1).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+          </div>
+        </>
       )}
 
       {tonight.length > 0 && (
