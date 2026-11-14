@@ -317,7 +317,7 @@ export default function App() {
       const v = { text: d.text, hash, day, at: Date.now() };
       setHl(v); setHlStatus("idle");
       try { localStorage.setItem(HL_KEY, JSON.stringify(v)); } catch { /* full */ }
-    }).catch((e) => { setHlStatus("error"); if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
+    }).catch((e) => { setHlStatus("error: " + (e.message || "network") + (e.status ? " (" + e.status + ")" : "")); if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
   }, [ready, visible.length > 0, isoDay(today), weather ? 1 : 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Event sheet and deep links
