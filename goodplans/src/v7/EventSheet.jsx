@@ -3,6 +3,7 @@ import { Icon } from "./icons.jsx";
 import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel } from "./components.jsx";
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge } from "./engine.js";
+import { DOW_LONG } from "./recurring.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
@@ -52,6 +53,13 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
         <h1 className="disp" style={{ margin: 0, fontSize: 32, lineHeight: 1.02 }}>{ev.title}</h1>
         <div style={{ fontSize: 15, color: "var(--ink2)" }}>{ev.venue}</div>
         <div style={{ marginTop: 4 }}><Keywords ev={ev} max={5} size="lg" /></div>
+        {ev.recurring && (
+          <div className="row" style={{ gap: 6, fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>
+            <Icon name="refresh" size={15} /> Every {DOW_LONG[ev.recDow].slice(0, -1)}{ev.recurring === "synthetic" ? " · not in the latest feed, check before going" : ""}
+          </div>
+        )}
+        {ev.desc && <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--ink2)" }}>{ev.desc}</p>}
+        {ev.url && <a href={ev.url} target="_blank" rel="noreferrer" className="row" style={{ gap: 6, fontSize: 14, fontWeight: 800 }}>Open on {ev.src || "the source site"} <Icon name="link" size={15} /></a>}
       </div>
 
       <div style={{ margin: "16px 16px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -112,13 +120,6 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
         </div>
       </div>
 
-      {ev.desc && (
-        <div style={{ padding: "18px 20px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div className="disp" style={{ fontSize: 20 }}>About</div>
-          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: "var(--ink2)" }}>{ev.desc}</p>
-          {ev.url && <a href={ev.url} target="_blank" rel="noreferrer" className="row" style={{ gap: 6, fontSize: 14, fontWeight: 800 }}>Open on {ev.src || "the source site"} <Icon name="link" size={15} /></a>}
-        </div>
-      )}
       <div style={{ height: 110 }} />
 
       <div className="actionbar">

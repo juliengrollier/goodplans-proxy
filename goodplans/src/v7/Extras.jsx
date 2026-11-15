@@ -64,3 +64,25 @@ export function Surprise({ ev, dark, today, weather, onOpen, onAnother, onClose,
     </div>
   );
 }
+
+// Asked right after a thumb on a card: what made it a yes or a no. Optional; closing keeps the thumb.
+const WHY = {
+  up: [["type", "Love this kind of event"], ["venue", "Great venue", "Follows the venue"], ["price", "Good price", "Paid nights get pushed down a little"], ["near", "Close by", "Far trips get pushed down a little"], ["timing", "Good timing"], ["unique", "One of a kind"]],
+  down: [["notus", "Not our thing", "Less of this kind of event"], ["far", "Too far"], ["price", "Too pricey"], ["seen", "Seen it / not again", "Hides this series"], ["venue", "Not this venue", "Pushes this venue down"], ["timing", "Bad timing"]],
+};
+export function WhyDialog({ ev, dir, onPick, onClose }) {
+  return (
+    <Dialog title={dir === "up" ? "What do you like about it?" : "What's wrong with it?"} onClose={onClose}>
+      <div className="muted ell" style={{ fontSize: 14, marginTop: -6, marginBottom: 12 }}>{ev.title}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {WHY[dir].map(([k, l, d]) => (
+          <button key={k} className="card-sm" style={{ border: "none", textAlign: "left", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 2 }} onClick={() => onPick(k)}>
+            <span style={{ fontSize: 15, fontWeight: 800 }}>{l}</span>
+            {d && <span className="muted" style={{ fontSize: 12 }}>{d}</span>}
+          </button>
+        ))}
+      </div>
+      <button className="pill pill-line" style={{ width: "100%", marginTop: 12 }} onClick={onClose}>Skip</button>
+    </Dialog>
+  );
+}

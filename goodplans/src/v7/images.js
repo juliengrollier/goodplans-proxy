@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 // (production or a preview of the same branch), else its production address.
 export const API_BASE = (import.meta.env.VITE_API_BASE ||
   (/^goodplans-proxy/.test(location.hostname) ? "" : "https://goodplans-proxy.vercel.app")).replace(/\/$/, "");
-const KEY = "gp_img_v8";
+const KEY = "gp_img_v9"; // v9: Wikipedia images dropped
 const DAY = 86400000;
 const TTL = { event: 14 * DAY, venue: 2 * DAY, none: 1 * DAY };
 

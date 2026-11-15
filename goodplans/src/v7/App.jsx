@@ -9,7 +9,8 @@ import MapView from "./MapView.jsx";
 import Plans from "./Plans.jsx";
 import Me from "./Me.jsx";
 import EventSheet from "./EventSheet.jsx";
-import { FreeUntilDialog, Surprise } from "./Extras.jsx";
+import { FreeUntilDialog, Surprise, WhyDialog } from "./Extras.jsx";
+import { REC_KEY, updateRecurring, withRegulars } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
   fetchWeather, fitsFree, isOver, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
@@ -83,6 +84,9 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState("");
   const [tick, setTick] = useState(0); // re-evaluate "now" every few minutes
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [sort, setSort] = useState("best");
+  const [rec, setRec] = useState({});
+  const [whyAsk, setWhyAsk] = useState(null); // {ev, dir}
   const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
   const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
   const [hlStatus, setHlStatus] = useState("idle");
@@ -198,8 +202,9 @@ export default function App() {
   // ── Initial load
   useEffect(() => {
     (async () => {
-      const [pr, fv, bh, evStore, gm, tst, th, loc, slots, calPref] = await Promise.all(
-        [SK_P, SK_F, SK_B, "gp_events_v1", "gp_gmail_v1", TASTE_KEY, THEME_KEY, "gp_loc_v1", "gp_cal_slots_v1", "gp_cal_v1"].map(sg));
+      const [pr, fv, bh, evStore, gm, tst, th, loc, slots, calPref, rs] = await Promise.all(
+        [SK_P, SK_F, SK_B, "gp_events_v1", "gp_gmail_v1", TASTE_KEY, THEME_KEY, "gp_loc_v1", "gp_cal_slots_v1", "gp_cal_v1", REC_KEY].map(sg));
+      if (rs) setRec(rs);
       setProf(mergeProf(pr));
       if (fv) { const t0 = floorDay(new Date()); const clean = Object.fromEntries(Object.entries(fv).filter(([, e]) => evActive(e, t0))); setFavs(clean); if (Object.keys(clean).length !== Object.keys(fv).length) ss(SK_F, clean); }
       if (bh) setBeh(bh);
@@ -247,18 +252,26 @@ export default function App() {
     setBeh(b); ss(SK_B, b);
   };
 
+  // ── Weekly regulars: learn from each feed, keep across refreshes
+  useEffect(() => {
+    if (!ready || !events.length) return;
+    const n = updateRecurring(events, rec, today);
+    if (JSON.stringify(n) !== JSON.stringify(rec)) { setRec(n); ss(REC_KEY, n); }
+  }, [ready, events, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allEvents = useMemo(() => withRegulars(events, rec, today), [events, rec, today]);
+
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
   const scored = useMemo(() => {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
-    return events.map((e0) => {
+    return allEvents.map((e0) => {
       const t = tags[e0.id];
       const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : e0;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
-  }, [events, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
+  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
   const scoreOne = useCallback((e) => {
     const s = scoreEvent({ ...e, coord: safeCoord(e) }, { eprof, beh, today, home, taste, weather, busySlots });
     s.calChecked = calStatus === "ok"; return s;
@@ -279,8 +292,11 @@ export default function App() {
     const seen = new Set();
     return visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 10);
   }, [visible, today]);
-  const weekPicks = useMemo(() => weekPool.slice(0, 5), [weekPool]);
-  const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof, pinned: weekPicks.map((e) => e.id) }), [scored, today, effFree, eprof, weekPicks]);
+  const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof }), [scored, today, effFree, eprof]);
+  const weekPicks = useMemo(() => {
+    const shown = new Set([...sections.nowSoon, ...sections.tonight, ...sections.weekend].map((e) => e.id));
+    return weekPool.filter((e) => !shown.has(e.id)).slice(0, 5);
+  }, [weekPool, sections]);
 
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
   const tagBusy = useRef(false);
@@ -356,10 +372,15 @@ export default function App() {
     }
     setFavs(n); ss(SK_F, n);
   };
-  const react = (ev, kind, reason) => {
-    saveTaste(applyReaction(taste, prof, ev, kind, reason));
+  // tasteRef keeps a thumb and the reason picked right after it from overwriting each other
+  const tasteRef = useRef(taste); tasteRef.current = taste;
+  const react = (ev, kind, reason, quiet) => {
+    const t = applyReaction(tasteRef.current, prof, ev, kind, reason);
+    tasteRef.current = t; saveTaste(t);
+    if (quiet) return;
     if (kind === "up") toast("Got it, more like this");
     if (kind === "down") toast("Got it, less like this");
+    if (kind === "why") toast("Thanks, noted");
     if (kind === "nfm") { toast("Hidden. Undo in Me."); setOpenEv(null); }
   };
   const follow = (ev) => { const t = toggleFollow(taste, ev); saveTaste(t); toast(t.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()] ? "Following " + ev.venue.split(",")[0] : "Unfollowed"); };
@@ -385,7 +406,8 @@ export default function App() {
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
   const actions = {
-    onReact: (ev, kind, reason) => react(ev, kind, reason),
+    onReact: (ev, kind, reason, quiet) => react(ev, kind, reason, quiet),
+    askWhy: (ev, dir) => setWhyAsk({ ev, dir }),
     onSave: (ev) => toggleSave(ev),
     isSaved: (id) => !!favs[id],
     thumbOf: (id) => taste.thumbs[id] || 0,
@@ -397,10 +419,10 @@ export default function App() {
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
-          weekPicks={weekPicks} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
+          weekPicks={weekPicks} eprof={eprof} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
-        {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} />}
+        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
+        {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
@@ -418,6 +440,7 @@ export default function App() {
         onPick={(m) => { setFreeUntil(m); setShowFree(false); }} />}
       {surprise && !sheetEv && <Surprise ev={surprise.ev} empty={!surprise.ev} dark={dark} today={today} weather={weather}
         onOpen={(ev) => openEvent(ev)} onAnother={() => setSurprise(pickSurprise(surprise.seen))} onClose={() => setSurprise(null)} />}
+      {whyAsk && <WhyDialog ev={whyAsk.ev} dir={whyAsk.dir} onPick={(r) => { react(whyAsk.ev, "why", whyAsk.dir + ":" + r); setWhyAsk(null); }} onClose={() => setWhyAsk(null)} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
     </ActionsCtx.Provider>
