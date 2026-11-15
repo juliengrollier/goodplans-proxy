@@ -45,7 +45,7 @@ const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 export function features(ev, today = new Date()) {
   const f = [];
   const add = (k, v) => { if (v != null && v !== "") f.push(k + ":" + slug(v)); };
-  add("cat", ev.ncat); if (ev.nsub) add("sub", ev.ncat + "/" + ev.nsub); add("fam", ev.fam);
+  add("cat", ev.ncat); add("act", ev.act); if (ev.nsub) add("sub", ev.ncat + "/" + ev.nsub); add("fam", ev.fam);
   (ev.kw || []).slice(0, 4).forEach((k) => add("kw", k));
   add("venue", venueKey(ev)); add("hood", ev.hood);
   const pb = priceBucket(ev), db = distBucket(ev);

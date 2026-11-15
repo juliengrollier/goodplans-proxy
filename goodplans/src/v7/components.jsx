@@ -53,8 +53,14 @@ export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
 // Dot-separated keywords on one line, in the same soft style as the blurb they replace
 export function KeywordLine({ ev, size = 12 }) {
   const t = (ev.title || "").toLowerCase();
-  const kw = [...new Set([...(ev.kw || []), ev.nsub].filter((k) => k && String(k).toLowerCase() !== t && String(k).toLowerCase() !== String(ev.ncat || ev.cat || "").toLowerCase()))].slice(0, 4);
-  if (!kw.length) return null;
+  const junk = /^(nyc|new york|other|misc|miscellaneous|general|event|events|n\/a)$/i;
+  const seen = new Set();
+  // Claude's keywords first, then the sub-type, category and area, so no card is ever left without a line
+  const kw = [...(ev.kw || []), ev.nsub, ev.sub, ev.ncat || ev.cat, ev.hood && String(ev.hood).split(",")[0]]
+    .map((k) => (k == null ? "" : String(k).trim()))
+    .filter((k) => { const l = k.toLowerCase(); if (!k || junk.test(k) || l === t || seen.has(l)) return false; seen.add(l); return true; })
+    .slice(0, 4);
+  if (!kw.length) return <div style={{ fontSize: size, lineHeight: 1.35 }}>&nbsp;</div>;
   return <div className="ell" style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink3)", opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kw.join(" · ")}</div>;
 }
 
@@ -410,7 +416,8 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {t.verb && <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.85 }}>{t.verb}</span>}
         <span className="disp" style={{ fontSize: 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
-        {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
+        {/^(Because|You both|Something different)/.test(t.why || "") && <span className="ell" style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3, padding: "2px 8px", borderRadius: 10, background: "rgba(255,255,255,.2)", alignSelf: "flex-start", maxWidth: "100%" }}>{t.why}</span>}
+        {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: /^(Because|You both|Something different)/.test(t.why || "") ? 1 : 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
       </span>
       <span className="row" style={{ justifyContent: "space-between", minHeight: 30 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>

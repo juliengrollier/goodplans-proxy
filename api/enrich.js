@@ -9,6 +9,8 @@
  */
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
+import { ACTIVITIES } from "./activity-ids.js";
+const ACT_IDS = Object.keys(ACTIVITIES);
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
 const SUBS2 = {"Concerts": ["Rock & Indie", "Hip-hop & R&B", "Electronic", "Folk & Acoustic", "Jazz", "Blues", "Classical", "Pop", "World & Latin"], "Theater": ["Broadway", "Off-Broadway", "Cabaret & Drag", "Immersive"], "Comedy": ["Stand-up", "Improv", "Storytelling", "Variety"], "Film": ["New releases", "Repertory & Classics", "Documentary", "Outdoor"], "Clubs & DJs": ["House & Techno", "Disco & Funk", "Hip-hop", "Queer parties"], "Dance Socials": ["Salsa & Bachata", "Swing", "Tango", "Other styles"], "Tastings": ["Wine", "Beer & Cider", "Spirits", "Food"], "Museums & Galleries": ["Museums", "Galleries", "Openings", "Art fairs"], "Markets": ["Flea & Vintage", "Makers & Crafts", "Holiday", "Records & Books"], "Talks & Panels": ["Ideas & Science", "Culture & Arts", "City & History", "Politics & Society"], "Tours": ["History", "Architecture", "Food", "Nature"], "Arts & Crafts": ["Ceramics", "Painting & Drawing", "Textiles", "Printmaking"], "Karaoke": ["Live-band karaoke", "Private rooms", "Bar karaoke"], "Trivia & Quizzes": ["Music trivia & bingo", "Film & TV trivia", "Themed trivia", "General trivia"], "Board & Card Games": ["Role-playing", "Chess & classics", "Card games & poker", "Board games"], "Arcades & VR": ["Arcade & pinball", "VR & simulators", "Video games & esports"], "Escape Rooms & Puzzles": ["Escape rooms", "Hunts & mysteries"], "Bar Games & Bowling": ["Bowling", "Ping pong", "Mini golf", "Darts, pool & more"], "Running": ["Run clubs", "Races"], "Cycling": ["Group rides", "Bike tours"], "Pickup Sports": ["Pickleball & tennis", "Basketball", "Soccer", "Volleyball", "Other games"], "Climbing & Skating": ["Climbing", "Ice skating", "Roller & skateboard"], "Water Sports": ["Kayak & paddle", "Swimming", "Sailing"]};
 const CATS2 = ["Comedy", "Cooking & Cocktails", "Arts & Crafts", "Yoga & Wellness", "Dance Socials", "Karaoke", "Trivia & Quizzes", "Escape Rooms & Puzzles", "Arcades & VR", "Board & Card Games", "Bar Games & Bowling", "Clubs & DJs", "Dance & Opera", "Theater", "Film", "Live Sports", "Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours", "Tours", "Books & Readings", "Talks & Panels", "Museums & Galleries", "Festivals & Parades", "Markets", "Running", "Cycling", "Pickup Sports", "Climbing & Skating", "Water Sports", "Hiking & Walks", "Parks & Nature", "Concerts"];
@@ -57,15 +59,16 @@ async function tags(events) {
   const system = `You label New York City events for a personal events app. For each event, give 3 to 5 keywords that tell someone at a glance what to expect: format (e.g. live band, DJ set, stand-up, screening, workshop, walking tour, market, talk, exhibition), style or genre (e.g. jazz, indie rock, experimental, comedy improv), topic, and vibe (e.g. outdoor, late night, family-friendly, hands-on, dance floor). Each keyword is 1 to 3 words, lowercase, no hashtags, no price, no date, no venue name. Use only what the title and description support; do not invent. Also return the best category from this list: ${CATS.join(", ")}.
 And "cat2": the single best fit from this second list, judged by what the person will actually be doing there: ${CATS2.join(", ")}.
 And "sub2": if cat2 is one of these, the single best sub-type from its list, else null: ${Object.entries(SUBS2).map(([c, l]) => c + ": " + l.join(" / ")).join("; ")}.
+And "a": the single specific activity the person will be doing, as an id from this list (id = label), or null if none fits well: ${Object.entries(ACTIVITIES).map(([i, l]) => i + "=" + l).join(", ")}.
 And "h": a one-line hook of 4 to 9 words saying what the experience is, punchy and concrete, no venue, no date, no price, no full sentence (e.g. "Pop-up shopping for local crafts", "Watch glassblowers shape molten glass", "Four indie bands in a tiny basement").
 And "d": how the event will feel, one value per dimension, judged from the title and description (pick the likeliest; use "any"/"mixed"/"all-ages" when unclear): ${Object.entries(DIMS).map(([d, l]) => d + ": " + l.join(" / ")).join("; ")}.
-Reply with JSON only, no prose: {"<id>": {"k": ["..."], "h": "...", "cat": "...", "cat2": "...", "sub2": "...", "d": {"<dimension>": "<value>", ...}}}`;
+Reply with JSON only, no prose: {"<id>": {"k": ["..."], "h": "...", "cat": "...", "cat2": "...", "sub2": "...", "a": "...", "d": {"<dimension>": "<value>", ...}}}`;
   const text = await claude(system, JSON.stringify(list), 9000);
   const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   const out = {};
   for (const [id, v] of Object.entries(json)) {
     const k = (Array.isArray(v?.k) ? v.k : []).map((x) => clip(x, 28).toLowerCase()).filter(Boolean).slice(0, 5);
-    out[id] = { k, h: clip(v?.h, 70) || null, cat: CATS.includes(v?.cat) ? v.cat : null, cat2: CATS2.includes(v?.cat2) ? v.cat2 : null, sub2: CATS2.includes(v?.cat2) && (SUBS2[v.cat2] || []).includes(v?.sub2) ? v.sub2 : null,
+    out[id] = { k, a: ACT_IDS.includes(v?.a) ? v.a : null, h: clip(v?.h, 70) || null, cat: CATS.includes(v?.cat) ? v.cat : null, cat2: CATS2.includes(v?.cat2) ? v.cat2 : null, sub2: CATS2.includes(v?.cat2) && (SUBS2[v.cat2] || []).includes(v?.sub2) ? v.sub2 : null,
       d: Object.fromEntries(Object.entries(DIMS).map(([dim, vals]) => [dim, vals.includes(v?.d?.[dim]) ? v.d[dim] : null]).filter(([, x]) => x)) };
   }
   return out;

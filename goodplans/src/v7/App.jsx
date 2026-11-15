@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
+import { markSeen } from "./moods2.js";
+import { logMood, moodStats } from "./moodlog.js";
+import { actOf } from "./activities.js";
+import { ingest, getSpace, tasteOf, neighbours, labelOf } from "./embed.js";
 import { hoodCards, genericCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
 import Today from "./Today.jsx";
@@ -132,7 +136,13 @@ export default function App() {
     saveModelT.current = setTimeout(() => { try { localStorage.setItem(L.MODEL_KEY, JSON.stringify(modelRef.current)); } catch { /* full */ } }, 400);
     if (rescore) setModelVer((v) => v + 1);
   };
-  const signal = useCallback((ev, kind) => { if (ev) putModel(L.learn(modelRef.current, ev, kind, floorDay(new Date())), L.SIGNALS[kind]?.s >= 0.7); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const moodSession = useRef(null); // the mood you opened last, so saves from its list can be credited to it
+  const signal = useCallback((ev, kind) => {
+    if (!ev) return;
+    putModel(L.learn(modelRef.current, ev, kind, floorDay(new Date())), L.SIGNALS[kind]?.s >= 0.7);
+    const ms = moodSession.current;
+    if ((kind === "save" || kind === "went") && ms && Date.now() - ms.at < 45 * 60000 && ms.ids.has(ev.id)) logMood("saved", ms.key, ms.adj, ms.title);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [who, setWhoState] = useState(() => localStorage.getItem("gp_who") || "");
   const [together, setTogetherState] = useState(false); // the Together mode was removed
   const [partner, setPartner] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_partner_model") || "null"); } catch { return null; } });
@@ -369,6 +379,7 @@ export default function App() {
       const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
       e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam; e.nsub = classifySub(e, e.ncat, t?.sub2);
       if (t?.d) e.dims = t.d;
+      e.act = actOf({ ...e, act: t?.a });
       if (t?.h) e.hook = t.h;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       // Learned taste (v2): what you do, how events feel, the moment; held back where the two of you disagree in Together
@@ -511,7 +522,8 @@ export default function App() {
   const tagBusy = useRef(false);
   useEffect(() => {
     if (!ready || aiOff.current || tagBusy.current) return;
-    const todo = visible.filter((e) => !tags[e.id]).slice(0, 160);
+    // Events tagged before activities existed (no "a" field) are tagged again once
+    const todo = visible.filter((e) => !tags[e.id] || !("a" in tags[e.id])).slice(0, 160);
     if (!todo.length) return;
     tagBusy.current = true;
     (async () => {
@@ -521,7 +533,7 @@ export default function App() {
           const d = await postJSON("/api/enrich", { mode: "tags", events: todo.slice(i, i + 40).map(({ id, title, desc, cat, sub, venue, price, time }) => ({ id, title, desc, cat: cat, sub, venue, price, time })) });
           acc = { ...acc, ...(d.tags || {}) };
           // Events Claude skipped still get an entry, so they aren't sent again and again
-          todo.slice(i, i + 40).forEach((e) => { if (!acc[e.id]) acc[e.id] = { k: [], cat: null }; });
+          todo.slice(i, i + 40).forEach((e) => { if (!acc[e.id]) acc[e.id] = { k: [], cat: null, a: null }; else if (!("a" in acc[e.id])) acc[e.id] = { ...acc[e.id], a: null }; });
           setTags(acc);
           try { localStorage.setItem(TAGS_KEY, JSON.stringify(Object.fromEntries(Object.entries(acc).slice(-1500)))); } catch { /* full */ }
         } catch (e) { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; break; }
@@ -794,8 +806,24 @@ export default function App() {
   }, [visible, modelVer, today, meet]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickPool = useMemo(() => { const wk = new Date(today); wk.setDate(today.getDate() + 7); return poolPicks(visible.filter((e) => evStart(e) <= wk)); }, [visible, today]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── Home tiles (quick time tiles + moods/picks); reused as "More ideas" in Explore
-  const tileSet = useMemo(() => buildTiles({ visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
-    [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark, moodFb]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Taste space: grows with every enriched event; your taste (and Theo's, when blended) is a point in it
+  const [embVer, setEmbVer] = useState(0);
+  useEffect(() => { const ready2 = visible.filter((e) => tags[e.id] || aiOff.current); if (ready2.length && ingest(ready2, today)) setEmbVer((v) => v + 1); }, [visible, tags]); // eslint-disable-line react-hooks/exhaustive-deps
+  const space = useMemo(() => getSpace(), [embVer]);
+  const [moodsTwo, setMoodsTwo] = useState(() => ls("gp_moods2p_v1", "false"));
+  const setTwo = (v) => { setMoodsTwo(v); try { localStorage.setItem("gp_moods2p_v1", JSON.stringify(v)); } catch { /* full */ } };
+  const tasteMe = useMemo(() => tasteOf(space, modelRef.current), [space, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tasteTheo = useMemo(() => (moodsTwo && partnerModel ? tasteOf(space, partnerModel) : null), [space, moodsTwo, partnerModel]);
+  // Me → How your moods learn: stats, and for each of your top interests its nearest neighbours you haven't tried
+  const moodLab = useMemo(() => {
+    if (tab !== "me") return null;
+    const map = (tasteMe?.anchors || []).filter((a) => /^(act|sub):/.test(a.f)).slice(0, 5).map((a) => [a.label, neighbours(space, a.f, 8, a.f.split(":")[0] + ":").filter(([f]) => !(L.weightOf(modelRef.current, f) > 0.05)).slice(0, 3).map(([f]) => labelOf(f))]).filter(([, ns]) => ns.length);
+    return { stats: moodStats(14), events: space.n, map, canTwo: !!partnerModel, two: moodsTwo, setTwo, partner: otherPerson || "your partner" };
+  }, [tab, space, tasteMe, moodsTwo, partnerModel]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tileSet = useMemo(() => buildTiles({ space, taste: tasteMe, tasteB: tasteTheo, wOf: (f) => L.weightOf(modelRef.current, f), clicks: moodClicks, favs: moodFav, visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
+    [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark, moodFb, space, tasteMe, tasteTheo]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Impressions: the first generated moods on show count once a day, so ignored ones slowly give way
+  useEffect(() => { const ks = (tileSet.all || []).filter((t) => /^gen-/.test(t.key) && !moodFav.includes(t.key)).slice(0, 8); if (ks.length) markSeen(ks, today); }, [tileSet]); // eslint-disable-line react-hooks/exhaustive-deps
   // Thumbs and hearts on mood tiles teach the taste model (picks: their features; archetype moods: the You store)
   const learnTile = (t, d) => {
     if (t.f) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.3 * d); putModel(m, true); }
@@ -822,7 +850,9 @@ export default function App() {
   };
   const [listMeta, setListMeta] = useState(null);
   const openTile = (t) => {
-    setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: t.teaser, verb: t.verb });
+    setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: t.teaser, verb: t.verb, why: t.why });
+    if (/^(mood|pick|gen)-/.test(t.key || "") && t.list) { moodSession.current = { key: t.key, ids: new Set(t.list.map((e) => e.id)), at: Date.now(), adj: !!t.adj, title: t.title }; logMood("opened", t.key, !!t.adj, t.title); }
+    if (t.f && /^gen-/.test(t.key || "")) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.08); putModel(m); } // opening is a light vote
     if (/^(mood|pick|gen)-/.test(t.key || "")) { const c = { ...moodClicks, [t.key]: { n: (moodClicks[t.key]?.n || 0) + 1, at: Date.now() } }; setMoodClicks(c); try { localStorage.setItem("gp_moodclicks_v1", JSON.stringify(c)); } catch { /* full */ } if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } } }
     const base = { ...filters, fam: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
     setFilters(t.list ? { ...base, ids: t.list.map((e) => e.id), when: "any" } : { ...base, ...t.patch });
@@ -906,7 +936,7 @@ export default function App() {
         {tab === "explore" && <Explore listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} home={home} onFullMap={openFullMap} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
+        {tab === "me" && <Me moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
           who={who} setWho={setWho} people={PEOPLE} prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
