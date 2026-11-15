@@ -11,7 +11,7 @@
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
 const SUBS2 = {
-  "Concerts": ["Rock & Indie", "Hip-hop & R&B", "Electronic", "Folk & Acoustic", "Jazz & Blues", "Classical", "Pop", "World & Latin"],
+  "Concerts": ["Rock & Indie", "Hip-hop & R&B", "Electronic", "Folk & Acoustic", "Jazz", "Blues", "Classical", "Pop", "World & Latin"],
   "Theater": ["Broadway", "Off-Broadway", "Cabaret & Drag", "Immersive"], "Comedy": ["Stand-up", "Improv", "Storytelling", "Variety"],
   "Film": ["New releases", "Repertory & Classics", "Documentary", "Outdoor"], "Clubs & DJs": ["House & Techno", "Disco & Funk", "Hip-hop", "Queer parties"],
   "Dance Socials": ["Salsa & Bachata", "Swing", "Tango", "Other styles"], "Tastings": ["Wine", "Beer & Cider", "Spirits", "Food"],
