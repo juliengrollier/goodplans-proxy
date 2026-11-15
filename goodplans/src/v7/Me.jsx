@@ -20,7 +20,7 @@ export default function Me(p) {
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
-    locSt, onRetryGPS, resetTaste, quiz, onRetakeQuiz, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
+    locSt, onRetryGPS, resetTaste, axes, onNudge, quiz, onRetakeQuiz, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
   const [fine, setFine] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
   const cats = Object.keys(CATS).filter((c) => c !== "Other");
@@ -66,6 +66,30 @@ export default function Me(p) {
           </span>
         </div>
       </Card>
+
+      {axes && (
+        <Card title="Your taste, dimension by dimension">
+          <div className="muted" style={{ fontSize: 13, lineHeight: 1.45, marginTop: -4 }}>How the app reads you so far. Tap ‹ or › to nudge a bar.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {axes.axes.map((a) => (
+              <div key={a.dim} style={{ display: "grid", gridTemplateColumns: "26px 78px 1fr 84px 26px", alignItems: "center", gap: 4 }}>
+                <button aria-label={"More " + a.loL} onClick={() => onNudge(a.dim, a.lo, a.hi, -1)} style={{ border: "none", background: "var(--chip)", borderRadius: 13, width: 26, height: 26, fontWeight: 800 }}>‹</button>
+                <span style={{ fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", color: a.v != null && a.v < -0.2 ? "var(--ink)" : "var(--ink3)", textAlign: "right" }}>{a.loL}</span>
+                <span style={{ position: "relative", height: 8, borderRadius: 4, background: "var(--chip)", margin: "0 6px" }}>
+                  <span style={{ position: "absolute", left: "50%", top: -3, width: 2, height: 14, background: "var(--line)" }} />
+                  {a.v != null && <span style={{ position: "absolute", top: -4, left: `calc(${50 + a.v * 46}% - 8px)`, width: 16, height: 16, borderRadius: 8, background: "var(--navy)", transition: "left .3s" }} />}
+                </span>
+                <span style={{ fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", color: a.v != null && a.v > 0.2 ? "var(--ink)" : "var(--ink3)" }}>{a.hiL}</span>
+                <button aria-label={"More " + a.hiL} onClick={() => onNudge(a.dim, a.lo, a.hi, 1)} style={{ border: "none", background: "var(--chip)", borderRadius: 13, width: 26, height: 26, fontWeight: 800 }}>›</button>
+              </div>
+            ))}
+          </div>
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            {axes.choices.filter((c) => c.word).map((c) => <span key={c.dim} className="chip" style={{ height: 30, fontSize: 13 }}>{c.label} {c.word}</span>)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>A bar with no dot means there isn't enough to go on yet.</div>
+        </Card>
+      )}
 
       <Card title="Google Maps lists">
         {maps?.lists?.length ? (

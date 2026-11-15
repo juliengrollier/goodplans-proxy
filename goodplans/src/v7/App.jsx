@@ -19,6 +19,7 @@ import * as L from "./learn.js";
 import * as M from "./maps.js";
 import * as Q from "./quiz.js";
 import Quiz from "./Quiz.jsx";
+import { buildMixes } from "./mixes.js";
 import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
 const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
@@ -29,6 +30,7 @@ import {
 import {
   DP, SK_P, SK_F, SK_B, DEFAULT_SUBS, sg, ss, daysUntil, CATS, DAYS,
   getSWRegistration, subscribePush, registerSubWithAppsScript,
+  evStart,
 } from "../lib/core.js";
 
 // Backend defaults: set VITE_GP_URL / VITE_GP_KEY in Vercel. Values saved in Me override them.
@@ -750,6 +752,25 @@ export default function App() {
     setShowQuiz(false); toast("Nice to meet you, " + prof.name.replace(/^The /, ""));
   };
 
+  // ── Mixes: personal lists from your strongest taste combinations (next 7 days)
+  const mixes = useMemo(() => {
+    const wk = new Date(today); wk.setDate(today.getDate() + 7);
+    return buildMixes(modelRef.current, visible.filter((e) => evStart(e) <= wk));
+  }, [visible, modelVer, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Taste chart in Me: each dimension as an axis; a nudge moves it a notch
+  const axes = useMemo(() => ({
+    axes: L.AXES.map(([dim, loL, lo, hiL, hi]) => ({ dim, loL, lo, hiL, hi, v: L.axisScore(modelRef.current, dim, lo, hi) })),
+    choices: L.CHOICE_DIMS.map(([dim, label, vals]) => {
+      const best = Object.entries(vals).map(([k, word]) => [word, L.weightOf(modelRef.current, L.dimFeature(dim, k))]).sort((a, b) => b[1] - a[1])[0];
+      return { dim, label, word: best && best[1] > 0.05 ? best[0] : null };
+    }),
+  }), [modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const nudgeAxis = (dim, lo, hi, dir) => {
+    let m = L.nudge(modelRef.current, L.dimFeature(dim, dir > 0 ? hi : lo), 0.35);
+    m = L.nudge(m, L.dimFeature(dim, dir > 0 ? lo : hi), -0.2);
+    putModel(m, true);
+  };
+
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
   const actions = {
@@ -775,14 +796,14 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
+        {tab === "today" && <Today mixes={mixes} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
+        {tab === "me" && <Me axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
           who={who} setWho={setWho} people={PEOPLE} prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}

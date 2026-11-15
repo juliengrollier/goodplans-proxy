@@ -9,16 +9,16 @@ import {
 // f: feature weights (names as in learn.js features()); price / far: older taste sensitivities (0–3)
 export const QUESTIONS = [
   { id: "friday", q: "Friday, 7pm. You're free. You're hoping for…", opts: [
-    { l: "Dinner and drinks", i: Utensils, f: { "fam:eat": 0.6, "dim:food=food": 0.5, "dim:social=group": 0.3, "dim:energy=lively": 0.3 } },
+    { l: "Dinner and drinks", i: Utensils, f: { "fam:eat": 0.6, "dim:food=food": 0.5, "dim:food=drinks": 0.3, "dim:social=group": 0.3, "dim:energy=lively": 0.3 } },
     { l: "A show", i: Drama, f: { "fam:watch": 0.6, "dim:mode=watch": 0.5 } },
     { l: "Something I've never done", i: Sparkles, f: { "dim:novelty=weird": 0.6, "len:oneoff": 0.4, "dim:novelty=classic": -0.3 } },
     { l: "A quiet night in, honestly", i: Sofa, f: { "dim:energy=calm": 0.5, "dim:energy=wild": -0.5, "x:weekend&late": -0.3 } },
   ] },
   { id: "room", q: "Pick the room.", opts: [
-    { l: "Tiny basement, 30 people", i: Wine, f: { "dim:crowd=intimate": 0.7, "dim:scene=underground": 0.4, "dim:crowd=big": -0.3 } },
-    { l: "Packed warehouse", i: Warehouse, f: { "dim:crowd=big": 0.6, "dim:energy=wild": 0.5, "dim:noise=loud": 0.4 } },
+    { l: "Tiny basement, 30 people", i: Wine, f: { "dim:crowd=intimate": 0.7, "dim:scene=underground": 0.4, "dim:crowd=big": -0.3, "dim:scene=indie": 0.3, "dim:polish=diy": 0.2, "dim:audience=21+": 0.2 } },
+    { l: "Packed warehouse", i: Warehouse, f: { "dim:crowd=big": 0.6, "dim:energy=wild": 0.5, "dim:noise=loud": 0.4, "dim:body=on-your-feet": 0.3, "dim:audience=21+": 0.3 } },
     { l: "Park crowd at sunset", i: Trees, f: { "dim:setting=outdoor": 0.7, "dim:energy=lively": 0.3 } },
-    { l: "Quiet gallery", i: Landmark, f: { "dim:noise=quiet": 0.6, "dim:energy=calm": 0.4, "fam:explore": 0.4 } },
+    { l: "Quiet gallery", i: Landmark, f: { "dim:noise=quiet": 0.6, "dim:energy=calm": 0.4, "fam:explore": 0.4, "dim:polish=polished": 0.2, "dim:tone=thoughtful": 0.2 } },
   ] },
   { id: "tickets", q: "A friend has free tickets for tonight. You hope it's…", opts: [
     { l: "Comedy", i: Laugh, f: { "cat:comedy": 0.8 } },
@@ -51,18 +51,34 @@ export const QUESTIONS = [
   { id: "end", q: "Your night usually ends…", opts: [
     { l: "By 10", i: Sunset, f: { "tod:late": -0.6, "tod:evening": 0.3, "tod:afternoon": 0.3 } },
     { l: "Around midnight", i: Moon, f: { "tod:evening": 0.5 } },
-    { l: "Whenever", i: Clock, f: { "tod:late": 0.6, "x:weekend&late": 0.4 } },
+    { l: "Whenever", i: Clock, f: { "tod:late": 0.6, "x:weekend&late": 0.4, "dim:audience=21+": 0.3, "dim:audience=kids": -0.3 } },
   ] },
   { id: "plan", q: "How do you plan?", opts: [
     { l: "Weeks ahead", i: CalendarDays, f: { "dim:polish=polished": 0.3 } },
     { l: "The day of", i: Clock, f: {} },
     { l: "On the spot", i: Zap, f: { "dist:near": 0.4, "len:run": 0.2 } },
   ] },
+  { id: "scene", q: "A friend says \u201cit's a bit of a scene.\u201d", opts: [
+    { l: "I'm in", i: Sparkles, f: { "dim:scene=underground": 0.5, "dim:scene=indie": 0.3, "dim:scene=mainstream": -0.3 } },
+    { l: "Hmm, depends on the scene", i: Users, f: { "dim:scene=indie": 0.3 } },
+    { l: "I'm out", i: CircleSlash, f: { "dim:scene=mainstream": 0.4, "dim:scene=underground": -0.4 } },
+  ] },
+  { id: "length", q: "Saturday plans: you'd rather…", opts: [
+    { l: "Something quick before dinner", i: Timer, f: { "dim:length=quick": 0.6, "dim:length=half-day+": -0.3 } },
+    { l: "A proper evening of it", i: Moon, f: { "dim:length=evening": 0.5 } },
+    { l: "Make it the whole afternoon", i: Sunset, f: { "dim:length=half-day+": 0.6, "dim:length=quick": -0.2 } },
+  ] },
+  { id: "tone", q: "The best thing you saw lately made you…", opts: [
+    { l: "Laugh", i: Laugh, f: { "dim:tone=fun": 0.6 } },
+    { l: "Cry a little", i: Drama, f: { "dim:tone=moving": 0.6 } },
+    { l: "Think", i: GraduationCap, f: { "dim:tone=thoughtful": 0.6 } },
+    { l: "Fall in love a bit", i: Heart, f: { "dim:tone=romantic": 0.6 } },
+  ] },
   { id: "spend", q: "A good night out is worth…", opts: [
     { l: "Free, ideally", i: CircleSlash, f: { "price:free": 0.7, "price:high": -0.5 }, price: 2 },
     { l: "Under $20", i: Wallet, f: { "price:cheap": 0.5, "price:free": 0.3, "price:high": -0.3 }, price: 1 },
     { l: "Under $50", i: BadgeDollarSign, f: { "price:mid": 0.4 } },
-    { l: "Whatever, if it's great", i: Gem, f: { "price:high": 0.3, "dim:polish=upscale": 0.3 } },
+    { l: "Whatever, if it's great", i: Gem, f: { "price:high": 0.3, "dim:polish=upscale": 0.3, "dim:polish=polished": 0.2 } },
   ] },
   { id: "far", q: "How far will you go?", opts: [
     { l: "Walking distance", i: MapPin, f: { "dist:near": 0.7, "dist:far": -0.6 }, far: 2 },

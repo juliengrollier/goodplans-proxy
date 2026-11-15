@@ -268,7 +268,7 @@ function Tile({ t }) {
   );
 }
 
-export default function Today({ goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ mixes = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -291,10 +291,9 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
   [["tonight", "Tonight", "#7B4BD6", { when: "tonight" }], ["free", "Free tonight", "#1E9E5A", { when: "tonight", price: "free" }],
     ["weekend", "This weekend", "#F2611D", { when: "weekend" }], ["week", "This week", "#2563EB", { when: "week" }]]
     .forEach(([k, t, c, patch]) => { const n = count(patch); if (n) tiles.push({ key: k, title: t, n, color: c, open: () => onMore(patch) }); });
-  // Your two strongest learned categories with events this week
-  CATEGORIES.map((c) => [c, A.prefOf("cats", c.id)]).filter(([, p]) => p > 0).sort((x, y) => y[1] - x[1]).slice(0, 2).forEach(([c]) => {
-    const n = count({ cats: [c.id], when: "week" }); if (n >= 3) tiles.push({ key: "cat-" + c.id, title: c.id + " for you", n, color: famColor(c.fam, dark), node: c.icon, open: () => onMore({ cats: [c.id], when: "week" }) });
-  });
+  // Mixes: your strongest taste combinations, each a list of this week's best matches
+  const mixTiles = mixes.map((mx) => ({ key: "mix-" + mx.id, title: mx.name, sub: "Mix", n: mx.list.length, color: mx.color, open: () => onMore({ ids: mx.list.map((e) => e.id), list: mx.name, when: "any" }) }));
+  tiles.splice(tiles.length && tiles[0].big ? 1 : 0, 0, ...mixTiles);
   if (book.length) tiles.push({ key: "book", title: "Book ahead", sub: "Needs a ticket soon", n: book.length, color: "#C2410C", open: () => onMore({ ids: book.map((e) => e.id), list: "Book ahead", when: "any" }) });
   listTile(youOther, dark ? "#3B3F6B" : "#4B4F7A");
   const cityImgEv = city?.list?.[0];
@@ -368,7 +367,7 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
       {/* 4. For you: curated lists as tiles, each opening a filtered Explore */}
       {!empty && tiles.length > 0 && (
         <>
-          <Head title="For you" sub="Lists picked for your taste and the moment. Tap one to see it all." />
+          <Head title="For you" sub="Your Mixes, built from your taste, plus lists for the moment. Tap one to see it all." />
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {tiles.map((t) => <Tile key={t.key} t={t} />)}
           </div>

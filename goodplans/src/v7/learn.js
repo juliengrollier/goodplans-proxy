@@ -284,3 +284,25 @@ export function seed(m0, weights, now = Date.now()) {
   m.c["quiz:seed"] = d;
   return m;
 }
+
+// Current (faded) weight of one feature, and a gentle manual nudge from the taste chart
+export const weightOf = (m, f, now = Date.now()) => (m.muted?.[f] ? 0 : decayed(m, f, now));
+export function nudge(m0, f, x, now = Date.now()) {
+  const m = { ...m0, w: { ...m0.w }, t: { ...m0.t }, n: { ...m0.n } };
+  m.w[f] = Math.max(-WMAX, Math.min(WMAX, decayed(m, f, now) + x)); m.t[f] = now; m.n[f] = (m.n[f] || 0) + 0.5;
+  return m;
+}
+
+// Taste chart: each dimension as an axis between two values, -1 … +1
+export const AXES = [
+  ["energy", "Calm", "calm", "Wild", "wild"], ["crowd", "Intimate", "intimate", "Big crowd", "big"], ["noise", "Quiet", "quiet", "Loud", "loud"],
+  ["novelty", "Classic", "classic", "Weird", "weird"], ["scene", "Mainstream", "mainstream", "Underground", "underground"], ["polish", "DIY", "diy", "Upscale", "upscale"],
+  ["setting", "Indoors", "indoor", "Outdoors", "outdoor"], ["body", "Seated", "seated", "Active", "active"], ["mode", "Watch", "watch", "Take part", "take-part"],
+  ["length", "Quick", "quick", "Half-day+", "half-day+"], ["food", "No food", "none", "Food", "food"], ["audience", "All ages", "all-ages", "21+", "21+"],
+];
+export const CHOICE_DIMS = [["social", "Usually", { "solo-friendly": "solo", date: "on a date", group: "with a group" }], ["tone", "Drawn to", { fun: "fun", moving: "moving", thoughtful: "thoughtful", romantic: "romantic", nostalgic: "nostalgic" }]];
+export function axisScore(m, dim, lo, hi) {
+  const a = weightOf(m, dimFeature(dim, lo)), b = weightOf(m, dimFeature(dim, hi));
+  const known = (m.n[dimFeature(dim, lo)] || 0) + (m.n[dimFeature(dim, hi)] || 0) > 0;
+  return known ? Math.tanh((b - a) / 0.8) : null;
+}
