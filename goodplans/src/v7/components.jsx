@@ -51,7 +51,7 @@ export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
 export function Snippet({ ev, lines = 2, size = 13.5 }) {
   const d = (ev.desc || "").replace(/\s+/g, " ").trim();
   if (!d || d.toLowerCase() === (ev.title || "").toLowerCase()) return null;
-  return <div style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink2)", display: "-webkit-box", WebkitLineClamp: lines, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{d}</div>;
+  return <div style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink3)", opacity: 0.7, display: "-webkit-box", WebkitLineClamp: lines, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{d}</div>;
 }
 
 export function WeatherTag({ ev, compact }) {
