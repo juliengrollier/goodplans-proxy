@@ -91,7 +91,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + w.hi + "°F" + (w.rainy ? " · rain later" : "") : ""}</div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{g.title}</h1>
         {highlights?.text ? (
-          <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.5, color: "var(--ink2)" }}><b style={{ color: "var(--ink)" }}>This week's don't-miss. </b>{renderHighlights(highlights.text, highlights.ids, data, onOpen)}</p>
+          <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.55, color: "var(--ink2)", whiteSpace: "pre-line" }}>{renderHighlights(highlights.text, highlights.ids, data, onOpen)}</p>
         ) : highlights?.status === "loading" ? (
           <p className="muted" style={{ margin: "10px 0 0", fontSize: 14 }}>Writing your week's highlights…</p>
         ) : String(highlights?.status || "").startsWith("error") ? (
