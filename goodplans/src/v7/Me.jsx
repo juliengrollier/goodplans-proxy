@@ -20,7 +20,7 @@ export default function Me(p) {
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
-    locSt, onRetryGPS, resetTaste, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
+    locSt, onRetryGPS, resetTaste, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
   const [fine, setFine] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
   const cats = Object.keys(CATS).filter((c) => c !== "Other");
@@ -55,6 +55,25 @@ export default function Me(p) {
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="muted" style={{ fontSize: 12.5 }}>{learned.count || 0} signals learned{learned.muted ? " · " + learned.muted + " switched off" : ""}</span>
           <button className="chip" onClick={() => { if (confirm("Forget everything learned from your activity? Thumbs, saves and boosts stay.")) onResetLearning(); }}>Reset learning</button>
+        </div>
+      </Card>
+
+      <Card title="Google Maps lists">
+        {maps?.lists?.length ? (
+          <>
+            <div style={{ fontSize: 15, lineHeight: 1.5 }}>{maps.lists.length} lists · {maps.lists.reduce((a, l) => a + l.places.length, 0)} places. <b>{mapsMatches}</b> upcoming events are at places you saved.</div>
+            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>{maps.lists.slice(0, 12).map((l) => <span key={l.name} className="chip" style={{ height: 30, fontSize: 13 }}>{l.name} · {l.places.length}</span>)}</div>
+            <div className="muted" style={{ fontSize: 12.5 }}>Imported {new Date(maps.at).toLocaleDateString()}{maps.themes ? " · themes learned" : ""}. Re-import a fresh export now and then to keep it current.</div>
+          </>
+        ) : (
+          <div className="muted" style={{ fontSize: 14, lineHeight: 1.5 }}>Events at places you saved in Google Maps get a boost, and your lists teach the app your taste. Export them at <b>takeout.google.com</b>: deselect all, tick <b>Saved</b> and <b>Maps (your places)</b>, then pick the .zip here.</div>
+        )}
+        <div className="row" style={{ gap: 8 }}>
+          <label className="pill pill-dark" style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", opacity: mapsBusy ? 0.6 : 1 }}>
+            {mapsBusy ? "Reading…" : maps ? "Re-import" : "Import Takeout file"}
+            <input type="file" accept=".zip,.csv,.json,.geojson" multiple style={{ display: "none" }} disabled={mapsBusy} onChange={(e) => { onImportMaps(e.target.files); e.target.value = ""; }} />
+          </label>
+          {maps && <button className="chip" onClick={onRemoveMaps}>Remove</button>}
         </div>
       </Card>
 

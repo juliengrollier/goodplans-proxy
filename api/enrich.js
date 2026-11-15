@@ -114,6 +114,21 @@ Reply with JSON only: {"lines": [{"text": "...", "f": ["..."]}]}`;
   return { lines };
 }
 
+// Google Maps saved lists: what each list says about taste (categories it points to, how those places feel)
+async function listThemes({ lists }) {
+  const input = (lists || []).slice(0, 40).map((l) => ({ name: clip(l.name, 80), places: (l.places || []).slice(0, 12).map((p) => clip(p.title, 60) + (p.note ? " (" + clip(p.note, 60) + ")" : "")) }));
+  const system = `You read someone's Google Maps saved lists (list names, which may include emoji, plus sample places and their notes) for a personal NYC events app. For each list, infer what it says about their taste in going out. Return: "cats": 0 to 3 categories from this list that events at or like these places would fall into: ${CATS2.join(", ")}; "d": the likeliest feel of these places, only for dimensions you can judge, values from: ${Object.entries(DIMS).map(([d, l]) => d + ": " + l.join("/")).join("; ")}; "kind": "want" (places they want to try), "fav" (favourites), "been" (visited/log), or "other" (practical, travel, shopping for errands, places outside going out). Use only what the names and notes support; leave cats empty for lists unrelated to going out.
+Reply with JSON only: {"<list name>": {"cats": [...], "d": {...}, "kind": "..."}}`;
+  const t = await claude(system, JSON.stringify(input), 4000);
+  const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+  const out = {};
+  for (const [name, v] of Object.entries(j)) {
+    out[name] = { cats: (v?.cats || []).filter((c) => CATS2.includes(c)).slice(0, 3), kind: ["want", "fav", "been", "other"].includes(v?.kind) ? v.kind : "other",
+      d: Object.fromEntries(Object.entries(DIMS).map(([dim, vals]) => [dim, vals.includes(v?.d?.[dim]) ? v.d[dim] : null]).filter(([, x]) => x)) };
+  }
+  return out;
+}
+
 export default async function handler(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -126,7 +141,8 @@ export default async function handler(req, res) {
     if (body.mode === "highlights") return res.status(200).json({ text: await highlights(body) });
     if (body.mode === "mood") return res.status(200).json(await moodTitle(body));
     if (body.mode === "taste") return res.status(200).json(await tasteCard(body));
-    return res.status(400).json({ error: "mode must be tags, highlights, mood or taste" });
+    if (body.mode === "lists") return res.status(200).json({ themes: await listThemes(body) });
+    return res.status(400).json({ error: "mode must be tags, highlights, mood, taste or lists" });
   } catch (e) {
     return res.status(500).json({ error: String(e.message || e).slice(0, 300) });
   }

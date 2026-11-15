@@ -42,6 +42,7 @@ const enrichReply = (body) => {
     return { tags: Object.fromEntries((body.events || []).map((e) => [e.id, { k: [(e.sub || e.cat || "").toLowerCase(), "nyc"].filter(Boolean), cat: e.cat,
       d: { energy: pick(["calm", "lively", "wild"], e.id), crowd: pick(["intimate", "medium", "big"], e.title), novelty: pick(["classic", "fresh", "weird"], e.id + "n"), social: pick(["date", "group", "any"], e.title + "s") } }])) };
   }
+  if (body.mode === "lists") return { themes: Object.fromEntries((body.lists || []).map((l) => [l.name, /jazz/i.test(l.name) ? { cats: ["Concerts"], d: { crowd: "intimate", energy: "calm" }, kind: "fav" } : { cats: [], d: {}, kind: "want" }])) };
   // Taste card: built from the strongest learned features (the live app has Claude write it)
   if (body.mode === "taste") {
     const nice = (f) => f.replace(/^(\w+):/, "").replace(/[=/&]/g, " ").replace(/\b\w/, (c) => c.toUpperCase());

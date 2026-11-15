@@ -266,3 +266,7 @@ export function similarEvents(ev, list, today = new Date(), n = 5) {
   }
   return out.sort((x, y) => y.r - x.r).slice(0, n).map((x) => x.e);
 }
+
+// Feature names for things learned outside events (Google Maps list themes)
+export const catFeature = (name) => "cat:" + slug(name);
+export const dimFeature = (dim, v) => "dim:" + slug(dim + "=" + v);

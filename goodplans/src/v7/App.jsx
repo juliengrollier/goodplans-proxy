@@ -16,6 +16,7 @@ import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
 import { mergeDuplicates, collapseSeries } from "./dedupe.js";
 import * as L from "./learn.js";
+import * as M from "./maps.js";
 import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
 const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
@@ -131,6 +132,8 @@ export default function App() {
   const [together, setTogetherState] = useState(() => localStorage.getItem("gp_together") === "1");
   const [partner, setPartner] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_partner_model") || "null"); } catch { return null; } });
   const [pastSaves, setPastSaves] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_past_saves") || "[]"); } catch { return []; } });
+  const [mapsData, setMapsData] = useState(() => M.loadMaps());
+  const mapsIdx = useMemo(() => M.buildIndex(mapsData), [mapsData]);
   const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
   const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
   const [hlStatus, setHlStatus] = useState("idle");
@@ -360,11 +363,18 @@ export default function App() {
       if (together && partnerModel) pts = L.togetherPoints(own.pts, L.learnedPoints(partnerModel, s, today).pts);
       s.lp = Math.round(pts); s.sc = Math.max(0, Math.min(100, Math.round(s.sc + pts + (together ? 0 : own.explore))));
       if (pts >= 8) s.why = [together ? "Suits you both" : "Fits your taste", ...s.why];
+      // At a place saved in Google Maps: a "want to go" list counts most
+      const place = M.matchSaved(mapsIdx, s);
+      if (place) {
+        const want = place.lists.find(M.isWantList);
+        s.sc = Math.min(100, s.sc + (want ? 10 : 7)); s.savedPlace = place;
+        s.why = [want ? "On your “" + want + "” list" : "A place you saved · " + place.lists[0], ...s.why];
+      }
       else if (!together && own.explore >= 5) { s.why = [...s.why, "Something new for you"]; s.explore = true; }
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
-  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, together, partnerModel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, together, partnerModel, mapsIdx]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoredRef = useRef([]); scoredRef.current = scored;
   const scoreOne = useCallback((e0) => {
     const e = { ...e0, ncat: e0.ncat && CAT[e0.ncat] ? e0.ncat : classify(e0) }; e.fam = CAT[e.ncat].fam; e.nsub = e0.nsub || classifySub(e, e.ncat);
@@ -688,6 +698,37 @@ export default function App() {
     if (ans === "yes") toast("Nice. More like that");
   };
 
+  // ── Google Maps lists (Takeout import): boosts events at saved places; list themes teach the taste model
+  const [mapsBusy, setMapsBusy] = useState(false);
+  const forgetMapsLearning = (m) => { Object.keys(m.c || {}).filter((k) => k.startsWith("maps:")).forEach((k) => { m = L.unlearn(m, k.slice(0, -4), "why"); }); return m; };
+  const importMaps = async (files) => {
+    if (!files?.length) return;
+    setMapsBusy(true);
+    try {
+      const d = await M.parseTakeout([...files]);
+      if (!d.lists.length) { toast("No saved lists found in that file"); setMapsBusy(false); return; }
+      const data = { lists: d.lists, at: Date.now(), themes: null };
+      setMapsData(data); M.saveMaps(data);
+      toast(d.lists.length + " lists · " + d.lists.reduce((a, l) => a + l.places.length, 0) + " places imported");
+      try {
+        const r = await postJSON("/api/enrich", { mode: "lists", lists: d.lists.map((l) => ({ name: l.name, places: l.places.slice(0, 12) })) });
+        const themes = r?.themes || {};
+        let m = forgetMapsLearning(modelRef.current);
+        Object.entries(themes).forEach(([name, t]) => {
+          if (t.kind === "other" || (!t.cats.length && !Object.keys(t.d).length)) return;
+          const feats = [...t.cats.map(L.catFeature), ...Object.entries(t.d).map(([k, v]) => L.dimFeature(k, v))];
+          const n = Math.min(3, 1 + Math.floor((d.lists.find((l) => l.name === name)?.places.length || 0) / 15)) + (t.kind === "fav" ? 1 : 0);
+          for (let i = 0; i < n; i++) m = L.learnTargeted(m, { id: "maps:" + name }, feats, 1, today);
+        });
+        putModel(m, true);
+        const withThemes = { ...data, themes }; setMapsData(withThemes); M.saveMaps(withThemes);
+      } catch { /* list themes are a bonus; place matching works without them */ }
+    } catch (e) { toast("Couldn't read that file: " + (e.message || e)); }
+    setMapsBusy(false);
+  };
+  const removeMaps = () => { putModel(forgetMapsLearning(modelRef.current), true); setMapsData(null); M.saveMaps(null); toast("Google Maps lists removed"); };
+  const mapsMatches = mapsData ? visible.filter((e) => e.savedPlace).length : 0;
+
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
   const actions = {
@@ -720,7 +761,7 @@ export default function App() {
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
+        {tab === "me" && <Me maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
           who={who} setWho={setWho} people={PEOPLE} prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
