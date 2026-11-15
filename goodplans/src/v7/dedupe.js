@@ -5,7 +5,14 @@ import { seriesKey, venueKey } from "./engine.js";
 const STOP = new Set(["the", "and", "with", "at", "in", "on", "of", "a", "an", "for", "nyc", "new", "york", "presents", "free", "live"]);
 const toks = (s) => [...new Set(String(s || "").toLowerCase().replace(/[’']/g, "").split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP.has(w)))];
 const jacc = (a, b) => { if (!a.length || !b.length) return 0; const B = new Set(b); const i = a.filter((x) => B.has(x)).length; return i / new Set([...a, ...b]).size; };
-const venueRoot = (e) => toks(venueKey(e)).slice(0, 2).join(" ");
+// Words match when equal or when one abbreviates the other ("met" / "metropolitan")
+const wm = (x, y) => x === y || (Math.min(x.length, y.length) >= 3 && (x.startsWith(y) || y.startsWith(x)));
+// Share of the shorter title found in the longer one, so "Met Fridays Under 40" ≈ "Metropolitan Opera Fridays Under 40"
+const overlap = (a, b) => { if (!a.length || !b.length) return 0; const [s, l] = a.length <= b.length ? [a, b] : [b, a]; return s.filter((x) => l.some((y) => wm(x, y))).length / s.length; };
+const venueRoot = (e) => toks(venueKey(e)).slice(0, 2);
+const end = (e) => e.X || e.E;
+// Same day, or two date ranges that overlap (season-long listings from different sources)
+const sameTime = (a, b) => a.E === b.E || ((a.X || b.X) && a.E <= end(b) && b.E <= end(a));
 
 const better = (a, b) => {
   const score = (e) => (e.tier === 1 ? 4 : 0) + Math.min(3, (e.desc || "").length / 150) + (e.url ? 1 : 0) + (e.time ? 1 : 0) + (e.coord ? 1 : 0);
@@ -13,27 +20,27 @@ const better = (a, b) => {
 };
 
 export function mergeDuplicates(events) {
-  const byDay = {};
-  events.forEach((e) => { (byDay[e.E] = byDay[e.E] || []).push(e); });
-  const out = [];
-  Object.values(byDay).forEach((list) => {
-    const kept = [];
-    list.forEach((e) => {
-      const t = toks(e.title), v = venueRoot(e);
-      const dup = kept.find((k) => {
-        const sim = jacc(t, k._t);
-        const sameVenue = !v || !k._v || v === k._v || jacc(v.split(" "), k._v.split(" ")) >= 0.5;
-        return (sim >= 0.6 && sameVenue) || (sim >= 0.85);
-      });
-      if (!dup) { kept.push({ ...e, _t: t, _v: v, srcs: [e.src].filter(Boolean) }); return; }
-      const win = better(dup, e);
-      const merged = { ...dup, ...win, _t: dup._t, _v: dup._v, srcs: [...new Set([...(dup.srcs || []), e.src].filter(Boolean))] };
-      merged.id = dup.id; // keep the first id so saves and thumbs stay attached
-      kept[kept.indexOf(dup)] = merged;
+  const kept = [], byDay = {}, ranged = [];
+  events.forEach((e) => {
+    const t = toks(e.title), v = venueRoot(e);
+    const pool = [...(byDay[e.E] || []), ...(e.X ? ranged : [])];
+    const dup = pool.find((k) => {
+      if (!sameTime(e, k)) return false;
+      const sim = overlap(t, k._t), n = Math.min(t.length, k._t.length);
+      const sameVenue = !v.length || !k._v.length || overlap(v, k._v) >= 0.5;
+      return (sameVenue && n >= 2 && sim >= 0.75) || (n >= 3 && sim >= 0.9) || jacc(t, k._t) >= 0.85;
     });
-    kept.forEach(({ _t, _v, ...e }) => out.push(e));
+    if (!dup) {
+      const k = { ...e, _t: t, _v: v, srcs: [e.src].filter(Boolean) };
+      kept.push(k); (byDay[e.E] = byDay[e.E] || []).push(k); if (e.X) ranged.push(k);
+      return;
+    }
+    const win = better(dup, e);
+    Object.assign(dup, { ...win, _t: dup._t, _v: dup._v, id: dup.id, // keep the first id so saves and thumbs stay attached
+      srcs: [...new Set([...(dup.srcs || []), e.src].filter(Boolean))] });
+    if (dup.X || e.X) { dup.E = dup.E < e.E ? dup.E : e.E; dup.X = end(dup) > end(e) ? end(dup) : end(e); }
   });
-  return out;
+  return kept.map(({ _t, _v, ...e }) => e);
 }
 
 // Keep the first occurrence of each series (list already sorted); others become a "+N more dates" count

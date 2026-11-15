@@ -570,7 +570,7 @@ export default function App() {
         onPick={(m) => { setFreeUntil(m); setShowFree(false); }} />}
       {surprise && !sheetEv && <Surprise ev={surprise.ev} empty={!surprise.ev} dark={dark} today={today} weather={weather}
         onOpen={(ev) => openEvent(ev)} onAnother={() => setSurprise(pickSurprise(surprise.seen))} onClose={() => setSurprise(null)} />}
-      {whyAsk && <WhyDialog ev={whyAsk.ev} dir={whyAsk.dir} today={today} onPick={(rs) => { rs.forEach((r) => react(whyAsk.ev, "why", whyAsk.dir + ":" + r, true)); toast("Thanks, noted"); setWhyAsk(null); }} onClose={() => setWhyAsk(null)} />}
+      {whyAsk && <WhyDialog ev={whyAsk.ev} dir={whyAsk.dir} today={today} counts={taste.reasons || {}} onPick={(rs) => { rs.forEach((r) => react(whyAsk.ev, "why", whyAsk.dir + ":" + r, true)); toast("Thanks, noted"); setWhyAsk(null); }} onClose={() => setWhyAsk(null)} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
     </ActionsCtx.Provider>
