@@ -14,6 +14,7 @@ import { PULSE_ICON } from "./pulseIcons.js";
 import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
+import { mergeDuplicates, collapseSeries } from "./dedupe.js";
 import { classify, classifySub, CAT } from "./taxonomy.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
@@ -303,7 +304,8 @@ export default function App() {
     const n = updateRecurring(events, rec, today);
     if (JSON.stringify(n) !== JSON.stringify(rec)) { setRec(n); ss(REC_KEY, n); }
   }, [ready, events, today]); // eslint-disable-line react-hooks/exhaustive-deps
-  const allEvents = useMemo(() => withRegulars(events, rec, today), [events, rec, today]);
+  const merged = useMemo(() => mergeDuplicates(events), [events]);
+  const allEvents = useMemo(() => withRegulars(merged, rec, today), [merged, rec, today]);
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);

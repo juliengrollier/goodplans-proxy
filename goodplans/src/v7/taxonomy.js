@@ -42,12 +42,14 @@ export const CATEGORIES = [
   { id: "Museums & Galleries", fam: "explore", icon: Landmark, re: /museum|gallery|galleries|exhibit|art show|installation|opening reception|biennial|art fair|retrospective/ },
   { id: "Festivals & Parades", fam: "explore", icon: FerrisWheel, re: /festival|parade|street fair|carnival|block party|celebration|tree lighting|fireworks|feast of/ },
   { id: "Markets", fam: "explore", icon: ShoppingBasket, re: /flea|vintage|market|record fair|sample sale|bazaar|craft fair|swap/ },
-  { id: "Run & Ride", fam: "move", icon: Bike, re: /\brun\b|running|5k|10k|half marathon|race|bike|cycling|\bride\b/ },
+  { id: "Run & Ride", fam: "move", icon: Bike, re: /run club|running club|group run|fun run|\b5k\b|\b10k\b|half marathon|\bmarathon\b(?! watch)|\brace\b(?! (for|to))|bike ride|group ride|cycling|bike tour|five boro/ },
   { id: "Play", fam: "move", icon: Volleyball, re: /climb|boulder|skat|rink|kayak|paddle|canoe|pickleball|soccer|basketball|volleyball|bowling|mini ?golf|ping ?pong|swim|hike|frisbee/ },
   { id: "Parks & Nature", fam: "explore", icon: Trees, re: /park|garden|nature|bird|botanic|foliage|waterfront|beach|forest|wildlife|cherry blossom/ },
   { id: "Concerts", fam: "listen", icon: Guitar, re: /concert|live music|band|singer|songwriter|hip-?hop|rap\b|rock|indie|folk|r&b|soul|funk|punk|gig|acoustic|showcase|jazz|blues|bebop|classical|orchestra|symphon|chamber|string quartet|philharmonic|recital|choir|choral|organ|baroque|vivaldi|bach|beethoven|mozart/ },
 ];
 export const CAT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+// Strong title signals checked before everything else (an open mic is music unless it says comedy or poetry)
+const EARLY = [["Comedy", /comedy|comedian|stand-?up|improv/], ["Books & Readings", /poetry|poet|spoken word|literary|book launch|author talk/], ["Concerts", /open mic|singer-?songwriter|jam session/]];
 export const CAT_NAMES = CATEGORIES.map((c) => c.id);
 
 // Fallback from the older categories when nothing in the text decides
@@ -80,8 +82,11 @@ export const SUB_NAMES = Object.fromEntries(Object.entries(SUBTYPES).map(([c, l]
 const FROM_OLD = { Music: "Concerts", Comedy: "Comedy", "Art & Culture": "Museums & Galleries", Film: "Film", "Food & Drink": "Food Markets & Pop-ups", Outdoors: "Parks & Nature", Sports: "Play", Family: "Festivals & Parades", "Talk & Learn": "Talks & Panels", "Get Creative": "Arts & Crafts", Nightlife: "Clubs & DJs", Shopping: "Markets", Other: "Festivals & Parades" };
 
 export function classify(ev, claudeCat) {
-  if (claudeCat && CAT[claudeCat]) return claudeCat;
   const title = (ev.title || "").toLowerCase();
+  // Order: strong title signals, Claude's pick, then the rules on the title, sub and full text
+  const early = EARLY.find(([, re]) => re.test(title));
+  if (early) return early[0];
+  if (claudeCat && CAT[claudeCat]) return claudeCat;
   const full = [ev.title, ev.sub, ev.desc, ...(ev.kw || [])].join(" ").toLowerCase();
   for (const c of CATEGORIES) if (c.re.test(title)) return c.id;
   const bySub = ev.sub && CATEGORIES.find((c) => c.re.test(String(ev.sub).toLowerCase()));
