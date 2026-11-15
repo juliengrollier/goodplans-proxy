@@ -38,7 +38,7 @@ const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
 const FILTERS_KEY = "gp_filters_v1";
-const TAGS_KEY = "gp_tags_v12"; // v12: d = 14 taste dimensions (energy, crowd, tone, scene, noise…)
+const TAGS_KEY = "gp_tags_v13"; // v13: h = one-line hook shown on cards
 const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
@@ -304,7 +304,7 @@ export default function App() {
       if (q.trim().length >= 3) searchT.current = setTimeout(() => putModel(L.searched(modelRef.current, q)), 1500);
     }
     setFiltersState(next);
-    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ f: { ...next, q: "" }, day: isoDay(new Date()) })); } catch { /* full */ }
+    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ f: { ...next, q: "", ids: [], list: null }, day: isoDay(new Date()) })); } catch { /* full */ }
     const t = { ...tasteRef.current, ncatAdj: { ...(tasteRef.current.ncatAdj || {}) } };
     const bump = (c, d, lo, hi) => { t.ncatAdj[c] = Math.max(lo, Math.min(hi, (t.ncatAdj[c] || 0) + d)); };
     let changed = false;
@@ -356,6 +356,7 @@ export default function App() {
       const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
       e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam; e.nsub = classifySub(e, e.ncat, t?.sub2);
       if (t?.d) e.dims = t.d;
+      if (t?.h) e.hook = t.h;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       // Learned taste (v2): what you do, how events feel, the moment; held back where the two of you disagree in Together
       const own = L.learnedPoints(modelRef.current, s, today);
@@ -756,7 +757,7 @@ export default function App() {
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
-          weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
+          weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}

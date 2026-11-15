@@ -8,7 +8,7 @@ import { isFree, priceNum, startMinutes, nowMinutes } from "./engine.js";
 import { matchV, evCovers, evStart, evEnd, eHour } from "../lib/core.js";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
 
-export const EMPTY_FILTERS = { fam: null, cats: [], xcats: [], subs: [], xsubs: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "" };
+export const EMPTY_FILTERS = { fam: null, cats: [], xcats: [], subs: [], xsubs: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "", ids: [], list: null };
 
 const OPTS = {
   when: [["today", "Today"], ["now", "Now & soon"], ["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "Next 7 days"], ["any", "Any time"]],
@@ -19,7 +19,7 @@ const OPTS = {
 const labelOf = (k, v) => (OPTS[k].find(([x]) => x === v) || [])[1];
 const sheetCount = (f) => (f.price !== "any") + (f.dist !== "any") + !!f.mood + !!f.noClash;
 
-export const activeCount = (f) => !!f.fam + f.cats.length + (f.xcats || []).length + (f.subs || []).length + (f.xsubs || []).length + (f.when !== EMPTY_FILTERS.when) + sheetCount(f) + !!f.q.trim();
+export const activeCount = (f) => ((f.ids || []).length ? 1 : 0) + !!f.fam + f.cats.length + (f.xcats || []).length + (f.subs || []).length + (f.xsubs || []).length + (f.when !== EMPTY_FILTERS.when) + sheetCount(f) + !!f.q.trim();
 
 export function applyFilters(list, f, today) {
   const tom = new Date(today); tom.setDate(today.getDate() + 1);
@@ -30,6 +30,7 @@ export function applyFilters(list, f, today) {
   const now = nowMinutes();
   const ql = f.q.trim().toLowerCase();
   return list.filter((e) => {
+    if ((f.ids || []).length && !f.ids.includes(e.id)) return false; // a curated list opened from a Home tile
     if (f.fam && e.fam !== f.fam) return false;
     if (f.cats.length && !f.cats.includes(e.ncat)) return false;
     if ((f.xcats || []).includes(e.ncat)) return false;
@@ -78,6 +79,7 @@ export default function FilterBar({ f, setF, dark, items = [], today }) {
   const hideSub = (n) => setF({ ...f, xsubs: xs.includes(n) ? xs.filter((x) => x !== n) : [...xs, n], subs: ps.filter((x) => x !== n) });
   const nSheet = sheetCount(f);
   const pills = [
+    (f.ids || []).length > 0 && ["list", f.list || "Curated list", () => setF({ ...f, ids: [], list: null })],
     f.price !== "any" && ["price", labelOf("price", f.price), () => setF({ ...f, price: "any" })],
     f.dist !== "any" && ["dist", "Within " + labelOf("dist", f.dist), () => setF({ ...f, dist: "any" })],
     f.mood && ["mood", labelOf("mood", f.mood), () => setF({ ...f, mood: null })],

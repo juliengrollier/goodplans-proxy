@@ -39,7 +39,7 @@ const EVENTS = [
 const enrichReply = (body) => {
   if (body.mode === "tags") {
     const pick = (l, s) => l[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % l.length];
-    return { tags: Object.fromEntries((body.events || []).map((e) => [e.id, { k: [(e.sub || e.cat || "").toLowerCase(), "nyc"].filter(Boolean), cat: e.cat,
+    return { tags: Object.fromEntries((body.events || []).map((e) => [e.id, { k: [(e.sub || e.cat || "").toLowerCase(), "nyc"].filter(Boolean), cat: e.cat, h: (e.desc || "").split(/[.!]/)[0].split(" ").slice(0, 7).join(" "),
       d: { energy: pick(["calm", "lively", "wild"], e.id), crowd: pick(["intimate", "medium", "big"], e.title), novelty: pick(["classic", "fresh", "weird"], e.id + "n"), social: pick(["date", "group", "any"], e.title + "s") } }])) };
   }
   if (body.mode === "lists") return { themes: Object.fromEntries((body.lists || []).map((l) => [l.name, /jazz/i.test(l.name) ? { cats: ["Concerts"], d: { crowd: "intimate", energy: "calm" }, kind: "fav" } : { cats: [], d: {}, kind: "want" }])) };

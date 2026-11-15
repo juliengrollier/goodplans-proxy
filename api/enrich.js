@@ -57,14 +57,15 @@ async function tags(events) {
   const system = `You label New York City events for a personal events app. For each event, give 3 to 5 keywords that tell someone at a glance what to expect: format (e.g. live band, DJ set, stand-up, screening, workshop, walking tour, market, talk, exhibition), style or genre (e.g. jazz, indie rock, experimental, comedy improv), topic, and vibe (e.g. outdoor, late night, family-friendly, hands-on, dance floor). Each keyword is 1 to 3 words, lowercase, no hashtags, no price, no date, no venue name. Use only what the title and description support; do not invent. Also return the best category from this list: ${CATS.join(", ")}.
 And "cat2": the single best fit from this second list, judged by what the person will actually be doing there: ${CATS2.join(", ")}.
 And "sub2": if cat2 is one of these, the single best sub-type from its list, else null: ${Object.entries(SUBS2).map(([c, l]) => c + ": " + l.join(" / ")).join("; ")}.
+And "h": a one-line hook of 4 to 9 words saying what the experience is, punchy and concrete, no venue, no date, no price, no full sentence (e.g. "Pop-up shopping for local crafts", "Watch glassblowers shape molten glass", "Four indie bands in a tiny basement").
 And "d": how the event will feel, one value per dimension, judged from the title and description (pick the likeliest; use "any"/"mixed"/"all-ages" when unclear): ${Object.entries(DIMS).map(([d, l]) => d + ": " + l.join(" / ")).join("; ")}.
-Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "...", "cat2": "...", "sub2": "...", "d": {"<dimension>": "<value>", ...}}}`;
+Reply with JSON only, no prose: {"<id>": {"k": ["..."], "h": "...", "cat": "...", "cat2": "...", "sub2": "...", "d": {"<dimension>": "<value>", ...}}}`;
   const text = await claude(system, JSON.stringify(list), 9000);
   const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   const out = {};
   for (const [id, v] of Object.entries(json)) {
     const k = (Array.isArray(v?.k) ? v.k : []).map((x) => clip(x, 28).toLowerCase()).filter(Boolean).slice(0, 5);
-    out[id] = { k, cat: CATS.includes(v?.cat) ? v.cat : null, cat2: CATS2.includes(v?.cat2) ? v.cat2 : null, sub2: CATS2.includes(v?.cat2) && (SUBS2[v.cat2] || []).includes(v?.sub2) ? v.sub2 : null,
+    out[id] = { k, h: clip(v?.h, 70) || null, cat: CATS.includes(v?.cat) ? v.cat : null, cat2: CATS2.includes(v?.cat2) ? v.cat2 : null, sub2: CATS2.includes(v?.cat2) && (SUBS2[v.cat2] || []).includes(v?.sub2) ? v.sub2 : null,
       d: Object.fromEntries(Object.entries(DIMS).map(([dim, vals]) => [dim, vals.includes(v?.d?.[dim]) ? v.d[dim] : null]).filter(([, x]) => x)) };
   }
   return out;
