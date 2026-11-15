@@ -1,16 +1,16 @@
 import React from "react";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile } from "./components.jsx";
-import { Peek } from "./MapView.jsx";
+import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, When, CardActions, PicOverlay } from "./components.jsx";
+import { ThemeArt } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
 import { catColor, catIcon } from "./theme.js";
-import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
+import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay, whenLabel } from "./engine.js";
 import { DAYS, MONTHS, evCovers, evStart, CATS, daysUntil, isImprecise } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
 import { Travel, catLabel } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
-import { User, Users } from "lucide";
+import { User, Users, Maximize2 } from "lucide";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -274,24 +274,24 @@ function Glance({ highlights, data, onOpen }) {
   const [all, setAll] = React.useState(false);
   const segs = (highlights.text || "").split(/\s*▫️?\s*/).map((x) => x.trim()).filter(Boolean);
   const rows = segs.length > 1 ? segs : [highlights.text];
-  const shown = all ? rows : rows.slice(0, 3);
+  const shown = all ? rows : rows.slice(0, 2);
   return (
-    <div style={{ padding: "20px 20px 6px" }}>
-      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 8 }}>This week at a glance</div>
+    <div style={{ padding: "14px 20px 2px" }}>
+      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>This week at a glance</div>
       {highlights.text ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {shown.map((seg, i) => {
             const m = /^([^:\[]{2,22}):\s*([\s\S]*)$/.exec(seg);
             return (
-              <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                {m && <span style={{ flexShrink: 0, width: 62, fontSize: 12, fontWeight: 800, color: "var(--ink3)" }}>{m[1]}</span>}
-                <span style={{ fontSize: 14.5, lineHeight: 1.5, color: "var(--ink2)" }}>{renderHighlights(m ? m[2] : seg, highlights.ids, data, onOpen)}</span>
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                {m && <span style={{ flexShrink: 0, width: 54, fontSize: 11.5, fontWeight: 800, color: "var(--ink3)" }}>{m[1]}</span>}
+                <span style={{ fontSize: 13.5, lineHeight: 1.4, color: "var(--ink2)", ...(all ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{renderHighlights(m ? m[2] : seg, highlights.ids, data, onOpen)}</span>
               </div>
             );
           })}
-          {rows.length > 3 && <button onClick={() => setAll(!all)} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "var(--ink3)" }}>{all ? "Show less" : "Show " + (rows.length - 3) + " more"}</button>}
+          {(rows.length > 2 || !all) && <button onClick={() => setAll(!all)} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: 0, fontSize: 12.5, fontWeight: 700, color: "var(--ink3)" }}>{all ? "Show less" : "Show more"}</button>}
         </div>
-      ) : <p className="muted" style={{ margin: 0, fontSize: 14 }}>Writing your week's highlights…</p>}
+      ) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>Writing your week's highlights…</p>}
     </div>
   );
 }
@@ -299,14 +299,25 @@ function Glance({ highlights, data, onOpen }) {
 // Around you right now: a live map of what is on or starting nearby; tap a pin for a preview, or go full size
 function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
   const [sel, setSel] = React.useState(null);
-  const selEv = evs.find((e) => e.id === sel) || null;
+  const ev = evs.find((e) => e.id === sel) || null;
   return (
-    <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ padding: "0 16px" }}>
       <div style={{ position: "relative" }}>
-        <LeafletMap events={evs} home={home} dark={dark} height={300} interactive rounded fit onPick={(e) => setSel(e.id)} selectedId={selEv?.id} zoom={14} />
-        <button className="chip" onClick={onFull} style={{ position: "absolute", right: 10, top: 10, zIndex: 2, height: 34, background: "#fff", color: "#1B1F3B", border: "none", boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}><Icon name="map" size={15} /> Full map</button>
+        <LeafletMap events={evs} home={home} dark={dark} height={320} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} />
+        <button onClick={onFull} aria-label="Open the full map" style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
+        {ev && (
+          <div role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 4, background: "var(--card)", borderRadius: 20, padding: 8, display: "flex", gap: 10, boxShadow: "0 8px 24px rgba(20,24,51,.35)", cursor: "pointer" }}>
+            <div style={{ width: 92, flexShrink: 0, position: "relative" }}><Media ev={ev} dark={dark} height={96} radius={14} hideTitle /><PicOverlay ev={ev} size={26} /></div>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3, paddingRight: 28 }}>
+              <span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{ev.ncat || ev.cat}{ev.venue ? " · " + ev.venue.split(",")[0] : ""}</span>
+              <span className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.1 }}>{ev.title}</span>
+              <span className="row" style={{ gap: 8, fontSize: 12.5, minWidth: 0 }}><When text={whenLabel(ev, today)} /><span style={{ color: "var(--ink3)" }}><Travel tt={ev.tt} /></span></span>
+              <div className="row" style={{ marginTop: "auto", justifyContent: "flex-end" }}><CardActions ev={ev} size={26} noSave /></div>
+            </div>
+            <button aria-label="Close preview" onClick={(e) => { e.stopPropagation(); setSel(null); }} style={{ position: "absolute", top: 6, right: 6, width: 28, height: 28, borderRadius: 14, border: "none", background: "var(--chip)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={14} /></button>
+          </div>
+        )}
       </div>
-      {selEv && <Peek key={selEv.id} inline ev={selEv} dark={dark} today={today} onOpen={onOpen} onClose={() => setSel(null)} />}
     </div>
   );
 }
@@ -400,7 +411,7 @@ export default function Today({ tiles, onTile = () => {}, onFullMap = () => {}, 
             </div>
           )}
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {tiles.lists.map((t, i) => <MoodTile key={t.key} big={t.big} wide={i === tiles.lists.length - 1 && !t.big && (tiles.lists.length - (tiles.lists[0]?.big ? 1 : 0)) % 2 === 1} t={{ ...t, open: () => onTile(t) }} />)}
+            {tiles.lists.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
           </div>
         </>
       )}
@@ -409,19 +420,19 @@ export default function Today({ tiles, onTile = () => {}, onFullMap = () => {}, 
       {!empty && cities.length > 0 && (
         <>
           <Head title="New York right now" sub="What the city is up to this season." />
-          <div className="hscroll">
+          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
             {cities.slice(0, 3).map((c) => (
               <button key={c.id} onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list })}
-                style={{ width: cities.length === 1 ? "calc(100vw - 40px)" : 262, maxWidth: cities.length === 1 ? 520 : 262, flexShrink: 0, padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 22, overflow: "hidden" }}>
-                <CityBg ev={c.list?.[0]} />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(20,24,51,0) 25%, rgba(20,24,51,.88) 100%)" }} />
-                <div style={{ position: "absolute", left: 16, right: 16, bottom: 14, color: "#fff", display: "flex", flexDirection: "column", gap: 3 }}>
-                  <span className="row" style={{ gap: 8, alignItems: "center" }}>
-                    {c.icon && React.createElement(c.icon, { size: 18, strokeWidth: 2.2 })}
-                    <span className="disp" style={{ fontSize: 20, lineHeight: 1.05, opacity: c.writing ? 0.7 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
+                style={{ width: "100%", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 24, overflow: "hidden", display: "block" }}>
+                <ThemeArt id={c.id} height={176} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,.05) 0%, rgba(10,12,30,.35) 45%, rgba(10,12,30,.88) 100%)" }} />
+                <div style={{ position: "absolute", left: 18, right: 18, bottom: 14, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
+                  <span className="row" style={{ gap: 9, alignItems: "center" }}>
+                    {c.icon && React.createElement(c.icon, { size: 22, strokeWidth: 2.2 })}
+                    <span className="disp" style={{ fontSize: 23, lineHeight: 1.05, opacity: c.writing ? 0.85 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
                   </span>
-                  {c.sub && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.9, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.sub}</span>}
-                  <span style={{ fontSize: 12.5, fontWeight: 800 }}>{c.list.length} {c.list.length > 1 ? "events" : "event"} ›</span>
+                  {c.sub && <span style={{ fontSize: 14, lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.sub}</span>}
+                  <span style={{ fontSize: 13, fontWeight: 800 }}>{c.list.length} {c.list.length > 1 ? "events" : "event"} ›</span>
                 </div>
               </button>
             ))}

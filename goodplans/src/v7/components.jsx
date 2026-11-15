@@ -287,15 +287,22 @@ function loadLeaflet() {
   return leafletPromise;
 }
 
-export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded }) {
+export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger }) {
   const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef(false);
   const [err, setErr] = useState(null);
+  const [hint, setHint] = useState(false);
   useEffect(() => {
     let alive = true;
     loadLeaflet().then((L) => {
       if (!alive || !ref.current || mapRef.current) return;
       const m = L.map(ref.current, { zoomControl: false, attributionControl: interactive, dragging: interactive, scrollWheelZoom: interactive, doubleClickZoom: interactive, touchZoom: interactive, boxZoom: false, keyboard: false }).setView(home, zoom);
       mapRef.current = m; layerRef.current = L.layerGroup().addTo(m);
+      // Small map inside a scrolling page: one finger scrolls the page, two fingers move and zoom the map
+      if (twoFinger && "ontouchstart" in window) {
+        m.dragging.disable();
+        let t = null;
+        ref.current.addEventListener("touchmove", (e) => { if (e.touches.length === 1) { setHint(true); clearTimeout(t); t = setTimeout(() => setHint(false), 1300); } }, { passive: true });
+      }
       setTimeout(() => m.invalidateSize(), 120);
       draw();
     }).catch(() => setErr("Map could not load"));
@@ -330,6 +337,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
   return (
     <div style={{ position: "relative", isolation: "isolate", height, borderRadius: rounded ? 22 : interactive ? 0 : 20, overflow: "hidden", background: "var(--mapbg)" }}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} />
+      {hint && <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(20,24,51,.45)", color: "#fff", fontWeight: 800, fontSize: 15, pointerEvents: "none" }}>Use two fingers to move the map</div>}
       {err && <div className="muted" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{err}</div>}
     </div>
   );

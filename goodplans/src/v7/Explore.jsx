@@ -3,6 +3,8 @@ import { ResultRow, CompactCard, MoodTile } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
+import { startMinutes } from "./engine.js";
+import { daysUntil } from "../lib/core.js";
 
 export default function Explore({ tiles, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
   const [limit, setLimit] = useState(40);
@@ -16,7 +18,16 @@ export default function Explore({ tiles, onTile = () => {}, scored, dark, today,
   const more = filters.list && tiles ? tiles.lists.filter((t) => t.title !== filters.list).slice(0, 8) : [];
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
   // Repeated dates of the same series collapse into one card ("+N more dates")
-  const results = useMemo(() => collapseSeries(sortEvents(applyFilters(scored, filters, today), sort)), [scored, filters, sort, today]);
+  // Opened from a Home tile: soonest first (then grouped by category below); otherwise the chosen sort
+  const fromTile = !!filters.list;
+  const soonest = (a, b) => (Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today))) || ((startMinutes(a) ?? 9999) - (startMinutes(b) ?? 9999));
+  const results = useMemo(() => { const base = applyFilters(scored, filters, today); return collapseSeries(fromTile ? [...base].sort(soonest) : sortEvents(base, sort)); }, [scored, filters, sort, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => {
+    if (!fromTile) return null;
+    const by = new Map();
+    results.slice(0, limit).forEach((e) => { const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
+    return [...by.entries()];
+  }, [results, fromTile, limit]);
 
   // Regulars: series learned from the feed (weekly, every other week, monthly, varying) plus the city's yearly events.
   // The When filter doesn't apply here; the other filters do.
@@ -63,7 +74,14 @@ export default function Explore({ tiles, onTile = () => {}, scored, dark, today,
       </div>
       {view === "all" ? (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-          {results.slice(0, limit).map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+          {groups
+            ? groups.map(([cat, list]) => (
+              <React.Fragment key={cat}>
+                <div className="row" style={{ gap: 8, padding: "6px 4px 0", alignItems: "baseline" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span></div>
+                {list.map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+              </React.Fragment>
+            ))
+            : results.slice(0, limit).map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
           {!results.length && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
           {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>Show more</button>}
         </div>
