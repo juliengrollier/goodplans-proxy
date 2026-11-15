@@ -10,7 +10,7 @@ import Plans from "./Plans.jsx";
 import Me from "./Me.jsx";
 import EventSheet from "./EventSheet.jsx";
 import { FreeUntilDialog, Surprise, WhyDialog } from "./Extras.jsx";
-import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
+import { MOOD_KEY, MOOD_ICON, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
@@ -357,7 +357,7 @@ export default function App() {
       }).catch((e) => { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
     });
   }, [ready, mKey("you", youA), mKey("you", youB), mKey("city", cityA), mKey("city", cityB)]); // eslint-disable-line react-hooks/exhaustive-deps
-  const view = (scope, m, fallbackSub) => m && { id: m.id, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, writing: !moodTxt[mKey(scope, m)] };
+  const view = (scope, m, fallbackSub) => m && { id: m.id, icon: MOOD_ICON[m.id] || null, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, writing: !moodTxt[mKey(scope, m)] };
   const moodProps = {
     you: view("you", youA, youR.readLine ? "Reading the room: " + youR.readLine : youA?.offer), youOther: view("you", youB, youB?.offer),
     city: view("city", cityA, cityA?.facts), cityOther: view("city", cityB, cityB?.facts),

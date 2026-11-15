@@ -224,3 +224,21 @@ export function momentSummary(ctx) {
   if (w.ok) parts.push(`${fmtT(w.temp)} (feels ${fmtT(w.feels)}), ${w.rainNow ? "raining" : w.snowNow ? "snowing" : w.pmax + "% rain chance today"}`);
   return parts.join("; ");
 }
+
+// One icon per city theme, shown before the City pulse title
+export const MOOD_ICON = {
+  "thanksgiving-soon": "🦃", "cold-snap": "🥶", "warming": "☀️", "last-leaves": "🍂", "dark-evenings": "🌙", "light-evenings": "🌅",
+  "season-opens": "🎄", "holiday-lights": "✨", "first-warm": "🌷", "foliage": "🍁", "snow": "❄️", "warm-surprise": "😎", "long-weekend": "🗓️",
+  "nyc-nye": "🎆", "nyc-polar-bear": "🐻‍❄️", "nyc-restaurant-week-w": "🍽️", "nyc-restaurant-week-s": "🍽️", "nyc-lunar": "🧧", "nyc-black-history": "✊🏿",
+  "nyc-fashion-week-feb": "👠", "nyc-fashion-week-sep": "👠", "nyc-valentine": "❤️", "nyc-westminster": "🐕", "nyc-womens-history": "♀️", "nyc-holi": "🎨",
+  "nyc-eid": "🌙", "nyc-stpat": "☘️", "nyc-greek-parade": "🇬🇷", "nyc-flower-show": "💐", "nyc-passover": "🍷", "nyc-easter": "👒", "nyc-cherry": "🌸",
+  "nyc-tribeca": "🎬", "nyc-five-boro": "🚴", "nyc-aapi": "🏮", "nyc-frieze": "🖼️", "nyc-fleet-week": "⚓", "nyc-manhattanhenge-may": "🌇", "nyc-manhattanhenge-jul": "🌇",
+  "nyc-pride-month": "🏳️‍🌈", "nyc-pride-march": "🏳️‍🌈", "nyc-museum-mile": "🏛️", "nyc-gov-ball": "🎤", "nyc-puerto-rican": "🇵🇷", "nyc-philippine": "🇵🇭",
+  "nyc-israel-day": "🇮🇱", "nyc-juneteenth": "✊🏿", "nyc-mermaid": "🧜", "nyc-summerstage": "🎶", "nyc-shakespeare": "🎭", "nyc-summer-for-city": "💃",
+  "nyc-broadway-bryant": "🎭", "nyc-july4": "🎆", "nyc-summer-streets": "🛼", "nyc-harlem-week": "🎷", "nyc-dominican": "🇩🇴", "nyc-india-day": "🇮🇳",
+  "nyc-us-open": "🎾", "nyc-west-indian": "🥁", "nyc-tribute-light": "🕯️", "nyc-san-gennaro": "🇮🇹", "nyc-hispanic-heritage": "🪇", "nyc-steuben": "🇩🇪",
+  "nyc-african-american-parade": "✊🏿", "nyc-rosh": "🍎", "nyc-oktoberfest": "🍺", "nyc-atlantic-antic": "🎪", "nyc-nyff": "🎞️", "nyc-pulaski": "🇵🇱",
+  "nyc-comic-con": "🦸", "nyc-columbus": "🎺", "nyc-ohny": "🏙️", "nyc-wine-food": "🍷", "nyc-dog-halloween": "🐶", "nyc-halloween": "🎃", "nyc-muertos": "💀",
+  "nyc-marathon": "🏃", "nyc-diwali": "🪔", "nyc-veterans": "🎖️", "nyc-thanksgiving": "🦃", "nyc-tree-lighting": "🎄", "nyc-hanukkah": "🕎", "nyc-dyker": "💡",
+  "nyc-santacon": "🎅", "nyc-christmas": "🎄", "nyc-kwanzaa": "🕯️",
+};
