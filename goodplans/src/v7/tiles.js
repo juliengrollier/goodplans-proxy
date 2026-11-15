@@ -87,14 +87,38 @@ export function genericCards(visible, today) {
   ].filter((c) => c.list.length >= 2);
 }
 
-// New York right now, neighbourhood row: where the most good stuff is this week
+// New York right now, neighbourhood row: well-known neighbourhoods (name, lat, lon, radius km, aliases), matched by coordinates or by name
+const NEIGH = [
+  ["Midtown", 40.7549, -73.984, 1.4, /midtown|times square|theat(er|re) district|herald|bryant|rockefeller|koreatown/i], ["Hell's Kitchen", 40.7638, -73.9918, 0.9, /hell'?s kitchen|clinton/i],
+  ["Chelsea", 40.7465, -74.0014, 1.0, /chelsea|meatpacking|high line/i], ["Flatiron & Gramercy", 40.7411, -73.9897, 0.9, /flatiron|gramercy|union square|nomad/i],
+  ["Murray Hill", 40.744, -73.977, 0.9, /murray hill|kips bay/i], ["West Village", 40.7358, -74.0036, 0.8, /west village|greenwich village|washington square/i],
+  ["East Village", 40.7265, -73.9815, 0.8, /east village|alphabet city|noho/i], ["Lower East Side", 40.715, -73.9843, 0.8, /lower east side|\blES\b|bowery/i],
+  ["SoHo & Nolita", 40.7233, -74.003, 0.7, /soho|nolita|little italy/i], ["Chinatown", 40.7158, -73.997, 0.6, /chinatown/i], ["Tribeca", 40.7163, -74.0086, 0.7, /tribeca/i],
+  ["Financial District", 40.7075, -74.0113, 0.9, /financial district|fidi|battery park|seaport/i], ["Upper West Side", 40.787, -73.9754, 1.4, /upper west side|lincoln center|\buws\b/i],
+  ["Upper East Side", 40.7736, -73.9566, 1.4, /upper east side|\bues\b|museum mile/i], ["Harlem", 40.8116, -73.9465, 1.5, /harlem/i], ["Washington Heights", 40.8417, -73.9393, 1.5, /washington heights|inwood/i],
+  ["Williamsburg", 40.7081, -73.9571, 1.3, /williamsburg/i], ["Greenpoint", 40.7304, -73.9515, 1.0, /greenpoint/i], ["Bushwick", 40.6944, -73.9213, 1.5, /bushwick/i],
+  ["Bed-Stuy", 40.6872, -73.9418, 1.5, /bed-?stuy|bedford/i], ["DUMBO", 40.7033, -73.9881, 0.6, /dumbo/i], ["Downtown Brooklyn", 40.6928, -73.9903, 0.9, /downtown brooklyn|brooklyn heights|boerum/i],
+  ["Fort Greene", 40.6892, -73.9742, 1.0, /fort greene|clinton hill|bam/i], ["Park Slope", 40.671, -73.9777, 1.3, /park slope|prospect park|windsor terrace/i], ["Prospect Heights", 40.6775, -73.9692, 0.8, /prospect heights|crown heights/i],
+  ["Gowanus & Carroll Gardens", 40.6795, -73.9991, 1.0, /gowanus|carroll gardens|cobble hill|red hook/i], ["Coney Island", 40.5755, -73.9707, 1.5, /coney island|brighton/i],
+  ["Astoria", 40.7644, -73.9235, 1.5, /astoria/i], ["Long Island City", 40.7447, -73.9485, 1.1, /long island city|\blic\b/i], ["Flushing", 40.759, -73.83, 1.8, /flushing/i],
+  ["Jackson Heights", 40.7557, -73.8831, 1.3, /jackson heights|corona/i], ["Ridgewood", 40.7043, -73.9018, 1.2, /ridgewood|bushwick/i], ["Mott Haven", 40.8089, -73.9229, 1.5, /mott haven|south bronx/i],
+];
+const kmBetween = (a, b) => { const dy = (a[0] - b[0]) * 111, dx = (a[1] - b[1]) * 84.5; return Math.sqrt(dx * dx + dy * dy); };
+export const neighbourhoodOf = (e) => {
+  const txt = (e.hood || "") + " " + (e.venue || "");
+  const named = NEIGH.find((n) => n[4].test(txt)); if (named) return named[0];
+  if (!e.coord) return null;
+  let best = null, bd = 9;
+  for (const n of NEIGH) { const d = kmBetween(e.coord, [n[1], n[2]]) / n[3]; if (d < bd) { bd = d; best = n[0]; } }
+  return bd <= 1.15 ? best : null;
+};
 const topCats = (l) => { const c = {}; l.forEach((e) => { const k = e.ncat || e.cat; if (k) c[k] = (c[k] || 0) + 1; }); const t = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k); return t.length ? "Mostly " + t.join(", ").toLowerCase() : "Busy this week"; };
-export function hoodCards(visible, today, hid, hoodWeight = () => 0, seed = 0) {
+export function hoodCards(visible, today, hid, hoodWeight = () => 0, seed = 0, home = [40.7186, -73.9865]) {
+  const mine = neighbourhoodOf({ coord: home });
   const m = new Map();
-  const BORO = /^(manhattan|brooklyn|queens|the bronx|bronx|staten island|nyc|new york|new york city|citywide|various)$/i;
-  visible.forEach((e) => { if (!e.hood || BORO.test(e.hood.trim()) || daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; if (!m.has(e.hood)) m.set(e.hood, []); m.get(e.hood).push(e); });
-  return [...m.entries()].filter(([, l]) => l.length >= 2)
-    .map(([k, l]) => { const top = l.slice().sort((x, y) => (y.lp || 0) - (x.lp || 0)).slice(0, 5); const taste = top.reduce((x, e) => x + (e.lp || 0), 0) / top.length + 12 * hoodWeight(l[0]); const jitter = ((seed + k.length * 7) % 5) * 0.4; return { id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: "Around " + k, sub: topCats(l), list: l, fit: taste + jitter }; })
+  visible.forEach((e) => { if (daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; const k = neighbourhoodOf(e); if (!k || k === mine) return; if (!m.has(k)) m.set(k, []); m.get(k).push(e); });
+  return [...m.entries()].filter(([, l]) => l.length >= 3)
+    .map(([k, l]) => { const top = l.slice().sort((x, y) => (y.lp || 0) - (x.lp || 0)).slice(0, 5); const taste = top.reduce((x, e) => x + (e.lp || 0), 0) / top.length + 12 * hoodWeight(l[0]); const jitter = ((seed + k.length * 7) % 5) * 0.4; return { id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: k, sub: topCats(l), list: l, fit: taste + jitter }; })
     .sort((a, b) => b.fit - a.fit).slice(0, 6);
 }
 

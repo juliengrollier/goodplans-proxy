@@ -219,18 +219,6 @@ export function DotScroll({ children, className = "hscroll", style }) {
   );
 }
 
-// Standard carousel item: squarish picture on top, title and when below
-export function SquareCard({ ev, dark, today, onOpen, size = 156 }) {
-  const seenRef = useSeen(ev);
-  return (
-    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: size, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
-      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={size} radius={18} hideTitle /><PicOverlay ev={ev} size={28} /></div>
-      <span className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</span>
-      <span style={{ fontSize: 12.5, lineHeight: 1.25 }}><When text={whenLabel(ev, today)} /></span>
-    </div>
-  );
-}
-
 export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   const seenRef = useSeen(ev);
   return (
@@ -422,3 +410,6 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
     </div>
   );
 }
+
+// One square carousel layout everywhere: picture on top; category, title, blurb, when and distance, thumbs below
+export const SquareCard = PosterCard;
