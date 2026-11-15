@@ -18,7 +18,7 @@ import { mergeDuplicates, collapseSeries } from "./dedupe.js";
 import { classify, classifySub, CAT } from "./taxonomy.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
-  LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
+  LES, TASTE_KEY, emptyTaste, applyReaction, calPayload, toggleFollow, effectiveProf, scoreEvent, buildToday,
   fetchWeather, fitsFree, isOver, fmtT, UNIT_KEY, getUnit, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
 } from "./engine.js";
 import {
@@ -292,9 +292,9 @@ export default function App() {
     const catAdj = { ...taste.catAdj }; delete catAdj[c];
     saveTaste({ ...taste, catAdj });
   };
-  const track = (ev, kind) => {
+  const track = (ev, kind, d = 1) => {
     const b = { ...beh, [kind]: { ...(beh[kind] || {}) } };
-    b[kind][ev.cat] = (b[kind][ev.cat] || 0) + 1;
+    b[kind][ev.cat] = Math.max(0, (b[kind][ev.cat] || 0) + d);
     setBeh(b); ss(SK_B, b);
   };
 
@@ -483,12 +483,32 @@ export default function App() {
   }, []);
 
   // ── Actions
+  // Saves mirror into Google Calendar through the Apps Script (actions calAdd / calRemove)
+  const CALMAP_KEY = "gp_calmap_v1";
+  const calMap = () => { try { return JSON.parse(localStorage.getItem(CALMAP_KEY) || "{}"); } catch { return {}; } };
+  const setCalMap = (m) => { try { localStorage.setItem(CALMAP_KEY, JSON.stringify(m)); } catch { /* full */ } };
+  const calOff = () => { try { return Date.now() - Number(localStorage.getItem("gp_caladd_off") || 0) < 6 * 3600e3; } catch { return false; } };
+  const calAdd = (ev) => {
+    if (!backend.url || calOff()) return;
+    const q = Object.entries(calPayload(ev, today)).map(([k, v]) => "&" + k + "=" + encodeURIComponent(v ?? "")).join("");
+    api("calAdd", q, 20000).then((d) => {
+      if (d?.gid) { setCalMap({ ...calMap(), [ev.id]: d.gid }); toast("Added to plans and your calendar"); return; }
+      // The Apps Script doesn't know calAdd yet: pause tries for a few hours
+      try { localStorage.setItem("gp_caladd_off", String(Date.now())); } catch { /* full */ }
+      toast("Saved. Calendar sync needs the Apps Script update");
+    }).catch(() => toast("Saved, but the calendar didn't answer"));
+  };
+  const calRemove = (id) => {
+    const m = calMap(), gid = m[id]; if (!gid || !backend.url) return;
+    delete m[id]; setCalMap(m);
+    api("calRemove", "&gid=" + encodeURIComponent(gid), 20000).catch(() => { /* already gone */ });
+  };
   const toggleSave = (ev) => {
     const n = { ...favs };
-    if (n[ev.id]) { delete n[ev.id]; toast("Removed from plans"); }
+    if (n[ev.id]) { delete n[ev.id]; track(favs[ev.id] || ev, "savedCats", -1); calRemove(ev.id); toast("Removed from plans"); }
     else {
       const { bd, why, sc, hidden, tt, rain, dark: _d, busy, outdoor, followed, calChecked, ...raw } = ev; // eslint-disable-line no-unused-vars
-      n[ev.id] = raw; track(ev, "savedCats"); toast("Added to plans");
+      n[ev.id] = raw; track(ev, "savedCats"); toast("Added to plans"); calAdd(ev);
       const ts = Date.now(); setLastSaveAt(ts); try { localStorage.setItem("gp_lastsave", String(ts)); } catch { /* full */ }
     }
     setFavs(n); ss(SK_F, n);
@@ -526,7 +546,20 @@ export default function App() {
 
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
+  // Learned preference per category and sub-type: boosts, thumbs, reasons, saves and filter choices
+  const prefs = useMemo(() => {
+    const cats = {}, subs = {}, add = (m, k, v) => { if (k) m[k] = (m[k] || 0) + v; };
+    Object.entries(taste.ncatAdj || {}).forEach(([k, v]) => add(cats, k, v));
+    Object.entries(taste.nsubAdj || {}).forEach(([k, v]) => add(subs, k, v));
+    Object.keys(taste.stars?.cats || {}).forEach((k) => add(cats, k, 10));
+    Object.keys(taste.stars?.subs || {}).forEach((k) => add(subs, k, 8));
+    const byId = Object.fromEntries(scored.map((e) => [e.id, e]));
+    Object.entries(taste.thumbs || {}).forEach(([id, d]) => { const e = byId[id]; if (e) { add(cats, e.ncat, 4 * d); add(subs, e.nsub, 4 * d); } });
+    Object.values(favs).forEach((e) => { const x = byId[e.id] || e; add(cats, x.ncat, 5); add(subs, x.nsub, 5); });
+    return { cats, subs };
+  }, [taste, favs, scored]);
   const actions = {
+    prefOf: (kind, id) => prefs[kind]?.[id] || 0,
     onReact: (ev, kind, reason, quiet) => react(ev, kind, reason, quiet),
     askWhy: (ev, dir) => setWhyAsk({ ev, dir }),
     onSave: (ev) => toggleSave(ev),

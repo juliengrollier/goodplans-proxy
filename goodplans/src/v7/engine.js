@@ -25,7 +25,7 @@ export const todOf = (ev) => { const sm = startMinutes(ev); return sm == null ? 
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-export function applyReaction(taste, prof, ev, kind, reason) {
+function applyReactionRaw(taste, prof, ev, kind, reason) {
   const t = { ...taste, thumbs: { ...taste.thumbs }, notForMe: { ...taste.notForMe }, hiddenSeries: { ...taste.hiddenSeries }, catAdj: { ...taste.catAdj }, subAdj: { ...taste.subAdj } };
   const cat = ev.cat || "Other", sk = cat + "::" + (ev.sub || "");
   const bump = (d, ds) => {
@@ -85,6 +85,50 @@ export function applyReaction(taste, prof, ev, kind, reason) {
   return t;
 }
 
+// Every reaction records exactly what it changed for that event, so undoing the thumb (or switching it) takes it all back
+const NUM_MAPS = ["catAdj", "subAdj", "kwAdj", "dowAdj", "todAdj", "ncatAdj", "nsubAdj", "seriesAdj", "reasons"];
+const NUM_KEYS = ["uniqueAdj", "priceSens", "farSens"];
+const SET_MAPS = ["follows", "mutedVenues", "hiddenSeries"];
+function diffTaste(a, b) {
+  const d = { n: {}, s: {}, add: {}, prev: {} };
+  NUM_MAPS.forEach((m) => { const A = a[m] || {}, B = b[m] || {}; Object.keys(B).forEach((k) => { const x = (B[k] || 0) - (A[k] || 0); if (x) (d.n[m] = d.n[m] || {})[k] = x; }); });
+  NUM_KEYS.forEach((k) => { const x = (b[k] || 0) - (a[k] || 0); if (x) d.s[k] = x; });
+  SET_MAPS.forEach((m) => { const A = a[m] || {}; Object.keys(b[m] || {}).forEach((k) => { if (!(k in A)) (d.add[m] = d.add[m] || []).push(k); }); });
+  if (b.priceCeil !== a.priceCeil) d.prev.priceCeil = a.priceCeil ?? null;
+  if ((b.notes || []).length !== (a.notes || []).length) d.note = true;
+  return d;
+}
+function mergeDiff(x, y) {
+  if (!x) return y;
+  const o = { n: { ...x.n }, s: { ...x.s }, add: { ...x.add }, prev: { ...y.prev, ...x.prev }, note: x.note || y.note };
+  Object.entries(y.n).forEach(([m, kv]) => { o.n[m] = { ...(o.n[m] || {}) }; Object.entries(kv).forEach(([k, v]) => { o.n[m][k] = (o.n[m][k] || 0) + v; }); });
+  Object.entries(y.s).forEach(([k, v]) => { o.s[k] = (o.s[k] || 0) + v; });
+  Object.entries(y.add).forEach(([m, ks]) => { o.add[m] = [...new Set([...(o.add[m] || []), ...ks])]; });
+  return o;
+}
+function revert(t, d, id) {
+  if (!d) return t;
+  const o = { ...t };
+  Object.entries(d.n || {}).forEach(([m, kv]) => { o[m] = { ...(o[m] || {}) }; Object.entries(kv).forEach(([k, v]) => { const r = (o[m][k] || 0) - v; if (Math.abs(r) < 1e-9) delete o[m][k]; else o[m][k] = r; }); });
+  Object.entries(d.s || {}).forEach(([k, v]) => { o[k] = (o[k] || 0) - v; });
+  Object.entries(d.add || {}).forEach(([m, ks]) => { o[m] = { ...(o[m] || {}) }; ks.forEach((k) => delete o[m][k]); });
+  if (d.prev && "priceCeil" in d.prev) { if (d.prev.priceCeil == null) delete o.priceCeil; else o.priceCeil = d.prev.priceCeil; }
+  if (d.note) o.notes = (o.notes || []).filter((n) => n.id !== id);
+  return o;
+}
+export function applyReaction(taste, prof, ev, kind, reason) {
+  const contrib = { ...(taste.contrib || {}) };
+  let base = taste;
+  // Undo, or a thumb flipped to the other side: take back everything this event had contributed first
+  const flip = (kind === "up" && taste.thumbs?.[ev.id] === -1) || (kind === "down" && taste.thumbs?.[ev.id] === 1);
+  if (kind === "undo" || flip) { base = revert(taste, contrib[ev.id], ev.id); delete contrib[ev.id]; }
+  const t = applyReactionRaw(base, prof, ev, kind, reason);
+  if (kind !== "undo") contrib[ev.id] = mergeDiff(contrib[ev.id], diffTaste(base, t));
+  // Keep the record for the latest 300 events only
+  const ids = Object.keys(contrib); if (ids.length > 300) ids.slice(0, ids.length - 300).forEach((k) => delete contrib[k]);
+  return { ...t, contrib };
+}
+
 export function toggleFollow(taste, ev) {
   const k = venueKey(ev);
   const follows = { ...taste.follows };
@@ -136,6 +180,20 @@ export function timeRange(ev) {
   if (/doors|show/i.test(t)) e = null; // "doors 6:30, show 7" is not a range
   if (e != null && e <= s0) e += 1440;
   return { s: s0, e };
+}
+// What a saved event becomes in Google Calendar: timed when the start is known, otherwise all day.
+// Events running over several days go on the next day they're on.
+export function calPayload(ev, today) {
+  const iso = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const t0 = iso(today || new Date());
+  const day = ev.X && ev.X !== ev.E && ev.E < t0 ? t0 : ev.E;
+  const hm = (m) => String(Math.floor(m / 60) % 24).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  const s = startMinutes(ev); let e = endMinutes(ev);
+  const loc = [ev.venue, ev.hood].filter(Boolean).join(", ");
+  const desc = [ev.desc, ev.price && "Price: " + ev.price, ev.url, "Saved from Good Plans"].filter(Boolean).join("\n\n").slice(0, 600);
+  if (s == null) return { title: ev.title, start: day, allDay: "1", loc, desc, gpid: ev.id };
+  if (e == null || e <= s) e = Math.min(s + 120, 23 * 60 + 59);
+  return { title: ev.title, start: day + "T" + hm(s), end: day + "T" + hm(e), allDay: "0", loc, desc, gpid: ev.id };
 }
 export function startMinutes(ev) { return timeRange(ev)?.s ?? null; }
 export function endMinutes(ev) { return timeRange(ev)?.e ?? null; }
