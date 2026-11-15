@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ResultRow, CompactCard } from "./components.jsx";
+import { ResultRow, CompactCard, MoodTile } from "./components.jsx";
+import { Icon } from "./icons.jsx";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
 
-export default function Explore({ scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
+export default function Explore({ tiles, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
@@ -11,6 +12,8 @@ export default function Explore({ scored, dark, today, onOpen, filters, setFilte
   const first = useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: "smooth" }); }, [filters, sort]);
 
+  const listTile = filters.list ? (tiles?.lists || []).find((t) => t.title === filters.list) : null;
+  const more = filters.list && tiles ? tiles.lists.filter((t) => t.title !== filters.list).slice(0, 8) : [];
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
   // Repeated dates of the same series collapse into one card ("+N more dates")
   const results = useMemo(() => collapseSeries(sortEvents(applyFilters(scored, filters, today), sort)), [scored, filters, sort, today]);
@@ -43,7 +46,17 @@ export default function Explore({ scored, dark, today, onOpen, filters, setFilte
 
   return (
     <div>
-      <FilterHeader filters={filters} setFilters={(f) => { setFilters(f); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />
+      <FilterHeader filters={filters} setFilters={(f) => { setFilters((f.ids || []).length ? f : { ...f, list: null }); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />
+      {filters.list && (
+        <div style={{ padding: "14px 20px 0", display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.1, textTransform: "uppercase", color: "var(--ink3)" }}>From Home</div>
+            <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 28, lineHeight: 1.05 }}>{filters.list}</h1>
+            {listTile?.teaser && <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginTop: 4 }}>{listTile.teaser}</div>}
+          </div>
+          <button className="chip" aria-label="Clear" onClick={() => setFilters({ ...filters, ids: [], list: null })} style={{ height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0 }}><Icon name="close" size={16} /></button>
+        </div>
+      )}
       <div className="row" style={{ padding: "12px 16px 8px", gap: 6 }} role="tablist">
         <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
         <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Regulars · {nReg}</button>
@@ -54,7 +67,14 @@ export default function Explore({ scored, dark, today, onOpen, filters, setFilte
           {!results.length && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
           {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>Show more</button>}
         </div>
-      ) : (
+      ) : null}
+      {view === "all" && more.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          <div className="sec-h"><h2>More ideas</h2></div>
+          <div className="hscroll">{more.map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} />)}</div>
+        </div>
+      )}
+      {view !== "all" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }} role="tablist" aria-label="How often">
             {[["all", "All"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["annual", "Yearly"]].map(([k, l]) => (

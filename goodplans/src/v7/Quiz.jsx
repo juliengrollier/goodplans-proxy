@@ -1,7 +1,7 @@
 // Onboarding quiz: one situation per screen, big tappable cards, a profile reveal at the end
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
-import { QUESTIONS, profileFrom } from "./quiz.js";
+import { QUESTIONS, profileFrom, picked } from "./quiz.js";
 import { LIcon } from "./taxonomy.js";
 import { Icon } from "./icons.jsx";
 
@@ -11,7 +11,15 @@ export default function Quiz({ initial = {}, onDone, onClose, onImportMaps }) {
   const [i, setI] = useState(0);
   const [ans, setAns] = useState(initial);
   const total = QUESTIONS.length, q = QUESTIONS[i], done = i >= total;
-  const choose = (k) => { const a = { ...ans }; if (k == null) delete a[q.id]; else a[q.id] = k; setAns(a); setTimeout(() => setI(i + 1), k == null ? 0 : 180); };
+  const cur = done ? [] : picked(ans[q.id]);
+  const next = () => setI(i + 1);
+  // Single-choice questions move on at once; multi-choice ones toggle and wait for Next
+  const choose = (k) => {
+    const a = { ...ans };
+    if (q.multi) { const n = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]; if (n.length) a[q.id] = n; else delete a[q.id]; setAns(a); return; }
+    a[q.id] = [k]; setAns(a); setTimeout(next, 180);
+  };
+  const skip = () => { const a = { ...ans }; delete a[q.id]; setAns(a); next(); };
   const prof = done ? profileFrom(ans) : null;
   const wrap = { position: "fixed", inset: 0, zIndex: 80, background: "var(--bg)", color: "var(--ink)", display: "flex", flexDirection: "column", padding: "calc(16px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom))", overflowY: "auto" };
   return createPortal(
@@ -28,12 +36,13 @@ export default function Quiz({ initial = {}, onDone, onClose, onImportMaps }) {
         <div key={q.id} style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 26, flex: 1 }}>
           <div className="muted" style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>{i + 1} of {total}</div>
           <h1 className="disp" style={{ margin: 0, fontSize: 30, lineHeight: 1.1 }}>{q.q}</h1>
-          <div style={{ display: "grid", gridTemplateColumns: q.opts.length === 2 || q.opts.length === 3 ? "1fr" : "1fr 1fr", gap: 10 }}>
+          {(q.hint || q.multi) && <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginTop: -8 }}>{q.hint || "Pick as many as you like."}</div>}
+          <div style={{ display: "grid", gridTemplateColumns: q.opts.length === 3 ? "1fr" : "1fr 1fr", gap: 10 }}>
             {q.opts.map((o, k) => {
-              const on = ans[q.id] === k, col = COLORS[(i * 3 + k) % COLORS.length];
+              const on = cur.includes(k), col = COLORS[(i * 3 + k) % COLORS.length];
               return (
                 <button key={o.l} onClick={() => choose(k)} aria-pressed={on}
-                  style={{ border: "none", borderRadius: 22, padding: "16px 16px", minHeight: q.opts.length === 4 || q.opts.length === 5 ? 118 : 74, background: on ? col : "var(--card)", color: on ? "#fff" : "var(--ink)", textAlign: "left", display: "flex", flexDirection: q.opts.length >= 4 ? "column" : "row", alignItems: q.opts.length >= 4 ? "flex-start" : "center", justifyContent: "space-between", gap: 12, boxShadow: on ? "none" : "0 1px 0 var(--line)", transition: "background .15s" }}>
+                  style={{ border: "none", borderRadius: 22, padding: "16px 16px", minHeight: q.opts.length >= 4 ? 108 : 74, background: on ? col : "var(--card)", color: on ? "#fff" : "var(--ink)", textAlign: "left", display: "flex", flexDirection: q.opts.length >= 4 ? "column" : "row", alignItems: q.opts.length >= 4 ? "flex-start" : "center", justifyContent: "space-between", gap: 12, boxShadow: on ? "none" : "0 1px 0 var(--line)", transition: "background .15s" }}>
                   <span style={{ width: 42, height: 42, borderRadius: 21, background: on ? "rgba(255,255,255,.22)" : col, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, order: q.opts.length >= 4 ? 0 : 1 }}>
                     <LIcon node={o.i} size={21} color="#fff" />
                   </span>
@@ -42,7 +51,10 @@ export default function Quiz({ initial = {}, onDone, onClose, onImportMaps }) {
               );
             })}
           </div>
-          <button onClick={() => choose(null)} style={{ border: "none", background: "none", color: "var(--ink3)", fontWeight: 800, fontSize: 14, alignSelf: "center", padding: 8 }}>It depends · skip</button>
+          {q.multi
+            ? <button className="pill pill-dark" disabled={!cur.length} onClick={next} style={{ height: 50, opacity: cur.length ? 1 : 0.4 }}>Next</button>
+            : null}
+          <button onClick={skip} style={{ border: "none", background: "none", color: "var(--ink3)", fontWeight: 800, fontSize: 14, alignSelf: "center", padding: 8 }}>It depends · skip</button>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 34, flex: 1 }}>
