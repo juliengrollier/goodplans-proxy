@@ -7,6 +7,7 @@ import { DAYS, MONTHS, evCovers, CATS, daysUntil } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
 import { Travel } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
+import { User, Users } from "lucide";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -203,7 +204,7 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -215,10 +216,27 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
       <div className="row" style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 0", justifyContent: "space-between" }}>
         <div className="row" style={{ gap: 8 }}>
           <Logo size={28} dark={dark} />
-          <span className="disp" style={{ fontSize: 23 }}>good plans</span>
+          <span className="disp" style={{ fontSize: 23, whiteSpace: "nowrap" }}>good plans</span>
         </div>
-        <button className="chip" onClick={() => setTab("me")} aria-label="Location settings"><Icon name="pin" size={15} /> {locLabel}</button>
+        <div className="row" style={{ gap: 6 }}>
+          {setTogether && (
+            <button className="chip" aria-pressed={!!together} onClick={() => setTogether(!together)} aria-label={together ? "Together: picks for you and " + partnerName + ". Tap for just you" : "Just you. Tap for picks that suit you and " + partnerName}
+              style={{ padding: "0 10px", ...(together ? { background: "var(--navy)", color: "var(--onnavy)", border: "none" } : {}) }}><LIcon node={together ? Users : User} size={16} color="currentColor" /></button>
+          )}
+          <button className="chip" onClick={() => setTab("me")} aria-label="Location settings"><Icon name="pin" size={15} /> {locLabel}</button>
+        </div>
       </div>
+      {goAsk && (
+        <div className="card-sm" style={{ margin: "14px 16px 0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink3)" }}>Did you go?</div>
+            <div className="disp ell" style={{ fontSize: 16 }}>{goAsk.title}</div>
+          </div>
+          <button className="pill pill-dark" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "yes")}>Yes</button>
+          <button className="pill pill-line" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "no")}>No</button>
+          <button aria-label="Don't ask" onClick={() => onGoAnswer(goAsk, "skip")} style={{ border: "none", background: "none", padding: 4, color: "var(--ink3)" }}><Icon name="close" size={16} /></button>
+        </div>
+      )}
       <div style={{ padding: "18px 20px 14px" }}>
         <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + fmtT(w.hi) + (w.rainy ? " · rain later" : "") : ""}</div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{g.title}</h1>

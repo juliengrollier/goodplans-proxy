@@ -37,7 +37,16 @@ const EVENTS = [
 ];
 
 const enrichReply = (body) => {
-  if (body.mode === "tags") return { tags: Object.fromEntries((body.events || []).map((e) => [e.id, { k: [(e.sub || e.cat || "").toLowerCase(), "nyc"].filter(Boolean), cat: e.cat }])) };
+  if (body.mode === "tags") {
+    const pick = (l, s) => l[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % l.length];
+    return { tags: Object.fromEntries((body.events || []).map((e) => [e.id, { k: [(e.sub || e.cat || "").toLowerCase(), "nyc"].filter(Boolean), cat: e.cat,
+      d: { energy: pick(["calm", "lively", "wild"], e.id), crowd: pick(["intimate", "medium", "big"], e.title), novelty: pick(["classic", "fresh", "weird"], e.id + "n"), social: pick(["date", "group", "any"], e.title + "s") } }])) };
+  }
+  // Taste card: built from the strongest learned features (the live app has Claude write it)
+  if (body.mode === "taste") {
+    const nice = (f) => f.replace(/^(\w+):/, "").replace(/[=/&]/g, " ").replace(/\b\w/, (c) => c.toUpperCase());
+    return { lines: [...(body.likes || []).slice(0, 4).map((x) => ({ text: "Drawn to " + nice(x.f).toLowerCase(), f: [x.f] })), ...(body.dislikes || []).slice(0, 2).map((x) => ({ text: "Tends to skip " + nice(x.f).toLowerCase(), f: [x.f] }))] };
+  }
   if (body.mode === "highlights") return { text: "Tonight: [[1|jazz trio]] in a West Village basement / [[2|stand-up]] around the corner ▫️ Weekend: [[3|holiday market]] and a [[4|history walk]] ▫️ Next week: [[5|Friendsgiving]] in Red Hook" };
   // Mood titles: the engine's own title bank and facts (the live app has Claude write them)
   if (body.mode === "mood") return { title: (body.mood?.titles || ["Your mood"])[0], sub: body.scope === "you" ? "Reading the room: " + (body.mood?.read || "") : body.mood?.facts || "" };
@@ -59,6 +68,8 @@ window.fetch = async (input, init = {}) => {
   if (url.includes("script.google.com")) {
     if (url.includes("busyDays")) return json({ busySlots: [], calendarName: "Sample" });
     if (url.includes("pushStatus")) return json({ subscriptions: 0 });
+    if (url.includes("action=tasteGet")) return json({ v: 1, at: Date.now(), strong: 8, w: { "dim:energy=calm": 0.6, "dim:crowd=intimate": 0.5, "cat:museums & galleries": 0.7, "dim:energy=wild": -0.6, "price:high": -0.5 } });
+    if (url.includes("action=tastePut")) return json({ ok: true });
     if (url.includes("action=calAdd")) return json({ ok: true, gid: "sample-" + Date.now() });
     if (url.includes("action=calRemove")) return json({ ok: true });
     return json({ events: EVENTS, refreshed: new Date().toISOString() });

@@ -8,7 +8,7 @@ import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord } from "../lib/core
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
-export default function EventSheet({ ev, dark, today, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
+export default function EventSheet({ ev, dark, today, onSignal = () => {}, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
   const [nfm, setNfm] = useState(false);
   const thumb = taste.thumbs[ev.id] || 0;
   const followed = !!taste.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()];
@@ -19,12 +19,13 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
   const addCal = () => {
     const s = new Date(ev.E + "T" + parseT(ev.time)), e = new Date(s.getTime() + 2 * 3600000);
     const url = "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(ev.title) + "&dates=" + toGC(s) + "/" + toGC(e) + "&details=" + encodeURIComponent((ev.desc || "") + "\n\n" + (ev.url || "")) + "&location=" + encodeURIComponent(ev.venue || "");
-    window.open(url, "_blank");
+    window.open(url, "_blank"); onSignal(ev, "link");
   };
   const share = async () => {
     const link = location.origin + "/?event=" + encodeURIComponent(ev.id);
     const text = ev.title + " — " + whenLabel(ev, today) + " · " + (ev.venue || "");
     try {
+      onSignal(ev, "share");
       if (navigator.share) await navigator.share({ title: ev.title, text, url: link });
       else { await navigator.clipboard.writeText(text + "\n" + link); toast("Link copied"); }
     } catch {}
@@ -60,7 +61,7 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
           </div>
         )}
         {ev.desc && <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--ink2)" }}>{ev.desc}</p>}
-        {ev.url && <a href={ev.url} target="_blank" rel="noreferrer" className="row" style={{ gap: 6, fontSize: 14, fontWeight: 800 }}>Open on {ev.src || "the source site"} <Icon name="link" size={15} /></a>}
+        {ev.url && <a href={ev.url} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} className="row" style={{ gap: 6, fontSize: 14, fontWeight: 800 }}>Open on {ev.src || "the source site"} <Icon name="link" size={15} /></a>}
       </div>
 
       <div style={{ margin: "16px 16px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>

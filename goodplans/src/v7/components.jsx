@@ -6,7 +6,7 @@ import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
 import { whenLabel, isFree, weatherBadge } from "./engine.js";
 import { useEventImage, dropImage } from "./images.js";
 
-export const ActionsCtx = createContext({ prefOf: () => 0, onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0, isStar: () => false, toggleStar: () => {} });
+export const ActionsCtx = createContext({ onSeen: () => {}, prefOf: () => 0, onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0, isStar: () => false, toggleStar: () => {} });
 
 export function CatBullet({ cat, ev, size = 30, dark }) {
   // With an event: its category icon in its family colour. With only a (legacy) category name: the older glyph.
@@ -119,11 +119,29 @@ function Venue({ ev }) {
   return v ? <span className="ell" style={{ minWidth: 0, flex: "0 1 auto", color: "var(--ink3)", fontWeight: 600 }}>· {v}</span> : null;
 }
 
+// A card counts as seen once per app session when most of it stays on screen for a second
+const seenSession = new Set();
+function useSeen(ev) {
+  const a = useContext(ActionsCtx);
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current; if (!el || !ev?.id || seenSession.has(ev.id) || typeof IntersectionObserver === "undefined") return;
+    let t = null;
+    const io = new IntersectionObserver(([en]) => {
+      if (en.isIntersecting) t = setTimeout(() => { if (!seenSession.has(ev.id)) { seenSession.add(ev.id); a.onSeen(ev); } io.disconnect(); }, 1000);
+      else clearTimeout(t);
+    }, { threshold: 0.6 });
+    io.observe(el);
+    return () => { clearTimeout(t); io.disconnect(); };
+  }, [ev?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  return ref;
+}
 const tap = (fn, ev) => ({ role: "button", tabIndex: 0, onClick: () => fn(ev), onKeyDown: (e) => { if (e.key === "Enter") fn(ev); } });
 
 export function HeroCard({ ev, dark, today, onOpen, label }) {
+  const seenRef = useSeen(ev);
   return (
-    <div {...tap(onOpen, ev)} className="ev-flat" style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Media ev={ev} dark={dark} height={190} big />
         {label && <span className="tag tag-white" style={{ position: "absolute", top: 10, left: 10 }}>{label}</span>}
@@ -150,8 +168,9 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
 }
 
 export function CompactCard({ ev, dark, today, onOpen, label, when }) {
+  const seenRef = useSeen(ev);
   return (
-    <div {...tap(onOpen, ev)} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ width: 84, flexShrink: 0 }}><Media ev={ev} dark={dark} height={104} radius={16} hideTitle /></div>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet ev={ev} size={16} dark={dark} />{catLabel(ev)}</span>}
@@ -170,8 +189,9 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
 }
 
 export function PosterCard({ ev, dark, today, onOpen }) {
+  const seenRef = useSeen(ev);
   return (
-    <div {...tap(onOpen, ev)} style={{ width: 176, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 176, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer" }}>
       <Media ev={ev} dark={dark} height={200} radius={24} hideTitle />
       <div className="row" style={{ gap: 6 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{catLabel(ev)}</span></div>
       <div className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.12 }}>{ev.title}</div>

@@ -15,6 +15,7 @@ import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
 import { mergeDuplicates, collapseSeries } from "./dedupe.js";
+import * as L from "./learn.js";
 import { classify, classifySub, CAT } from "./taxonomy.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
@@ -35,7 +36,7 @@ const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
 const FILTERS_KEY = "gp_filters_v1";
-const TAGS_KEY = "gp_tags_v10"; // v10: cat2 (new categories) + sub2 (sub-types)
+const TAGS_KEY = "gp_tags_v11"; // v11: d (taste dimensions: energy, crowd, novelty…)
 const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
@@ -111,6 +112,22 @@ export default function App() {
   const [youPick, setYouPick] = useState(null);
   const [youStore, setYouStore] = useState(() => { try { return JSON.parse(localStorage.getItem(YOU_KEY) || "{}"); } catch { return {}; } });
   const [lastSaveAt, setLastSaveAt] = useState(() => { const v = +localStorage.getItem("gp_lastsave"); return v || null; });
+  // Taste engine v2 (learn.js). The model lives in a ref; modelVer re-scores only after strong signals,
+  // so lists don't reshuffle while you scroll
+  const modelRef = useRef((() => { try { return { ...L.emptyModel(), ...JSON.parse(localStorage.getItem(L.MODEL_KEY) || "{}") }; } catch { return L.emptyModel(); } })());
+  const [modelVer, setModelVer] = useState(0);
+  const saveModelT = useRef(null);
+  const putModel = (m, rescore) => {
+    modelRef.current = m;
+    clearTimeout(saveModelT.current);
+    saveModelT.current = setTimeout(() => { try { localStorage.setItem(L.MODEL_KEY, JSON.stringify(modelRef.current)); } catch { /* full */ } }, 400);
+    if (rescore) setModelVer((v) => v + 1);
+  };
+  const signal = useCallback((ev, kind) => { if (ev) putModel(L.learn(modelRef.current, ev, kind, floorDay(new Date())), L.SIGNALS[kind]?.s >= 0.7); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [who, setWhoState] = useState(() => localStorage.getItem("gp_who") || "");
+  const [together, setTogetherState] = useState(() => localStorage.getItem("gp_together") === "1");
+  const [partner, setPartner] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_partner_model") || "null"); } catch { return null; } });
+  const [pastSaves, setPastSaves] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_past_saves") || "[]"); } catch { return []; } });
   const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
   const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
   const [hlStatus, setHlStatus] = useState("idle");
@@ -230,7 +247,15 @@ export default function App() {
         [SK_P, SK_F, SK_B, "gp_events_v1", "gp_gmail_v1", TASTE_KEY, THEME_KEY, "gp_loc_v1", "gp_cal_slots_v1", "gp_cal_v1", REC_KEY].map(sg));
       if (rs) setRec(rs);
       setProf(mergeProf(pr));
-      if (fv) { const t0 = floorDay(new Date()); const clean = Object.fromEntries(Object.entries(fv).filter(([, e]) => evActive(e, t0))); setFavs(clean); if (Object.keys(clean).length !== Object.keys(fv).length) ss(SK_F, clean); }
+      if (fv) {
+        const t0 = floorDay(new Date()); const clean = Object.fromEntries(Object.entries(fv).filter(([, e]) => evActive(e, t0))); setFavs(clean);
+        if (Object.keys(clean).length !== Object.keys(fv).length) {
+          ss(SK_F, clean);
+          // Keep the ones that just ended, so the app can ask "Did you go?"
+          const gone = Object.values(fv).filter((e) => !clean[e.id]);
+          setPastSaves((p) => { const n = [...gone, ...p.filter((x) => !gone.some((g) => g.id === x.id))].slice(0, 30); try { localStorage.setItem("gp_past_saves", JSON.stringify(n)); } catch { /* full */ } return n; });
+        }
+      }
       if (bh) setBeh(bh);
       if (tst) setTaste({ ...emptyTaste(), ...tst });
       if (th) setThemeState(th);
@@ -263,8 +288,14 @@ export default function App() {
   const setTheme = (t) => { setThemeState(t); ss(THEME_KEY, t); };
   const saveTaste = (t) => { setTaste(t); ss(TASTE_KEY, t); };
   // Every filter change is remembered; category hides/picks and price/distance choices also feed the taste model
+  const searchT = useRef(null);
   const setFilters = (next) => {
     const prev = filters;
+    if ((next.q || "") !== (prev.q || "")) {
+      clearTimeout(searchT.current);
+      const q = next.q || "";
+      if (q.trim().length >= 3) searchT.current = setTimeout(() => putModel(L.searched(modelRef.current, q)), 1500);
+    }
     setFiltersState(next);
     try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ f: { ...next, q: "" }, day: isoDay(new Date()) })); } catch { /* full */ }
     const t = { ...tasteRef.current, ncatAdj: { ...(tasteRef.current.ncatAdj || {}) } };
@@ -309,17 +340,27 @@ export default function App() {
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
+  const partnerModel = useMemo(() => (partner ? L.fromCompact(partner) : null), [partner]);
   const scored = useMemo(() => {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
     return allEvents.map((e0) => {
       const t = tags[e0.id];
       const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
       e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam; e.nsub = classifySub(e, e.ncat, t?.sub2);
+      if (t?.d) e.dims = t.d;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
+      // Learned taste (v2): what you do, how events feel, the moment; held back where the two of you disagree in Together
+      const own = L.learnedPoints(modelRef.current, s, today);
+      let pts = own.pts;
+      if (together && partnerModel) pts = L.togetherPoints(own.pts, L.learnedPoints(partnerModel, s, today).pts);
+      s.lp = Math.round(pts); s.sc = Math.max(0, Math.min(100, Math.round(s.sc + pts + (together ? 0 : own.explore))));
+      if (pts >= 8) s.why = [together ? "Suits you both" : "Fits your taste", ...s.why];
+      else if (!together && own.explore >= 5) { s.why = [...s.why, "Something new for you"]; s.explore = true; }
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
-  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
+  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, together, partnerModel]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scoredRef = useRef([]); scoredRef.current = scored;
   const scoreOne = useCallback((e0) => {
     const e = { ...e0, ncat: e0.ncat && CAT[e0.ncat] ? e0.ncat : classify(e0) }; e.fam = CAT[e.ncat].fam; e.nsub = e0.nsub || classifySub(e, e.ncat);
     const s = scoreEvent({ ...e, coord: safeCoord(e) }, { eprof, beh, today, home, taste, weather, busySlots });
@@ -463,7 +504,23 @@ export default function App() {
   }, [ready, visible.length > 0, isoDay(today), weather ? 1 : 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Event sheet and deep links
-  const openEvent = useCallback((ev) => { setOpenEv(ev.id); track(ev, "viewedCats"); }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openEvent = useCallback((ev) => {
+    setOpenEv(ev.id); track(ev, "viewedCats");
+    putModel(L.learn(L.markOpened(modelRef.current, ev.id), ev, "open", floorDay(new Date())));
+  }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reading time on the event page: a quick bounce or a real read
+  const openAt = useRef(null);
+  useEffect(() => {
+    if (!openEv) return;
+    const id = openEv, t0 = Date.now();
+    openAt.current = t0;
+    return () => {
+      const secs = (Date.now() - t0) / 1000;
+      const ev = scoredRef.current.find((e) => e.id === id);
+      if (!ev || document.hidden) return;
+      if (secs > 15) signal(ev, "dwell"); else if (secs < 3) signal(ev, "bounce");
+    };
+  }, [openEv]); // eslint-disable-line react-hooks/exhaustive-deps
   const sheetEv = openEv ? (scored.find((e) => e.id === openEv) || regulars.find((x) => x.ev.id === openEv)?.ev || annual.find((e) => e.id === openEv) || (favs[openEv] && scoreOne(favs[openEv]))) : null;
 
   useEffect(() => {
@@ -505,10 +562,10 @@ export default function App() {
   };
   const toggleSave = (ev) => {
     const n = { ...favs };
-    if (n[ev.id]) { delete n[ev.id]; track(favs[ev.id] || ev, "savedCats", -1); calRemove(ev.id); toast("Removed from plans"); }
+    if (n[ev.id]) { delete n[ev.id]; track(favs[ev.id] || ev, "savedCats", -1); calRemove(ev.id); putModel(L.unlearn(modelRef.current, ev.id, "save"), true); toast("Removed from plans"); }
     else {
       const { bd, why, sc, hidden, tt, rain, dark: _d, busy, outdoor, followed, calChecked, ...raw } = ev; // eslint-disable-line no-unused-vars
-      n[ev.id] = raw; track(ev, "savedCats"); toast("Added to plans"); calAdd(ev);
+      n[ev.id] = raw; track(ev, "savedCats"); toast("Added to plans"); calAdd(ev); signal(ev, "save");
       const ts = Date.now(); setLastSaveAt(ts); try { localStorage.setItem("gp_lastsave", String(ts)); } catch { /* full */ }
     }
     setFavs(n); ss(SK_F, n);
@@ -518,6 +575,13 @@ export default function App() {
   const react = (ev, kind, reason, quiet) => {
     const t = applyReaction(tasteRef.current, prof, ev, kind, reason);
     tasteRef.current = t; saveTaste(t);
+    // Same thumb in the v2 model: a flip or an undo takes back exactly what the earlier thumb added
+    if (kind === "up" || kind === "down" || kind === "nfm" || kind === "undo") {
+      let m = L.unlearn(L.unlearn(modelRef.current, ev.id, "up"), ev.id, "down");
+      if (kind === "up") m = L.learn(m, ev, "up", today);
+      if (kind === "down" || kind === "nfm") m = L.learn(m, ev, "down", today);
+      putModel(m, true);
+    }
     if (quiet) return;
     if (kind === "up") toast("Got it, more like this");
     if (kind === "down") toast("Got it, less like this");
@@ -556,9 +620,70 @@ export default function App() {
     Object.values(favs).forEach((e) => { const x = byId[e.id] || e; add(cats, x.ncat, 5); add(subs, x.nsub, 5); });
     return { cats, subs };
   }, [taste, favs, scored]);
+  // ── Two people: each phone learns its owner; Together blends both tastes (shared through the Apps Script)
+  const PEOPLE = ["Julien", "Theo"];
+  const otherPerson = who ? PEOPLE.find((p) => p !== who) : null;
+  const setWho = (w) => { setWhoState(w); try { localStorage.setItem("gp_who", w); } catch { /* private mode */ } };
+  const postBackend = useCallback(async (action, extra, body) => {
+    if (!backend.url) throw new Error("No backend");
+    // text/plain body: no CORS preflight, which Apps Script can't answer
+    const u = backend.url + (backend.url.includes("?") ? "&" : "?") + "action=" + action + "&key=" + encodeURIComponent(backend.key) + (extra || "");
+    const r = await fetch(u, { method: "POST", body: JSON.stringify(body) });
+    return r.json();
+  }, [backend]);
+  useEffect(() => {
+    if (!ready || !who || !backend.url) return;
+    const t = setTimeout(() => { postBackend("tastePut", "&who=" + encodeURIComponent(who), L.compact(modelRef.current)).catch(() => { /* backend not updated yet */ }); }, 30000);
+    return () => clearTimeout(t);
+  }, [ready, who, modelVer, backend.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadPartner = useCallback(async (quiet) => {
+    if (!otherPerson) { if (!quiet) toast("Pick whose phone this is in Me first"); return null; }
+    try {
+      const d = await api("tasteGet", "&who=" + encodeURIComponent(otherPerson), 20000);
+      if (d?.w) { setPartner(d); try { localStorage.setItem("gp_partner_model", JSON.stringify(d)); } catch { /* full */ } return d; }
+      if (!quiet) toast(otherPerson + "'s phone hasn't shared a taste yet");
+    } catch { if (!quiet) toast("Couldn't reach the backend for " + otherPerson + "'s taste"); }
+    return null;
+  }, [otherPerson, api, toast]);
+  const setTogether = async (on) => {
+    if (on) { const p = partner || await loadPartner(false); if (!p) return; }
+    setTogetherState(on); try { localStorage.setItem("gp_together", on ? "1" : "0"); } catch { /* private mode */ }
+    toast(on ? "Together: picks that suit you both" : "Back to your own picks");
+  };
+  useEffect(() => { if (ready && together) loadPartner(true); }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Taste card: Claude puts the strongest learned patterns into a few plain lines
+  const [cardBusy, setCardBusy] = useState(false);
+  const buildCard = useCallback(async (force) => {
+    const m = modelRef.current;
+    if (cardBusy || aiOff.current || (m.strong || 0) < 5) return;
+    const stale = !m.card || (m.strong || 0) - (m.card.strong || 0) >= 5 || Date.now() - (m.card.at || 0) > 7 * 86400000;
+    if (!force && !stale) return;
+    setCardBusy(true);
+    try {
+      const d = await postJSON("/api/enrich", { mode: "taste", ...L.topFeatures(m), counts: { signals: m.count || 0, strong: m.strong || 0 } });
+      if (d?.lines?.length) putModel({ ...modelRef.current, card: { lines: d.lines, at: Date.now(), strong: m.strong || 0 } }, true);
+    } catch { if (force) toast("Couldn't write the taste card right now"); }
+    setCardBusy(false);
+  }, [cardBusy, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ready) buildCard(false); }, [ready, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const muteLine = (line) => { putModel(L.mute(modelRef.current, line.f), true); toast("Got it, that's not you"); };
+  const resetLearning = () => { putModel(L.emptyModel(), true); toast("Learning reset"); };
+
+  // ── "Did you go?" for a saved event that just ended
+  const goAsk = useMemo(() => L.pendingGoAsk(modelRef.current, pastSaves, today), [pastSaves, today, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const answerGo = (ev, ans) => {
+    let m = L.markAsked(modelRef.current, ev.id, ans);
+    if (ans === "yes") m = L.learn(m, ev, "went", today);
+    if (ans === "no") m = L.learn(m, ev, "missed", today);
+    putModel(m, true);
+    if (ans === "yes") toast("Nice. More like that");
+  };
+
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
   const actions = {
+    onSeen: (ev) => putModel(L.seen(modelRef.current, ev, today)),
     prefOf: (kind, id) => prefs[kind]?.[id] || 0,
     onReact: (ev, kind, reason, quiet) => react(ev, kind, reason, quiet),
     askWhy: (ev, dir) => setWhyAsk({ ev, dir }),
@@ -580,14 +705,15 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
+        {tab === "today" && <Today goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
+        {tab === "me" && <Me learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
+          who={who} setWho={setWho} people={PEOPLE} prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           pushState={pushState} pushInfo={pushInfo} onEnablePush={enablePush}
@@ -597,7 +723,7 @@ export default function App() {
 
       <TabBar tab={tab} setTab={(t) => { setTab(t); window.scrollTo(0, 0); }} plansCount={plansCount} />
 
-      {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
+      {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onSignal={signal} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
       {showFree && <FreeUntilDialog freeUntil={effFree} autoFree={autoFree} onClose={() => setShowFree(false)}
         onPick={(m) => { setFreeUntil(m); setShowFree(false); }} />}

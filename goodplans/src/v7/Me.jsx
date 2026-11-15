@@ -20,7 +20,7 @@ export default function Me(p) {
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
-    locSt, onRetryGPS, resetTaste } = p;
+    locSt, onRetryGPS, resetTaste, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
   const [fine, setFine] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
   const cats = Object.keys(CATS).filter((c) => c !== "Other");
@@ -30,6 +30,33 @@ export default function Me(p) {
   return (
     <div>
       <div style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 14px" }}><h1 className="disp" style={{ margin: 0, fontSize: 34 }}>Me</h1></div>
+
+      <Card title="What Good Plans has learned" right={learned.strong >= 5 && <button className="chip" onClick={onCardRefresh} disabled={cardBusy}>{cardBusy ? "Writing…" : "Refresh"}</button>}>
+        {learned.card?.lines?.length ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {learned.card.lines.map((l, i) => (
+              <div key={i} className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+                <span style={{ flex: 1, fontSize: 15.5, lineHeight: 1.4 }}>{l.text}</span>
+                <button aria-label={"Not me: " + l.text} title="That's not me" onClick={() => onMuteLine(l)} style={{ border: "none", background: "none", padding: 2, color: "var(--ink3)", flexShrink: 0 }}><Icon name="close" size={15} /></button>
+              </div>
+            ))}
+            <div className="muted" style={{ fontSize: 12.5 }}>Tap × on a line that isn't you and the app stops using it.</div>
+          </div>
+        ) : (
+          <p className="muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+            {learned.strong >= 5 ? (cardBusy ? "Writing your taste card…" : "Your taste card will appear here shortly.") : "The app learns from what you open, read, save, share and attend, not only thumbs. Your taste card appears after a few saves or thumbs (" + (learned.strong || 0) + " of 5)."}
+          </p>
+        )}
+        <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>This phone is</span>
+          {people.map((n) => <button key={n} className="chip" aria-pressed={who === n} onClick={() => setWho(n)} style={who === n ? { background: "var(--navy)", color: "var(--onnavy)", border: "none" } : undefined}>{n}'s</button>)}
+        </div>
+        <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>Each phone learns its owner. "Together" on Today blends both tastes once the other phone has shared its own.</div>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <span className="muted" style={{ fontSize: 12.5 }}>{learned.count || 0} signals learned{learned.muted ? " · " + learned.muted + " switched off" : ""}</span>
+          <button className="chip" onClick={() => { if (confirm("Forget everything learned from your activity? Thumbs, saves and boosts stay.")) onResetLearning(); }}>Reset learning</button>
+        </div>
+      </Card>
 
       <Card title="Your taste">
         <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>{tasteSummary(eprof, taste, Object.keys(CATS))}</p>
