@@ -122,7 +122,7 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
       <div style={{ padding: "0 10px 4px", color: "#FBF7EF", display: "flex", flexDirection: "column", gap: 6 }}>
         <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", opacity: 0.75 }}><Icon name="pin" size={14} /> City pulse</span>
         <div className="row" style={{ gap: 12, alignItems: "center" }}>
-          {m.icon && <span aria-hidden="true" style={{ width: 48, height: 48, borderRadius: 24, flexShrink: 0, background: "rgba(251,247,239,.14)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, lineHeight: 1 }}>{m.icon}</span>}
+          {m.icon && <span aria-hidden="true" style={{ width: 48, height: 48, borderRadius: 24, flexShrink: 0, background: "rgba(251,247,239,.14)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FBF7EF" }}>{React.createElement(m.icon, { size: 24, strokeWidth: 2.2 })}</span>}
           <span className="disp" style={{ fontSize: 26, lineHeight: 1.1, opacity: m.writing ? 0.6 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</span>
         </div>
         {m.sub && <span style={{ fontSize: 14.5, lineHeight: 1.4, opacity: 0.85 }}>{m.sub}</span>}
