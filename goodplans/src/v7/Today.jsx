@@ -207,6 +207,9 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </>
       ))}
 
+      {!empty && city && <MoodSection eyebrow="The city's mood" m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
+
+
       {tonight.length > 0 && (
         <>
           <SectionHead title={freeUntil != null ? "While you're free" : "Tonight"} n={tonight.length + " pick" + (tonight.length > 1 ? "s" : "")} color={catColor("Music", dark)} />
@@ -243,8 +246,6 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           <div className="hscroll">{weekend.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </>
       )}
-
-      {!empty && city && <MoodSection eyebrow="The city's mood" m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
 
       {weekPicks.length > 0 && (
         <>
