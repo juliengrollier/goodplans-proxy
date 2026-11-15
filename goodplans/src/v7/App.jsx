@@ -11,6 +11,7 @@ import Me from "./Me.jsx";
 import EventSheet from "./EventSheet.jsx";
 import { FreeUntilDialog, Surprise, WhyDialog } from "./Extras.jsx";
 import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
+import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
@@ -90,7 +91,9 @@ export default function App() {
   const [whyAsk, setWhyAsk] = useState(null); // {ev, dir}
   const [moodStore, setMoodStore] = useState(() => { try { return JSON.parse(localStorage.getItem(MOOD_KEY) || "{}"); } catch { return {}; } });
   const [moodTxt, setMoodTxt] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_moodtxt_v1") || "{}"); } catch { return {}; } });
-  const [moodPick, setMoodPick] = useState(null); // id chosen via the runner-up chip
+  const [cityPick, setCityPick] = useState(null); // ids chosen via the "Or:" chips
+  const [youPick, setYouPick] = useState(null);
+  const [youStore, setYouStore] = useState(() => { try { return JSON.parse(localStorage.getItem(YOU_KEY) || "{}"); } catch { return {}; } });
   const [lastSaveAt, setLastSaveAt] = useState(() => { const v = +localStorage.getItem("gp_lastsave"); return v || null; });
   const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
   const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
@@ -312,27 +315,32 @@ export default function App() {
     return weekPool.filter((e) => !shown.has(e.id)).slice(0, 5);
   }, [weekPool, sections]);
 
-  // ── Mood of the moment (see mood.js): context → ranked moods → top one shown, runner-up as a chip
+  // ── Two moods: yours (you.js: how you probably feel right now) and the city's (mood.js: holidays, rituals, seasons)
   const saveMood = (st) => { setMoodStore(st); try { localStorage.setItem(MOOD_KEY, JSON.stringify(st)); } catch { /* full */ } };
+  const saveYou = (st) => { setYouStore(st); try { localStorage.setItem(YOU_KEY, JSON.stringify(st)); } catch { /* full */ } };
   const moodCtx = useMemo(() => buildContext({ events: visible, weather, now: new Date(), busySlots, calOk: calStatus === "ok", home, homeBase: LES, lastSaveAt, tasteLog: taste.log || [] }),
     [visible, weather, busySlots, calStatus, home[0], home[1], lastSaveAt, taste.log, tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const moods = useMemo(() => scoreMoods(moodCtx, visible, moodStore), [moodCtx, visible]); // eslint-disable-line react-hooks/exhaustive-deps
-  const activeMood = (moodPick && moods.all.find((x) => x.id === moodPick)) || moods.first;
-  const otherMood = activeMood && moods.first && activeMood.id !== moods.first.id ? moods.first : moods.second;
-  const moodKey = (m) => m && m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|" + m.list.slice(0, 4).map((e) => e.id).join(",");
+  const cityR = useMemo(() => scoreMoods(moodCtx, visible, moodStore), [moodCtx, visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const youR = useMemo(() => rankYou(moodCtx, visible, youStore, new Date()), [moodCtx, visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickOf = (r, id) => (id && r.all.find((x) => x.id === id)) || r.first;
+  const cityA = pickOf(cityR, cityPick), cityB = cityA && cityR.first && cityA.id !== cityR.first.id ? cityR.first : cityR.second;
+  const youA = pickOf(youR, youPick), youB = youA && youR.first && youA.id !== youR.first.id ? youR.first : youR.second;
+  const mKey = (scope, m) => m && scope + ":" + m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|" + m.list.slice(0, 4).map((e) => e.id).join(",");
   useEffect(() => {
-    if (!moods.first) return;
-    const t = (moodStore.shown || {})[moods.first.id];
-    if (!t || Date.now() - t > 3 * 3600000) saveMood({ ...moodStore, shown: { ...(moodStore.shown || {}), [moods.first.id]: Date.now() } });
-  }, [moods.first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Claude writes the title + subtitle for the shown mood and the runner-up (cached per mood, day part and events)
+    if (!cityR.first) return;
+    const t = (moodStore.shown || {})[cityR.first.id];
+    if (!t || Date.now() - t > 3 * 3600000) saveMood({ ...moodStore, shown: { ...(moodStore.shown || {}), [cityR.first.id]: Date.now() } });
+  }, [cityR.first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Claude writes each title + subtitle (cached per mood, day part and events); title banks fill in meanwhile
   useEffect(() => {
     if (!ready || aiOff.current) return;
-    [activeMood, otherMood].filter(Boolean).forEach((m) => {
-      const k = moodKey(m);
+    const jobs = [["you", youA], ["you", youB], ["city", cityA], ["city", cityB]].filter(([, m]) => m);
+    jobs.forEach(([scope, m]) => {
+      const k = mKey(scope, m);
       if (moodTxt[k]) return;
       postJSON("/api/enrich", {
-        mode: "mood", moment: momentSummary(moodCtx), mood: { id: m.id, facts: m.facts, titles: m.titles },
+        mode: "mood", scope, moment: momentSummary(moodCtx),
+        mood: scope === "you" ? { id: m.id, label: m.label, offer: m.offer, read: youR.readLine, titles: m.titles } : { id: m.id, facts: m.facts, titles: m.titles },
         events: m.list.slice(0, 4).map((e) => ({ title: e.title, venue: (e.venue || "").split(",")[0], when: whenLabel(e, today), cat: e.cat })),
       }).then((d) => {
         setMoodTxt((prev) => {
@@ -343,19 +351,28 @@ export default function App() {
         });
       }).catch((e) => { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
     });
-  }, [ready, moodKey(activeMood), moodKey(otherMood)]); // eslint-disable-line react-hooks/exhaustive-deps
-  const moodView = (m) => m && { id: m.id, title: moodTxt[moodKey(m)]?.title || m.fallback, sub: moodTxt[moodKey(m)]?.sub || m.facts, list: m.list, writing: !moodTxt[moodKey(m)] };
+  }, [ready, mKey("you", youA), mKey("you", youB), mKey("city", cityA), mKey("city", cityB)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const view = (scope, m, fallbackSub) => m && { id: m.id, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, writing: !moodTxt[mKey(scope, m)] };
   const moodProps = {
-    mood: moodView(activeMood), other: moodView(otherMood),
-    onSwitch: () => {
-      if (!otherMood) return;
-      const aff = { ...(moodStore.aff || {}) };
-      aff[otherMood.id] = (aff[otherMood.id] || 0) + 1;
-      if (activeMood) aff[activeMood.id] = (aff[activeMood.id] || 0) - 0.5;
-      saveMood({ ...moodStore, aff });
-      setMoodPick(otherMood.id);
+    you: view("you", youA, youR.readLine ? "Reading the room: " + youR.readLine : youA?.offer), youOther: view("you", youB, youB?.offer),
+    city: view("city", cityA, cityA?.facts), cityOther: view("city", cityB, cityB?.facts),
+    onYouSwitch: () => { if (!youB) return; let st = learnYou(youStore, youR.slot, youB.id, 1); if (youA) st = learnYou(st, youR.slot, youA.id, -0.5); saveYou(st); setYouPick(youB.id); },
+    onYouFeedback: (good) => {
+      if (!youA) return;
+      saveYou(learnYou(youStore, youR.slot, youA.id, good ? 1 : -1));
+      if (good) toast("Noted. More of this at this time.");
+      else if (youB) { setYouPick(youB.id); toast("Got it. How about this?"); } else toast("Got it");
     },
-    onMoodOpen: (ev) => { if (activeMood) saveMood({ ...moodStore, aff: { ...(moodStore.aff || {}), [activeMood.id]: ((moodStore.aff || {})[activeMood.id] || 0) + 0.5 } }); openEvent(ev); },
+    onCitySwitch: () => {
+      if (!cityB) return;
+      const aff = { ...(moodStore.aff || {}) };
+      aff[cityB.id] = (aff[cityB.id] || 0) + 1;
+      if (cityA) aff[cityA.id] = (aff[cityA.id] || 0) - 0.5;
+      saveMood({ ...moodStore, aff });
+      setCityPick(cityB.id);
+    },
+    onYouOpen: (ev) => { if (youA) saveYou(learnYou(youStore, youR.slot, youA.id, 0.3)); openEvent(ev); },
+    onCityOpen: (ev) => { if (cityA) saveMood({ ...moodStore, aff: { ...(moodStore.aff || {}), [cityA.id]: ((moodStore.aff || {})[cityA.id] || 0) + 0.5 } }); openEvent(ev); },
   };
 
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call

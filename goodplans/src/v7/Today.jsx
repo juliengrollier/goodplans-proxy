@@ -93,6 +93,26 @@ function TopPicks({ data, dark, today, onOpen, eprof }) {
   );
 }
 
+// A mood section: small label, Claude-written title and subtitle, 4 events, "Or:" chip, extra actions
+function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, children }) {
+  return (
+    <>
+      <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+        <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{eyebrow}</span>
+        <h2 style={{ lineHeight: 1.1, opacity: m.writing ? 0.55 : 1, transition: "opacity .3s" }}>{m.title}</h2>
+        {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
+      </div>
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{other.title}</span></button>}
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function renderHighlights(text, ids, data, onOpen) {
   text = text.replace(/\[\[[^\]]*$/, "").trim();
   const out = []; let last = 0, k = 0; const re = /\[\[(\d+)\|([^\]]+)\]\]/g; let m;
@@ -108,7 +128,7 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, mood, other, onSwitch, onMoodOpen }) {
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, you, youOther, city, cityOther, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -171,22 +191,21 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </div>
       )}
 
-      {!empty && (
+      {!empty && (you ? (
+        <MoodSection eyebrow="Your mood" m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
+          <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(true)}><Icon name="up" size={15} /> Nailed it</button>
+          <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(false)}><Icon name="down" size={15} /> Not quite</button>
+          <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
+        </MoodSection>
+      ) : (
         <>
-          <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-            <h2 style={{ lineHeight: 1.1, opacity: mood?.writing ? 0.55 : 1, transition: "opacity .3s" }}>{mood ? mood.title : "Something different"}</h2>
-            {mood?.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{mood.sub}</div>}
-          </div>
+          <SectionHead title="Something different" icon="spark" />
           <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-            {mood ? mood.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onMoodOpen} />)
-              : wildcard && <CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" />}
-            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-              {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{other.title}</span></button>}
-              <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
-            </div>
+            {wildcard && <CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" />}
+            <button className="pill pill-line" onClick={onSurprise}><Icon name="spark" size={18} /> Surprise me</button>
           </div>
         </>
-      )}
+      ))}
 
       {tonight.length > 0 && (
         <>
@@ -224,6 +243,8 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           <div className="hscroll">{weekend.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </>
       )}
+
+      {!empty && city && <MoodSection eyebrow="The city's mood" m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
 
       {weekPicks.length > 0 && (
         <>
