@@ -239,7 +239,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
       )}
 
       {!empty && (you ? (
-        <MoodSection eyebrow="Your mood" m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
+        <MoodSection eyebrow="Mood meter" m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(true)}><Icon name="up" size={15} /> Nailed it</button>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(false)}><Icon name="down" size={15} /> Not quite</button>
           <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
