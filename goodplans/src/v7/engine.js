@@ -157,7 +157,7 @@ export async function fetchWeather(coord) {
     `&hourly=precipitation_probability,precipitation,temperature_2m,apparent_temperature,weather_code,wind_speed_10m,snowfall` +
     `&daily=sunset,temperature_2m_max,temperature_2m_min,precipitation_probability_max,snowfall_sum` +
     `&current=temperature_2m,apparent_temperature,precipitation,snowfall,weather_code,wind_speed_10m` +
-    `&timezone=America%2FNew_York&forecast_days=7&past_days=1&temperature_unit=fahrenheit&wind_speed_unit=mph`;
+    `&timezone=America%2FNew_York&forecast_days=7&past_days=3&temperature_unit=fahrenheit&wind_speed_unit=mph`;
   const r = await fetch(url);
   if (!r.ok) throw new Error("weather " + r.status);
   const d = await r.json();
