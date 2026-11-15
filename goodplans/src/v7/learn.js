@@ -112,6 +112,64 @@ export function learn(m0, ev, kind, today = new Date(), now = Date.now()) {
   return m;
 }
 
+// A reason picked after a thumb: learn strongly, but only on the features the reason names
+export function learnTargeted(m0, ev, feats, y, today = new Date(), now = Date.now()) {
+  if (!feats.length) return m0;
+  const m = { ...m0, w: { ...m0.w }, n: { ...m0.n }, t: { ...m0.t }, c: { ...m0.c } };
+  const fs = feats.filter((f) => !m.muted[f]);
+  const p = sig(rawScore(m, fs, now) - 0.2);
+  const g = LR * 1.4 * (y - p) / Math.sqrt(Math.max(1, fs.length / 3));
+  const k = ev.id + ":why", prev = { ...(m.c[k] || {}) };
+  fs.forEach((f) => {
+    const before = decayed(m, f, now), after = Math.max(-WMAX, Math.min(WMAX, before + g));
+    m.w[f] = after; m.t[f] = now; m.n[f] = (m.n[f] || 0) + 1; prev[f] = (prev[f] || 0) + after - before;
+  });
+  m.c[k] = { ...prev, _n: 1 };
+  return m;
+}
+
+// Which features each thumb reason points at
+export function reasonFeatures(ev, r, arg, today = new Date()) {
+  const all = features(ev, today), pick = (re) => all.filter((f) => re.test(f));
+  switch (r) {
+    case "act": return pick(/^venue:/);
+    case "genre": case "scene": return [...pick(/^(cat|sub):/), ...(r === "scene" ? pick(/^dim:(energy|crowd|polish|mode)=/) : [])];
+    case "unique": return [...pick(/^len:oneoff$/), ...pick(/^dim:novelty=weird$/)];
+    case "vibe": return [...pick(/^dim:(energy|crowd|social|polish|mode|setting)=/), ...pick(/^kw:/).slice(0, 2)];
+    case "value": case "pricey": return pick(/^price:/);
+    case "f": return arg && all.includes(arg) ? [arg, ...(arg.startsWith("x:") ? pick(/^(dow|tod):/) : [])] : [];
+    default: return [];
+  }
+}
+
+// Smart extra options for the thumb picker: this event's traits the model suspects matter (or knows least about)
+const TRAIT = {
+  "dim:crowd=intimate": ["Small and intimate", "Too small and quiet"], "dim:crowd=big": ["Big crowd buzz", "Too crowded"],
+  "dim:energy=wild": ["Wild energy", "Too rowdy"], "dim:energy=calm": ["Calm and easy", "Too tame"],
+  "dim:novelty=classic": ["A proper classic", "Too predictable"], "dim:novelty=weird": [null, "Too weird"],
+  "dim:social=date": ["Good for a date", "Not a date thing"], "dim:social=group": ["Fun with friends", null],
+  "dim:polish=upscale": ["A bit fancy", "Too fancy"], "dim:polish=diy": ["DIY spirit", "Too rough around the edges"],
+  "dim:mode=take-part": ["Getting hands-on", "Too much participation"], "dim:mode=mingle": ["Meeting people", "Too much mingling"],
+  "dim:mode=watch": [null, "Too passive"], "dim:setting=outdoor": ["Being outdoors", "Outdoors, not now"],
+  "dim:audience=kids": [null, "Too kid-focused"], "dist:near": ["Close by", null], "dist:far": [null, "Too far"],
+};
+const DAYNAME = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
+export function smartReasons(m, ev, dir, today = new Date(), now = Date.now(), max = 3) {
+  const all = features(ev, today), sgn = dir === "up" ? 1 : -1, out = [];
+  all.forEach((f) => {
+    let label = null, detail = null;
+    if (TRAIT[f]) { label = TRAIT[f][dir === "up" ? 0 : 1]; if (f === "dist:far" && ev.tt?.mins) detail = ev.tt.mins + " min away"; if (f === "dist:near" && ev.tt?.mins) detail = ev.tt.mins + " min away"; }
+    else if (/^x:(weekday|weekend)&(morning|afternoon|evening|late)$/.test(f)) {
+      const dow = all.find((x) => x.startsWith("dow:"))?.slice(4), tod = f.split("&")[1];
+      label = dir === "up" ? "Good timing" : "Bad timing"; detail = (DAYNAME[dow] || "") + " " + tod;
+    } else if (f.startsWith("hood:") && ev.hood) { label = dir === "up" ? "The area" : "Not that area"; detail = ev.hood; }
+    if (!label) return;
+    const w = m.muted[f] ? 0 : decayed(m, f, now), n = m.n[f] || 0;
+    out.push({ f, label, detail, score: sgn * w + 0.6 / Math.sqrt(1 + n) });
+  });
+  return out.sort((a, b) => b.score - a.score).slice(0, max);
+}
+
 // Take back a thumb or a save: subtract exactly what it added
 export function unlearn(m0, evId, kind) {
   const k = evId + ":" + kind, d = m0.c?.[k]; if (!d) return m0;

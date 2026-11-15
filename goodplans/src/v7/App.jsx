@@ -577,7 +577,7 @@ export default function App() {
     tasteRef.current = t; saveTaste(t);
     // Same thumb in the v2 model: a flip or an undo takes back exactly what the earlier thumb added
     if (kind === "up" || kind === "down" || kind === "nfm" || kind === "undo") {
-      let m = L.unlearn(L.unlearn(modelRef.current, ev.id, "up"), ev.id, "down");
+      let m = L.unlearn(L.unlearn(L.unlearn(modelRef.current, ev.id, "up"), ev.id, "down"), ev.id, "why");
       if (kind === "up") m = L.learn(m, ev, "up", today);
       if (kind === "down" || kind === "nfm") m = L.learn(m, ev, "down", today);
       putModel(m, true);
@@ -729,7 +729,18 @@ export default function App() {
         onPick={(m) => { setFreeUntil(m); setShowFree(false); }} />}
       {surprise && !sheetEv && <Surprise ev={surprise.ev} empty={!surprise.ev} dark={dark} today={today} weather={weather}
         onOpen={(ev) => openEvent(ev)} onAnother={() => setSurprise(pickSurprise(surprise.seen))} onClose={() => setSurprise(null)} />}
-      {whyAsk && <WhyDialog ev={whyAsk.ev} dir={whyAsk.dir} today={today} counts={taste.reasons || {}} onPick={(rs) => { rs.forEach((r) => react(whyAsk.ev, "why", whyAsk.dir + ":" + r, true)); toast("Thanks, noted"); setWhyAsk(null); }} onClose={() => setWhyAsk(null)} />}
+      {whyAsk && <WhyDialog ev={whyAsk.ev} dir={whyAsk.dir} today={today} counts={taste.reasons || {}} smart={L.smartReasons(modelRef.current, whyAsk.ev, whyAsk.dir, today)}
+        onPick={(rs) => {
+          let m = modelRef.current;
+          rs.forEach((r) => {
+            react(whyAsk.ev, "why", whyAsk.dir + ":" + r, true);
+            // Same reason in the v2 engine, aimed at the exact features it names
+            const [k, ...rest] = r.split(":");
+            m = L.learnTargeted(m, whyAsk.ev, L.reasonFeatures(whyAsk.ev, k, rest.join(":"), today), whyAsk.dir === "up" ? 1 : 0, today);
+          });
+          putModel(m, true);
+          toast("Thanks, noted"); setWhyAsk(null);
+        }} onClose={() => setWhyAsk(null)} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
     </ActionsCtx.Provider>
