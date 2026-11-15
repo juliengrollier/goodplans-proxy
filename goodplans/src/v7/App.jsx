@@ -15,7 +15,7 @@ import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
-  fetchWeather, fitsFree, isOver, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
+  fetchWeather, fitsFree, isOver, fmtT, UNIT_KEY, getUnit, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
 } from "./engine.js";
 import {
   DP, SK_P, SK_F, SK_B, DEFAULT_SUBS, sg, ss, daysUntil, CATS, DAYS,
@@ -91,6 +91,8 @@ export default function App() {
   const [whyAsk, setWhyAsk] = useState(null); // {ev, dir}
   const [moodStore, setMoodStore] = useState(() => { try { return JSON.parse(localStorage.getItem(MOOD_KEY) || "{}"); } catch { return {}; } });
   const [moodTxt, setMoodTxt] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_moodtxt_v1") || "{}"); } catch { return {}; } });
+  const [unit, setUnitState] = useState(getUnit());
+  const setUnit = (u) => { try { localStorage.setItem(UNIT_KEY, u); } catch { /* private mode */ } setUnitState(u); };
   const [cityPick, setCityPick] = useState(null); // ids chosen via the "Or:" chips
   const [youPick, setYouPick] = useState(null);
   const [youStore, setYouStore] = useState(() => { try { return JSON.parse(localStorage.getItem(YOU_KEY) || "{}"); } catch { return {}; } });
@@ -320,12 +322,12 @@ export default function App() {
   const saveYou = (st) => { setYouStore(st); try { localStorage.setItem(YOU_KEY, JSON.stringify(st)); } catch { /* full */ } };
   const moodCtx = useMemo(() => buildContext({ events: visible, weather, now: new Date(), busySlots, calOk: calStatus === "ok", home, homeBase: LES, lastSaveAt, tasteLog: taste.log || [] }),
     [visible, weather, busySlots, calStatus, home[0], home[1], lastSaveAt, taste.log, tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cityR = useMemo(() => scoreMoods(moodCtx, visible, moodStore), [moodCtx, visible]); // eslint-disable-line react-hooks/exhaustive-deps
-  const youR = useMemo(() => rankYou(moodCtx, visible, youStore, new Date()), [moodCtx, visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cityR = useMemo(() => scoreMoods(moodCtx, visible, moodStore), [moodCtx, visible, unit]); // eslint-disable-line react-hooks/exhaustive-deps
+  const youR = useMemo(() => rankYou(moodCtx, visible, youStore, new Date()), [moodCtx, visible, unit]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickOf = (r, id) => (id && r.all.find((x) => x.id === id)) || r.first;
   const cityA = pickOf(cityR, cityPick), cityB = cityA && cityR.first && cityA.id !== cityR.first.id ? cityR.first : cityR.second;
   const youA = pickOf(youR, youPick), youB = youA && youR.first && youA.id !== youR.first.id ? youR.first : youR.second;
-  const mKey = (scope, m) => m && scope + ":" + m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|v3|" + m.list.slice(0, 4).map((e) => e.id).join(",");
+  const mKey = (scope, m) => m && scope + ":" + unit + ":" + m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|v3|" + m.list.slice(0, 4).map((e) => e.id).join(",");
   useEffect(() => {
     if (!cityR.first) return;
     const t = (moodStore.shown || {})[cityR.first.id];
@@ -407,7 +409,7 @@ export default function App() {
     const day = isoDay(today);
     if (hl && hl.text && hl.day === day && hl.hash === hash) return;
     setHlStatus("loading");
-    const wx = weather?.byDate ? Object.entries(weather.byDate).slice(0, 7).map(([d, v]) => `${DAYS[new Date(d + "T12:00:00").getDay()]} ${v.hi}°F, ${v.pmax}% rain`).join("; ") : "unknown";
+    const wx = weather?.byDate ? Object.entries(weather.byDate).filter(([d]) => d >= isoDay(today)).slice(0, 7).map(([d, v]) => `${DAYS[new Date(d + "T12:00:00").getDay()]} ${fmtT(v.hi)}, ${v.pmax}% rain`).join("; ") : "unknown";
     postJSON("/api/enrich", {
       mode: "highlights", taste: tasteSummary(eprof, taste, Object.keys(CATS)), weather: wx,
       picks: picks.map((e) => ({ title: e.title, when: whenLabel(e, today), venue: (e.venue || "").split(",")[0], cat: e.cat, price: e.price, why: e.why })),
@@ -502,7 +504,7 @@ export default function App() {
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme}
+        {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           pushState={pushState} pushInfo={pushInfo} onEnablePush={enablePush}

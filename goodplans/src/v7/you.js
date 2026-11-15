@@ -3,7 +3,7 @@
 // 2) ARCHETYPES: each says how well it fits those dials and which events suit it.
 // 3) rankYou(): only events doable now (running, or starting soon), within the reach and the budget the state allows;
 //    archetypes ranked by fit, supply and what was learned from "Nailed it" / "Not quite" for this time slot.
-import { startMinutes, endMinutes, isFree, priceNum } from "./engine.js";
+import { startMinutes, endMinutes, isFree, priceNum, fmtT } from "./engine.js";
 import { evCovers, matchV } from "../lib/core.js";
 import { outdoorish } from "./mood.js";
 
@@ -34,8 +34,8 @@ export function readState(ctx) {
   if (hour >= 21) why.push("it's getting late");
 
   let reach = 0.6;
-  if (wx.feels != null && wx.feels <= 25) { reach -= 0.35; why.push(`feels like ${wx.feels}°F`); }
-  else if (wx.feels != null && wx.feels <= 42) { reach -= 0.18; why.push(`${wx.temp}°F out`); }
+  if (wx.feels != null && wx.feels <= 25) { reach -= 0.35; why.push(`feels like ${fmtT(wx.feels)}`); }
+  else if (wx.feels != null && wx.feels <= 42) { reach -= 0.18; why.push(`${fmtT(wx.temp)} out`); }
   if (wx.rainNow) { reach -= 0.3; why.push("it's raining"); }
   if (wx.snowNow) { reach -= 0.2; why.push("it's snowing"); }
   if (hour >= 21) reach -= 0.2;
@@ -52,7 +52,7 @@ export function readState(ctx) {
 
   const cold = wx.feels != null && wx.feels <= 42;
   const nice = !cold && !wx.rainNow && wx.temp != null && wx.temp >= 60 && wx.temp <= 82 && hour < 20;
-  if (nice) why.push(`${wx.temp}°F and dry`);
+  if (nice) why.push(`${fmtT(wx.temp)} and dry`);
   const cozy = clamp((cold ? 0.4 : 0) + (wx.rainNow ? 0.3 : 0) + (energy < 0.5 ? 0.3 : 0) + (hour >= 21 ? 0.2 : 0));
   const lively = clamp(energy - 0.2 + ((dow === 5 || dow === 6) && hour >= 19 ? 0.3 : 0));
 

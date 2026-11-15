@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel } from "./components.jsx";
 import { catColor } from "./theme.js";
-import { whenLabel, venueLabel, weatherBadge } from "./engine.js";
+import { whenLabel, venueLabel, weatherBadge, fmtT } from "./engine.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
@@ -86,7 +86,7 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
         <div className="row" style={{ margin: "10px 16px 0", gap: 12, padding: "12px 16px", borderRadius: 20, background: wb?.tone === "warn" ? "var(--warn-bg)" : wb?.tone === "free" ? "var(--free-bg)" : "var(--chip)", color: wb?.tone === "warn" ? "var(--warn-ink)" : wb?.tone === "free" ? "var(--free-ink)" : "var(--ink)" }}>
           <Icon name={wb?.icon || (ev.wx.pmax >= 50 ? "rain" : ev.wx.pmax >= 25 ? "cloud" : "sun")} size={22} />
           <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>
-            {ev.wx.hi}° high, {ev.wx.pmax}% chance of rain{ev.wx.evening != null ? ` (${ev.wx.evening}% in the evening)` : ""}.
+            {fmtT(ev.wx.hi)} high, {ev.wx.pmax}% chance of rain{ev.wx.evening != null ? ` (${ev.wx.evening}% in the evening)` : ""}.
             {ev.outdoor ? (ev.rain ? " It's outdoors: have a plan B." : ev.dark ? " Outdoors and ends after dark: bring a layer." : wb?.tone === "free" ? " Great day to be outside." : " It's outdoors.") : " Indoors, so the weather won't matter."}
           </span>
         </div>

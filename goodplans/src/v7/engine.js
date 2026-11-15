@@ -6,6 +6,12 @@ import {
 
 export const LES = [40.7186, -73.9865];
 
+// ── Temperature display. Data stays in °F internally; shown in the user's unit (Celsius by default).
+export const UNIT_KEY = "gp_unit";
+export const getUnit = () => { try { return localStorage.getItem(UNIT_KEY) || "C"; } catch { return "C"; } };
+export const fmtT = (f) => (f == null ? "" : getUnit() === "C" ? Math.round(((f - 32) * 5) / 9) + "°C" : Math.round(f) + "°F");
+export const fmtDT = (df) => (getUnit() === "C" ? Math.round((df * 5) / 9) + "°C" : Math.round(df) + "°F");
+
 // ── Keys (normalised strings used for follows and "seen it")
 export const venueKey = (ev) => (ev.venue || "").split(",")[0].trim().toLowerCase();
 export const venueLabel = (ev) => (ev.venue || "").split(",")[0].trim();
@@ -222,7 +228,7 @@ export function weatherBadge(ev) {
   if (!ev.outdoor || !ev.wx) return null;
   const { hi, pmax } = ev.wx;
   if (ev.rain) return { icon: "rain", text: "Rain likely", tone: "warn" };
-  if (hi && hi < 48) return { icon: "layer", text: "Cold out · " + hi + "°", tone: "plain" };
+  if (hi && hi < 48) return { icon: "layer", text: "Cold out · " + fmtT(hi), tone: "plain" };
   if (ev.dark) return { icon: "moon", text: "Ends after dark", tone: "plain" };
   if (pmax < 25 && hi >= 55 && hi <= 84) return { icon: "sun", text: "Great weather", tone: "free" };
   return null;
