@@ -73,7 +73,11 @@ a{color:inherit}
 .tag-warn{background:var(--warn-bg);color:var(--warn-ink)}
 .tag-plain{background:var(--chip);color:var(--ink)}
 .tag-white{background:#fff;color:#1B1F3B}
-.sec-h{display:flex;align-items:center;gap:10px;padding:26px 20px 12px}
+.sec-h{display:flex;align-items:center;gap:10px;padding:58px 20px 14px;position:relative}
+.sec-h::before,.sec-sep::before{content:"";position:absolute;top:26px;left:20px;right:20px;height:1px;background:var(--line)}
+.sec-sep{position:relative;height:52px}
+/* Event cards: flat, no background, so long lists feel lighter */
+.ev-flat{background:none!important;box-shadow:none!important;border:none!important;border-radius:0!important}
 .sec-h h2{margin:0;font-family:'Fredoka',sans-serif;font-weight:600;font-size:25px}
 .sec-h .n{margin-left:auto;font-size:14px;font-weight:700;color:var(--ink3)}
 .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

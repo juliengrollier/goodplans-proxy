@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Glyph, Icon, glyphSvgString } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
+import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
 import { whenLabel, isFree, weatherBadge } from "./engine.js";
 import { useEventImage, dropImage } from "./images.js";
 
 export const ActionsCtx = createContext({ onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0 });
 
-export function CatBullet({ cat, size = 30, dark }) {
-  const c = catColor(cat, dark);
+export function CatBullet({ cat, ev, size = 30, dark }) {
+  // With an event: its category icon in its family colour. With only a (legacy) category name: the older glyph.
+  const c = ev ? evColor(ev, dark) : catColor(cat, dark);
   return (
-    <span style={{ width: size, height: size, borderRadius: "50%", background: c, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-      <Glyph name={catIcon(cat)} size={Math.round(size * 0.56)} color={c} />
+    <span title={ev ? ev.ncat : cat} style={{ width: size, height: size, borderRadius: "50%", background: c, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      {ev ? <LIcon node={evNode(ev)} size={Math.round(size * 0.56)} color="#fff" /> : <Glyph name={catIcon(cat)} size={Math.round(size * 0.56)} color={c} />}
     </span>
   );
 }
@@ -78,7 +81,7 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit })
   const img = useEventImage(ev);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [img?.src]);
-  const c = catColor(ev.cat, dark);
+  const c = evColor(ev, dark);
   if (img?.src && !broken) {
     return (
       <div style={{ position: "relative", height, borderRadius: radius, overflow: "hidden", background: "var(--media)" }}>
@@ -89,7 +92,7 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit })
   }
   return (
     <div style={{ height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
-      {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><Glyph name={catIcon(ev.cat)} size={Math.min(96, Math.round((typeof height === "number" ? height : 200) * 0.42))} color={c} /></div> : <Glyph name={catIcon(ev.cat)} size={big ? 46 : 30} color={c} />}
+      {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><LIcon node={evNode(ev)} size={Math.min(96, Math.round((typeof height === "number" ? height : 200) * 0.42))} color="#fff" stroke={1.8} /></div> : <LIcon node={evNode(ev)} size={big ? 46 : 30} color="#fff" stroke={2} />}
       {!hideTitle && <span className="disp clamp2" style={{ fontSize: big ? 28 : 18, lineHeight: 1, letterSpacing: -0.3 }}>{ev.title}</span>}
     </div>
   );
@@ -109,14 +112,14 @@ const tap = (fn, ev) => ({ role: "button", tabIndex: 0, onClick: () => fn(ev), o
 
 export function HeroCard({ ev, dark, today, onOpen, label }) {
   return (
-    <div {...tap(onOpen, ev)} className="card" style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} className="ev-flat" style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Media ev={ev} dark={dark} height={190} big />
         {label && <span className="tag tag-white" style={{ position: "absolute", top: 10, left: 10 }}>{label}</span>}
       </div>
       <div style={{ padding: "0 6px 4px", display: "flex", flexDirection: "column", gap: 7, width: "100%" }}>
         <div className="row" style={{ gap: 8 }}>
-          <CatBullet cat={ev.cat} size={26} dark={dark} />
+          <CatBullet ev={ev} size={26} dark={dark} />
           <span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span>
         </div>
         <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
@@ -137,10 +140,10 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
 
 export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   return (
-    <div {...tap(onOpen, ev)} className="card-sm" style={{ padding: 8, display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ width: 84, flexShrink: 0 }}><Media ev={ev} dark={dark} height={104} radius={16} hideTitle /></div>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-        {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet cat={ev.cat} size={16} dark={dark} />{(ev.venue || "").split(",")[0]}</span>}
+        {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet ev={ev} size={16} dark={dark} />{(ev.venue || "").split(",")[0]}</span>}
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
         <Snippet ev={ev} lines={2} size={12.5} />
         <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, minWidth: 0 }}>
@@ -159,7 +162,7 @@ export function PosterCard({ ev, dark, today, onOpen }) {
   return (
     <div {...tap(onOpen, ev)} style={{ width: 176, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer" }}>
       <Media ev={ev} dark={dark} height={200} radius={24} hideTitle />
-      <div className="row" style={{ gap: 6 }}><CatBullet cat={ev.cat} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{(ev.venue || "").split(",")[0]}</span></div>
+      <div className="row" style={{ gap: 6 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{(ev.venue || "").split(",")[0]}</span></div>
       <div className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.12 }}>{ev.title}</div>
       <Snippet ev={ev} lines={2} size={12.5} />
       <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 800 }}><span className="ell">{whenLabel(ev, today)}</span><Travel tt={ev.tt} muted /></div>
@@ -200,7 +203,8 @@ export function TabBar({ tab, setTab, plansCount }) {
 }
 
 export function Dialog({ title, onClose, children }) {
-  return (
+  // Portal to <body> so a dialog opened inside a sticky header still sits above the tab bar
+  return createPortal(
     <div className="overlay" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
         <div className="row" style={{ marginBottom: 14 }}>
@@ -209,7 +213,8 @@ export function Dialog({ title, onClose, children }) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -257,8 +262,8 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
     layerRef.current.clearLayers();
     L.marker(home, { icon: L.divIcon({ className: "", html: '<div class="gp-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(layerRef.current);
     events.forEach((ev) => {
-      const c = catColor(ev.cat, dark), sel = ev.id === selectedId, sz = sel ? 44 : 34;
-      const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${glyphSvgString(catIcon(ev.cat), sel ? 20 : 16, c)}</div>`;
+      const c = evColor(ev, dark), sel = ev.id === selectedId, sz = sel ? 44 : 34;
+      const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${lIconString(evNode(ev), sel ? 20 : 16)}</div>`;
       const mk = L.marker(ev.coord, { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }), interactive: !!onPick });
       if (onPick) mk.on("click", () => onPick(ev));
       mk.addTo(layerRef.current);

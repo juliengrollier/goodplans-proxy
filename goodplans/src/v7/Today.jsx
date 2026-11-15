@@ -5,6 +5,7 @@ import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
+import { FAMILIES, FAM, CATEGORIES, famColor, LIcon, CatChip } from "./taxonomy.js";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -56,37 +57,51 @@ function Forecast({ weather, today }) {
   );
 }
 
-// Top picks for one topic: tap a category icon to switch. Defaults to the category you rate highest.
-function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
-  const counts = data.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {});
-  // Order is fixed once per session (favourite first), so icons don't jump around while taste updates
+// Top picks for one family (Watch, Listen, …): tap an icon to switch. Order fixed per session, favourite families first.
+function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], onHideCat = () => {} }) {
+  const counts = data.reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {});
   const order = React.useRef(null);
-  const avail = Object.keys(CATS).filter((c) => counts[c] >= 2);
-  if (!order.current && avail.length) order.current = [...avail].sort((a, b) => (eprof?.categories?.[b] ?? 30) - (eprof?.categories?.[a] ?? 30));
-  const cats = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
-  const [cat, setCat] = React.useState(() => { try { return sessionStorage.getItem("gp_toppick") || null; } catch { return null; } });
-  const pick = (c) => { setCat(c); try { sessionStorage.setItem("gp_toppick", c); } catch { /* private mode */ } };
-  const cur = cat && cats.includes(cat) ? cat : cats[0];
+  const avail = FAMILIES.map((f) => f.id).filter((id) => counts[id] >= 2);
+  // Rank families by how much their events score for you on average
+  if (!order.current && avail.length) {
+    const avg = (id) => { const l = data.filter((e) => e.fam === id).slice(0, 8); return l.reduce((a, e) => a + e.sc, 0) / Math.max(1, l.length); };
+    order.current = [...avail].sort((a, b) => avg(b) - avg(a));
+  }
+  const fams = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
+  const [fam, setFam] = React.useState(() => { try { return sessionStorage.getItem("gp_topfam") || null; } catch { return null; } });
+  const pick = (c) => { setFam(c); setCat(null); try { sessionStorage.setItem("gp_topfam", c); } catch { /* private mode */ } };
+  const cur = fam && fams.includes(fam) ? fam : fams[0];
+  const [cat, setCat] = React.useState(null); // optional category inside the family
   if (!cur) return null;
-  const list = data.filter((e) => e.cat === cur).sort((a, b) => b.sc - a.sc).slice(0, 5);
+  const inFam = data.filter((e) => e.fam === cur);
+  const catN = inFam.reduce((m, e) => ((m[e.ncat] = (m[e.ncat] || 0) + 1), m), {});
+  const cats = CATEGORIES.filter((c) => c.fam === cur && (catN[c.id] || xcats.includes(c.id))).sort((a, b) => catN[b.id] - catN[a.id]);
+  const hide = (id) => { onHideCat(id); if (cat === id) setCat(null); };
+  const curCat = cat && catN[cat] ? cat : null;
+  const list = inFam.filter((e) => (!curCat || e.ncat === curCat) && !xcats.includes(e.ncat)).sort((a, b) => b.sc - a.sc).slice(0, 5);
   return (
     <>
-      <SectionHead title={"Top picks · " + cur} color={catColor(cur, dark)} onMore={() => onMore({ cats: [cur], when: "week" })} />
-      <div className="hscroll" style={{ gap: 8, padding: "0 20px 12px" }} role="tablist" aria-label="Topic">
-        {cats.map((c) => {
-          const on = c === cur, col = catColor(c, dark);
+      <SectionHead title={"Top picks · " + (curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], when: "week" })} />
+      <div className="row" style={{ justifyContent: "space-between", padding: "0 12px 14px" }} role="tablist" aria-label="Topic">
+        {FAMILIES.filter((f) => fams.includes(f.id)).map((f) => {
+          const on = f.id === cur, col = famColor(f.id, dark);
           return (
-            <button key={c} role="tab" aria-selected={on} aria-label={c} onClick={() => pick(c)}
-              style={{ flexShrink: 0, border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 50, opacity: on ? 1 : 0.45 }}>
+            <button key={f.id} role="tab" aria-selected={on} aria-label={f.label} onClick={() => pick(f.id)}
+              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 44, opacity: on ? 1 : 0.45 }}>
               <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
-                <Glyph name={catIcon(c)} size={21} color={col} />
+                <LIcon node={f.icon} size={19} color="#fff" />
               </span>
-              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap", maxWidth: 54, overflow: "hidden", textOverflow: "ellipsis" }}>{c.split(" ")[0]}</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap" }}>{f.short || f.label}</span>
             </button>
           );
         })}
       </div>
-      <div key={cur} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10, minHeight: 300 }}>
+      {cats.length > 1 && (
+        <div className="hscroll" style={{ gap: 6, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="group" aria-label={FAM[cur].label + " categories"}>
+          {cats.map((c) => <CatChip key={c.id} c={c} n={catN[c.id] || 0} on={curCat === c.id} off={xcats.includes(c.id)} dark={dark} onPick={() => setCat(curCat === c.id ? null : c.id)} onHide={() => hide(c.id)} />)}
+        </div>
+      )}
+      <div key={cur + (curCat || "")} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18, minHeight: 300 }}>
         {list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
       </div>
     </>
@@ -102,7 +117,7 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
         <h2 style={{ lineHeight: 1.1, opacity: m.writing ? 0.55 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</h2>
         {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
       </div>
-      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
         {m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
         {!m.list.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -116,22 +131,23 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
 
 // City pulse: what New York is up to. Navy banner card, then the related events as a list.
 function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
-  // One navy panel holds the headline and its events, so they read as a single block
+  // Header with a navy icon badge; events listed below like the other sections
   return (
-    <div style={{ margin: "26px 16px 0", padding: "18px 8px 8px", borderRadius: 28, background: dark ? "#2A2F5C" : "var(--navy)", display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ padding: "0 10px 4px", color: "#FBF7EF", display: "flex", flexDirection: "column", gap: 6 }}>
-        <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", opacity: 0.75 }}><Icon name="pin" size={14} /> City pulse</span>
+    <>
+      <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+        <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><Icon name="pin" size={14} /> City pulse</span>
         <div className="row" style={{ gap: 12, alignItems: "center" }}>
-          {m.icon && <span aria-hidden="true" style={{ width: 48, height: 48, borderRadius: 24, flexShrink: 0, background: "rgba(251,247,239,.14)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FBF7EF" }}>{React.createElement(m.icon, { size: 24, strokeWidth: 2.2 })}</span>}
-          <span className="disp" style={{ fontSize: 26, lineHeight: 1.1, opacity: m.writing ? 0.6 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</span>
+          {m.icon && <span aria-hidden="true" style={{ width: 46, height: 46, borderRadius: 23, flexShrink: 0, background: dark ? "#2A2F5C" : "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FBF7EF" }}>{React.createElement(m.icon, { size: 23, strokeWidth: 2.2 })}</span>}
+          <h2 style={{ lineHeight: 1.1, opacity: m.writing ? 0.55 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</h2>
         </div>
-        {m.sub && <span style={{ fontSize: 14.5, lineHeight: 1.4, opacity: 0.85 }}>{m.sub}</span>}
+        {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
       </div>
-      {m.list.length
-        ? m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
-        : <div style={{ fontSize: 14, padding: "0 10px 8px", color: "#FBF7EF", opacity: 0.75 }}>Nothing in your feed is truly about this yet.</div>}
-      {other && <button onClick={onSwitch} className="row" style={{ alignSelf: "flex-start", margin: "2px 6px 6px", gap: 6, height: 32, padding: "0 12px", borderRadius: 16, border: "1.5px solid rgba(251,247,239,.35)", background: "transparent", color: "#FBF7EF", fontWeight: 700, fontSize: 13, maxWidth: "100%" }}><span style={{ opacity: 0.7 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
-    </div>
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
+        {m.list.length ? m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
+          : <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
+        {other && <button className="chip" style={{ height: 36, maxWidth: "100%", alignSelf: "flex-start" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
+      </div>
+    </>
   );
 }
 
@@ -173,7 +189,7 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -209,6 +225,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </div>
       )}
 
+      {!empty && <div className="sec-sep" aria-hidden="true" />}
       {!empty && (
         <div className="card" style={{ margin: "0 16px", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="row" style={{ padding: "0 4px", justifyContent: "space-between" }}>
@@ -220,7 +237,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           </button>
           {nowSoon.slice(0, showAllNow ? 12 : 4).map((ev) => (
             <button key={ev.id} onClick={() => onOpen(ev)} className="row" style={{ gap: 10, padding: "0 4px", border: "none", background: "none", textAlign: "left" }}>
-              <CatBullet cat={ev.cat} size={30} dark={dark} />
+              <CatBullet ev={ev} size={30} dark={dark} />
               <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
                 <span className="ell" style={{ fontSize: 15, fontWeight: 800 }}>{ev.title}</span>
                 <span className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 700 }}>
@@ -237,7 +254,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
       )}
 
       {!empty && (you ? (
-        <MoodSection eyebrow="Your mood" m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
+        <MoodSection eyebrow="Mood meter" m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(true)}><Icon name="up" size={15} /> Nailed it</button>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(false)}><Icon name="down" size={15} /> Not quite</button>
           <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
@@ -287,7 +304,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
 
 
 
-      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} onMore={onMore} />}
+      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} onMore={onMore} xcats={hiddenCats} onHideCat={onHideCat} />}
 
       {book.length > 0 && (
         <>

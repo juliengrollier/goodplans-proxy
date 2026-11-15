@@ -14,6 +14,7 @@ import { PULSE_ICON } from "./pulseIcons.js";
 import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
+import { classify, CAT } from "./taxonomy.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
@@ -32,7 +33,8 @@ const ENV_URL = import.meta.env.VITE_GP_URL || LEGACY_URL;
 const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
-const TAGS_KEY = "gp_tags_v8";
+const FILTERS_KEY = "gp_filters_v1";
+const TAGS_KEY = "gp_tags_v9"; // v9: adds cat2 (new categories)
 const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
@@ -87,7 +89,16 @@ export default function App() {
   const [surprise, setSurprise] = useState(null); // {ev, seen:Set} | null
   const [toastMsg, setToastMsg] = useState("");
   const [tick, setTick] = useState(0); // re-evaluate "now" every few minutes
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  // Filters persist across visits (When resets to Today each new day); changes also teach taste, see setFilters below
+  const [filters, setFiltersState] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "null");
+      if (!v) return EMPTY_FILTERS;
+      const f = { ...EMPTY_FILTERS, ...v.f, q: "" };
+      if (v.day !== isoDay(new Date())) f.when = EMPTY_FILTERS.when;
+      return f;
+    } catch { return EMPTY_FILTERS; }
+  });
   const [sort, setSort] = useState("best");
   const [rec, setRec] = useState({});
   const [whyAsk, setWhyAsk] = useState(null); // {ev, dir}
@@ -250,6 +261,22 @@ export default function App() {
   const setBackend = (b) => { setBackendState(b); ss("gp_gmail_v1", b); };
   const setTheme = (t) => { setThemeState(t); ss(THEME_KEY, t); };
   const saveTaste = (t) => { setTaste(t); ss(TASTE_KEY, t); };
+  // Every filter change is remembered; category hides/picks and price/distance choices also feed the taste model
+  const setFilters = (next) => {
+    const prev = filters;
+    setFiltersState(next);
+    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ f: { ...next, q: "" }, day: isoDay(new Date()) })); } catch { /* full */ }
+    const t = { ...tasteRef.current, ncatAdj: { ...(tasteRef.current.ncatAdj || {}) } };
+    const bump = (c, d, lo, hi) => { t.ncatAdj[c] = Math.max(lo, Math.min(hi, (t.ncatAdj[c] || 0) + d)); };
+    let changed = false;
+    const px = prev.xcats || [], nx = next.xcats || [];
+    nx.filter((c) => !px.includes(c)).forEach((c) => { bump(c, -8, -24, 12); changed = true; });
+    px.filter((c) => !nx.includes(c)).forEach((c) => { bump(c, 8, -24, 12); changed = true; });
+    (next.cats || []).filter((c) => !(prev.cats || []).includes(c)).forEach((c) => { bump(c, 2, -24, 12); changed = true; });
+    if (next.price !== prev.price && (next.price === "free" || next.price === "u20")) { t.priceSens = Math.max(t.priceSens || 0, 1); changed = true; }
+    if (next.dist !== prev.dist && (next.dist === "10" || next.dist === "20")) { t.farSens = Math.max(t.farSens || 0, 1); changed = true; }
+    if (changed) { tasteRef.current = t; saveTaste(t); }
+  };
   const saveProf = (p) => { setProf(p); ss(SK_P, p); };
   const setCatValue = (c, v) => saveProf({ ...prof, categories: { ...prof.categories, [c]: v } });
   const setCatLevel = (c, v) => {
@@ -278,13 +305,15 @@ export default function App() {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
     return allEvents.map((e0) => {
       const t = tags[e0.id];
-      const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : e0;
+      const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
+      e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
   }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
-  const scoreOne = useCallback((e) => {
+  const scoreOne = useCallback((e0) => {
+    const e = { ...e0, ncat: e0.ncat || classify(e0) }; e.fam = CAT[e.ncat].fam;
     const s = scoreEvent({ ...e, coord: safeCoord(e) }, { eprof, beh, today, home, taste, weather, busySlots });
     s.calChecked = calStatus === "ok"; return s;
   }, [eprof, beh, today, home, taste, weather, busySlots, calStatus]);
@@ -503,12 +532,12 @@ export default function App() {
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
-          weekPicks={weekPicks} eprof={eprof} {...moodProps} onMore={(patch) => { setFilters({ ...EMPTY_FILTERS, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
+          weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} onHideCat={(c) => { const x = filters.xcats || []; setFilters({ ...filters, xcats: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit}
+        {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={filters.xcats || []} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c) })}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           pushState={pushState} pushInfo={pushInfo} onEnablePush={enablePush}

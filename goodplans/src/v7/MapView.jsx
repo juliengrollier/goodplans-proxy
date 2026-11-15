@@ -18,7 +18,7 @@ function Peek({ ev, dark, today, onOpen, onClose }) {
         <div style={{ width: 40, height: 5, borderRadius: 3, background: "var(--line)", margin: "0 auto" }} aria-hidden="true" />
         <Media ev={ev} dark={dark} height={150} radius={18} hideTitle />
         <div style={{ padding: "0 4px 2px", display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="row" style={{ gap: 8 }}><CatBullet cat={ev.cat} size={22} dark={dark} /><span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
+          <div className="row" style={{ gap: 8 }}><CatBullet ev={ev} size={22} dark={dark} /><span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
           <div className="disp clamp2" style={{ fontSize: 20, lineHeight: 1.1 }}>{ev.title}</div>
           <Snippet ev={ev} lines={2} />
           <Keywords ev={ev} max={4} />
@@ -43,7 +43,7 @@ export default function MapView({ scored, home, dark, today, onOpen, filters, se
     <div style={{ position: "fixed", inset: 0, maxWidth: 480, margin: "0 auto" }}>
       <LeafletMap events={pins} home={home} dark={dark} height="100%" interactive onPick={(ev) => setSel(ev.id)} selectedId={selEv?.id} zoom={14} />
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30 }}>
-        <FilterHeader filters={filters} setFilters={(f) => { setFilters(f); setSel(null); }} sort={sort} setSort={setSort} dark={dark} counts={counts} />
+        <FilterHeader filters={filters} setFilters={(f) => { setFilters(f); setSel(null); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} />
         <div className="muted" style={{ margin: "6px 0 0 12px", fontSize: 12, fontWeight: 800, background: "var(--card)", display: "inline-block", padding: "4px 10px", borderRadius: 12, boxShadow: "0 2px 8px rgba(27,31,59,.12)" }}>
           {pins.length} on the map
         </div>

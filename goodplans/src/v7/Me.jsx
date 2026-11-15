@@ -17,7 +17,7 @@ function Card({ title, children, right }) {
 }
 
 export default function Me(p) {
-  const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, onUnfollow, onUndo,
+  const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
     locSt, onRetryGPS, resetTaste } = p;
@@ -91,6 +91,15 @@ export default function Me(p) {
         {pushInfo && <span className="muted" style={{ fontSize: 13 }}>{pushInfo}</span>}
         <button className="pill pill-dark" onClick={onEnablePush}><Icon name="bell" size={18} /> Turn on / repair notifications</button>
       </Card>
+
+      {hiddenCats.length > 0 && (
+        <Card title="Hidden categories">
+          <div className="muted" style={{ fontSize: 13, marginTop: -4 }}>Hidden with × in filters. They stay out of Explore, Map and Top picks, and rank lower everywhere else.</div>
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            {hiddenCats.map((c) => <button key={c} className="chip" style={{ height: 32 }} onClick={() => onShowCat(c)}>{c} <span style={{ fontWeight: 800 }}>↺</span></button>)}
+          </div>
+        </Card>
+      )}
 
       <Card title="Appearance">
         <div className="seg" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>

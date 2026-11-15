@@ -9,6 +9,7 @@
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
+const CATS2 = ["Theater", "Comedy", "Film", "Dance & Opera", "Live Sports", "Concerts", "Jazz & Blues", "Classical", "Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours", "Clubs & DJs", "Dance Socials", "Karaoke & Trivia", "Arts & Crafts", "Cooking & Cocktails", "Run & Ride", "Yoga & Wellness", "Play", "Museums & Galleries", "Markets", "Festivals & Parades", "Parks & Nature", "Talks & Panels", "Books & Readings", "Tours"];
 const CATS = ["Music", "Comedy", "Art & Culture", "Film", "Food & Drink", "Outdoors", "Sports", "Family", "Talk & Learn", "Get Creative", "Nightlife", "Shopping", "Other"];
 
 function cors(req, res) {
@@ -35,13 +36,14 @@ const clip = (s, n) => String(s || "").replace(/\s+/g, " ").trim().slice(0, n);
 async function tags(events) {
   const list = events.slice(0, 40).map((e) => ({ id: clip(e.id, 80), title: clip(e.title, 140), desc: clip(e.desc, 500), cat: clip(e.cat, 30), sub: clip(e.sub, 40), venue: clip(e.venue, 80), price: clip(e.price, 30), time: clip(e.time, 20) }));
   const system = `You label New York City events for a personal events app. For each event, give 3 to 5 keywords that tell someone at a glance what to expect: format (e.g. live band, DJ set, stand-up, screening, workshop, walking tour, market, talk, exhibition), style or genre (e.g. jazz, indie rock, experimental, comedy improv), topic, and vibe (e.g. outdoor, late night, family-friendly, hands-on, dance floor). Each keyword is 1 to 3 words, lowercase, no hashtags, no price, no date, no venue name. Use only what the title and description support; do not invent. Also return the best category from this list: ${CATS.join(", ")}.
-Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "..."}}`;
+And "cat2": the single best fit from this second list, judged by what the person will actually be doing there: ${CATS2.join(", ")}.
+Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "...", "cat2": "..."}}`;
   const text = await claude(system, JSON.stringify(list), 3000);
   const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   const out = {};
   for (const [id, v] of Object.entries(json)) {
     const k = (Array.isArray(v?.k) ? v.k : []).map((x) => clip(x, 28).toLowerCase()).filter(Boolean).slice(0, 5);
-    out[id] = { k, cat: CATS.includes(v?.cat) ? v.cat : null };
+    out[id] = { k, cat: CATS.includes(v?.cat) ? v.cat : null, cat2: CATS2.includes(v?.cat2) ? v.cat2 : null };
   }
   return out;
 }

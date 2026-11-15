@@ -196,6 +196,8 @@ export function scoreEvent(ev, ctx) {
   if (followed) { s += 12; why.push("You follow " + venueLabel(ev)); }
   if (taste.thumbs[ev.id] === 1) s += 6;
   if (taste.mutedVenues?.[venueKey(ev)]) s -= 15;
+  // Categories hidden or picked in filters (ncatAdj: -24 … +12)
+  if (taste.ncatAdj && ev.ncat) s += taste.ncatAdj[ev.ncat] || 0;
   // Learned from the "why" picker: keywords, weekday, time of day, outdoors
   if (taste.kwAdj) s += clamp((ev.kw || []).reduce((a, k) => a + (taste.kwAdj[k.toLowerCase()] || 0), 0), -20, 15);
   if (taste.dowAdj && ev.E) s += taste.dowAdj[new Date((evCovers(ev, today) ? isoDay(today) : ev.E) + "T12:00:00").getDay()] || 0;

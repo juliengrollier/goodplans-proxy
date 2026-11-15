@@ -1,3 +1,4 @@
+import { FAM, CAT } from "./taxonomy.js";
 import React, { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel } from "./components.jsx";
@@ -47,8 +48,8 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
 
       <div style={{ padding: "18px 20px 0", display: "flex", flexDirection: "column", gap: 8 }}>
         <div className="row" style={{ gap: 8 }}>
-          <CatBullet cat={ev.cat} size={30} dark={dark} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{ev.cat}{ev.sub ? " · " + ev.sub : ""}</span>
+          <CatBullet ev={ev} size={30} dark={dark} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(FAM[CAT[ev.ncat]?.fam]?.label || "") + " · " + (ev.ncat || ev.cat)}</span>
         </div>
         <h1 className="disp" style={{ margin: 0, fontSize: 32, lineHeight: 1.02 }}>{ev.title}</h1>
         <div style={{ fontSize: 15, color: "var(--ink2)" }}>{ev.venue}</div>
