@@ -24,13 +24,13 @@ const QUICK = [
 // Endless tail: lists generated from what is actually on in the next two weeks (by category, sub-type, area, free)
 function facetTiles(visible, today, hid) {
   const ok = visible.filter((e) => { const d = daysUntil(e, today); return d <= 14 && !hid.xcats.includes(e.cat) && !hid.xsubs.includes(e.sub); });
-  const by = (key, label, teaser, icon, pick) => { const m = new Map(); ok.forEach((e) => { const k = pick(e); if (k) { if (!m.has(k)) m.set(k, []); m.get(k).push(e); } });
-    return [...m.entries()].filter(([, l]) => l.length >= 3).map(([k, l]) => ({ key: "gen-" + key + "-" + k, title: label(k), teaser: teaser(k), n: l.length, icon, list: l })); };
+  const by = (key, label, teaser, icon, pick, pre) => { const m = new Map(); ok.forEach((e) => { const k = pick(e); if (k) { if (!m.has(k)) m.set(k, []); m.get(k).push(e); } });
+    return [...m.entries()].filter(([, l]) => l.length >= 3).map(([k, l]) => ({ key: "gen-" + key + "-" + k, title: label(k), teaser: teaser(k), n: l.length, icon, list: l, facet: pre })); };
   const all = [
-    ...by("cat", (k) => "More " + k.toLowerCase(), (k) => "Everything in " + k.toLowerCase() + " over the next two weeks.", Sparkles, (e) => e.ncat || e.cat),
-    ...by("sub", (k) => k, (k) => "Just " + k.toLowerCase() + ", soonest first.", Compass, (e) => e.sub),
-    ...by("hood", (k) => "Around " + k, (k) => "What is on in " + k + " in the next two weeks.", MapPin, (e) => e.hood),
-    ...by("free", (k) => "Free " + k.toLowerCase(), (k) => "No ticket needed, in " + k.toLowerCase() + ".", Tag, (e) => (isFree(e) ? e.ncat || e.cat : null)),
+    ...by("cat", (k) => "More " + k.toLowerCase(), (k) => "Everything in " + k.toLowerCase() + " over the next two weeks.", Sparkles, (e) => e.ncat || e.cat, "cat:"),
+    ...by("sub", (k) => k, (k) => "Just " + k.toLowerCase() + ", soonest first.", Compass, (e) => e.sub, "sub:"),
+    ...by("hood", (k) => "Around " + k, (k) => "What is on in " + k + " in the next two weeks.", MapPin, (e) => e.hood, "hood:"),
+    ...by("free", (k) => "Free " + k.toLowerCase(), (k) => "No ticket needed, in " + k.toLowerCase() + ".", Tag, (e) => (isFree(e) ? e.ncat || e.cat : null), "price:"),
   ];
   return all.sort((a, b) => b.n - a.n).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
 }

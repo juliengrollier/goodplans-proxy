@@ -780,6 +780,7 @@ export default function App() {
   // Thumbs and hearts on mood tiles teach the taste model (picks: their features; archetype moods: the You store)
   const learnTile = (t, d) => {
     if (t.f) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.3 * d); putModel(m, true); }
+    else if (t.facet) { const ff = L.features(t.list[0], today).filter((x) => x.startsWith(t.facet)); let m = modelRef.current; for (const f of ff) m = L.nudge(m, f, 0.3 * d); putModel(m, true); }
     else if (t.moodId) saveYou(learnYou(youStore, youR.slot, t.moodId, d));
   };
   const reactMood = (t, dir) => {
