@@ -95,8 +95,8 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
           const on = f.id === cur, col = famColor(f.id, dark);
           return (
             <button key={f.id} role="tab" aria-selected={on} aria-label={f.label} onClick={() => pick(f.id)}
-              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 44, opacity: on ? 1 : 0.45 }}>
-              <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
+              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 38, opacity: on ? 1 : 0.45 }}>
+              <span style={{ width: 34, height: 34, borderRadius: 17, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
                 <LIcon node={f.icon} size={19} color="#fff" />
               </span>
               <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap" }}>{f.short || f.label}</span>

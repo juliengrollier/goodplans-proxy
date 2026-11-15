@@ -16,7 +16,8 @@ import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
 import { mergeDuplicates, collapseSeries } from "./dedupe.js";
 import * as L from "./learn.js";
-import { classify, classifySub, CAT } from "./taxonomy.js";
+import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
+const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, calPayload, toggleFollow, effectiveProf, scoreEvent, buildToday,
@@ -97,6 +98,8 @@ export default function App() {
       const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "null");
       if (!v) return EMPTY_FILTERS;
       const f = { ...EMPTY_FILTERS, ...v.f, q: "" };
+      ["cats", "xcats", "subs", "xsubs"].forEach((k) => { f[k] = migrateNames(f[k]); });
+      if (f.fam && !FAM_IDS.includes(f.fam)) f.fam = null;
       if (v.day !== isoDay(new Date())) f.when = EMPTY_FILTERS.when;
       return f;
     } catch { return EMPTY_FILTERS; }
@@ -257,7 +260,8 @@ export default function App() {
         }
       }
       if (bh) setBeh(bh);
-      if (tst) setTaste({ ...emptyTaste(), ...tst });
+      if (tst) setTaste({ ...emptyTaste(), ...tst, ncatAdj: migrateMap(tst.ncatAdj), nsubAdj: migrateMap(tst.nsubAdj),
+        stars: tst.stars ? { cats: migrateMap(tst.stars.cats), subs: migrateMap(tst.stars.subs) } : tst.stars });
       if (th) setThemeState(th);
       if (gm && (gm.url || gm.key)) setBackendState({ url: gm.url || ENV_URL, key: gm.key || ENV_KEY });
       if (loc?.coord) { setHome(loc.coord); setLocSt("cached"); }
