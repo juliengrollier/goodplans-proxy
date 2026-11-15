@@ -10,25 +10,31 @@ const wm = (x, y) => x === y || (Math.min(x.length, y.length) >= 3 && (x.startsW
 // Share of the shorter title found in the longer one, so "Met Fridays Under 40" ≈ "Metropolitan Opera Fridays Under 40"
 const overlap = (a, b) => { if (!a.length || !b.length) return 0; const [s, l] = a.length <= b.length ? [a, b] : [b, a]; return s.filter((x) => l.some((y) => wm(x, y))).length / s.length; };
 const venueRoot = (e) => toks(venueKey(e)).slice(0, 2);
+// Title words without the venue's own words: "Open Mic at Pete's Candy Store" → "open mic"
+const VENUE_FILLER = new Set(["bar", "club", "cafe", "store", "hall", "room", "theater", "theatre", "house", "park", "center", "centre"]);
+const coreToks = (e) => { const v = new Set(toks(e.venue).filter((w) => !VENUE_FILLER.has(w) || toks(e.venue).length <= 1)); const t = toks(e.title); const c = t.filter((w) => !v.has(w) && !(w.length >= 4 && [...v].some((x) => x.startsWith(w) || w.startsWith(x)))); return c.length ? c : t; };
 const end = (e) => e.X || e.E;
 // Same day, or two date ranges that overlap (season-long listings from different sources)
 const sameTime = (a, b) => a.E === b.E || ((a.X || b.X) && a.E <= end(b) && b.E <= end(a));
 
 const better = (a, b) => {
-  const score = (e) => (e.tier === 1 ? 4 : 0) + Math.min(3, (e.desc || "").length / 150) + (e.url ? 1 : 0) + (e.time ? 1 : 0) + (e.coord ? 1 : 0);
+  const score = (e) => (e.recurring === "synthetic" ? -5 : 0) + (e.tier === 1 ? 4 : 0) + Math.min(3, (e.desc || "").length / 150) + (e.url ? 1 : 0) + (e.time ? 1 : 0) + (e.coord ? 1 : 0);
   return score(b) > score(a) ? b : a;
 };
 
 export function mergeDuplicates(events) {
   const kept = [], byDay = {}, ranged = [];
   events.forEach((e) => {
-    const t = toks(e.title), v = venueRoot(e);
+    const t = coreToks(e), v = venueRoot(e);
     const pool = [...(byDay[e.E] || []), ...(e.X ? ranged : [])];
     const dup = pool.find((k) => {
       if (!sameTime(e, k)) return false;
       const sim = overlap(t, k._t), n = Math.min(t.length, k._t.length);
-      const sameVenue = !v.length || !k._v.length || overlap(v, k._v) >= 0.5;
-      return (sameVenue && n >= 2 && sim >= 0.75) || (n >= 3 && sim >= 0.9) || jacc(t, k._t) >= 0.85;
+      const known = v.length && k._v.length, venueMatch = known && overlap(v, k._v) >= 0.5;
+      if (known && !venueMatch) return false; // two named places: two events
+      // Same named place, same day: one shared word is enough ("Trivia Night" / "Parklife Trivia")
+      if (venueMatch) return (n >= 2 && sim >= 0.75) || (n === 1 && sim === 1);
+      return (n >= 3 && sim >= 0.9) || jacc(t, k._t) >= 0.85;
     });
     if (!dup) {
       const k = { ...e, _t: t, _v: v, srcs: [e.src].filter(Boolean) };
@@ -47,7 +53,7 @@ export function mergeDuplicates(events) {
 export function collapseSeries(list) {
   const seen = new Map(), out = [];
   list.forEach((e) => {
-    const k = seriesKey(e) + "@" + venueKey(e);
+    const k = coreToks(e).sort().join(" ") + "@" + venueRoot(e).join(" ");
     if (!seriesKey(e)) { out.push(e); return; }
     if (seen.has(k)) { const first = seen.get(k); first.moreDates = (first.moreDates || 0) + 1; return; }
     const c = { ...e, moreDates: 0 }; seen.set(k, c); out.push(c);

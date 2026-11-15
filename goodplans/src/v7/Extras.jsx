@@ -68,11 +68,13 @@ export function Surprise({ ev, dark, today, weather, onOpen, onAnother, onClose,
 // Asked right after a thumb on a card. The options are the reasons Julien actually gives (questionnaire, Nov 2026),
 // each naming this event's own detail; the ones used most often come first. Several can be picked; skipping keeps the thumb.
 const money = (ev) => (ev.price || "").split("/")[0].trim();
-function whyOptions(ev, dir, today, counts = {}) {
+function whyOptions(ev, dir, today, counts = {}, smart = []) {
   const free = /free|pwyw|pay what/i.test(ev.price || "");
   const kinds = [ev.ncat, ev.nsub].filter(Boolean);
-  const vibe = (ev.kw || []).slice(0, 2).join(", ");
-  const o = dir === "up"
+  const d = ev.dims || {};
+  const feel = [d.crowd === "intimate" ? "intimate" : d.crowd === "big" ? "big crowd" : null, d.energy, d.novelty === "weird" ? "offbeat" : null].filter(Boolean).join(", ");
+  const vibe = feel || (ev.kw || []).slice(0, 2).join(", ");
+  const base = dir === "up"
     ? [
       ["act", "This act or show", ev.title.length > 34 ? ev.title.slice(0, 32) + "…" : ev.title],
       ["genre", "The topic or genre", kinds.join(" · ") || ev.cat],
@@ -84,12 +86,15 @@ function whyOptions(ev, dir, today, counts = {}) {
       ["scene", "Not our scene", kinds.join(" · ") || ev.cat],
       ["pricey", "Too expensive", free ? "Free, but not worth it" : money(ev) || "Price"],
     ];
-  return o.sort((a, b) => (counts[dir + ":" + b[0]] || 0) - (counts[dir + ":" + a[0]] || 0));
+  base.sort((a, b) => (counts[dir + ":" + b[0]] || 0) - (counts[dir + ":" + a[0]] || 0));
+  // Up to 3 traits of this event the learning engine suspects matter, or knows least about
+  const extra = smart.filter((x) => !(dir === "up" && x.f === "dim:novelty=weird")).map((x) => ["f:" + x.f, x.label, x.detail || ""]);
+  return [...base, ...extra];
 }
-export function WhyDialog({ ev, dir, today, counts, onPick, onClose }) {
+export function WhyDialog({ ev, dir, today, counts, smart = [], onPick, onClose }) {
   const [sel, setSel] = React.useState([]);
   const [other, setOther] = React.useState(null); // null = closed, string = open text field
-  const opts = whyOptions(ev, dir, today, counts);
+  const opts = whyOptions(ev, dir, today, counts, smart);
   const note = (other || "").trim();
   const done = () => onPick([...sel, ...(note ? ["other:" + note] : [])]);
   const tog = (k) => setSel(sel.includes(k) ? sel.filter((y) => y !== k) : [...sel, k]);

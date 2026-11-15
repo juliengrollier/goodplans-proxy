@@ -88,12 +88,12 @@ export default function FilterBar({ f, setF, dark, items = [], today }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {/* Row 1: families */}
-      <div className="row" role="group" aria-label="What you'll do" style={{ justifyContent: "space-between", padding: "0 8px" }}>
+      <div className="hscroll" role="group" aria-label="What you'll do" style={{ gap: 4, padding: "6px 8px 2px", scrollPaddingInline: 8 }}>
         {FAMILIES.map((fm) => {
           const on = f.fam === fm.id, col = famColor(fm.id, dark), n = famN[fm.id] || 0, dim = (f.fam && !on) || (!n && !on);
           return (
             <button key={fm.id} onClick={() => pickFam(fm.id)} aria-pressed={on} aria-label={fm.label + " · " + n}
-              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 44, opacity: dim ? 0.38 : 1 }}>
+              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 46, flexShrink: 0, opacity: dim ? 0.38 : 1 }}>
               <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
                 <LIcon node={fm.icon} size={19} color="#fff" />
               </span>

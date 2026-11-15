@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
+import { Icon } from "./icons.jsx";
 import { LeafletMap, Media, CatBullet, Keywords, Snippet, Travel, PriceTag, CardActions, WeatherTag } from "./components.jsx";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { whenLabel } from "./engine.js";
@@ -14,7 +15,9 @@ function Peek({ ev, dark, today, onOpen, onClose }) {
   return (
     <div onTouchStart={start} onTouchMove={move} onTouchEnd={end}
       style={{ position: "absolute", left: 10, right: 10, bottom: "calc(74px + env(safe-area-inset-bottom))", zIndex: 30, transform: `translateY(${dy}px)`, transition: y0.current == null ? "transform .2s" : "none" }}>
-      <div className="card" role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ padding: 10, display: "flex", flexDirection: "column", gap: 8, cursor: "pointer", boxShadow: "0 12px 34px rgba(27,31,59,.28)" }}>
+      <div className="card" role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "relative", padding: 10, display: "flex", flexDirection: "column", gap: 8, cursor: "pointer", boxShadow: "0 12px 34px rgba(27,31,59,.28)" }}>
+        <button aria-label="Close preview" onClick={(e) => { e.stopPropagation(); onClose(); }}
+          style={{ position: "absolute", top: 20, right: 20, zIndex: 2, width: 36, height: 36, borderRadius: 18, border: "none", background: "#fff", color: "#1B1F3B", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 3px 10px rgba(27,31,59,.2)" }}><Icon name="close" size={18} width={2.6} /></button>
         <div style={{ width: 40, height: 5, borderRadius: 3, background: "var(--line)", margin: "0 auto" }} aria-hidden="true" />
         <Media ev={ev} dark={dark} height={150} radius={18} hideTitle />
         <div style={{ padding: "0 4px 2px", display: "flex", flexDirection: "column", gap: 6 }}>

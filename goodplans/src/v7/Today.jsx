@@ -5,8 +5,9 @@ import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS, daysUntil } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
-import { Travel } from "./components.jsx";
+import { Travel, catLabel } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
+import { User, Users } from "lucide";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -89,12 +90,12 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   return (
     <>
       <SectionHead title={"Top picks · " + (curSub || curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], subs: curSub ? [curSub] : [], when: "week" })} />
-      <div className="row" style={{ justifyContent: "space-between", padding: "0 12px 14px" }} role="tablist" aria-label="Topic">
+      <div className="hscroll" style={{ gap: 4, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="tablist" aria-label="Topic">
         {fams.map((id) => FAM[id]).map((f) => {
           const on = f.id === cur, col = famColor(f.id, dark);
           return (
             <button key={f.id} role="tab" aria-selected={on} aria-label={f.label} onClick={() => pick(f.id)}
-              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 44, opacity: on ? 1 : 0.45 }}>
+              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 46, flexShrink: 0, opacity: on ? 1 : 0.45 }}>
               <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
                 <LIcon node={f.icon} size={19} color="#fff" />
               </span>
@@ -122,8 +123,33 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   );
 }
 
+// Top pick for now: the single event in a mood's list we're most sure you'd want today but haven't planned.
+// Confidence = your overall score + learned taste + how central it is to the mood + timing; anything uncertain is left out
+// (exploration picks, saved or clashing events, rain on outdoor plans, far trips, ended or unknown-time events late in the day).
+export function topPickNow(list, today, exclude = []) {
+  const now = nowMinutes(), n = list.length;
+  const A = topPickNow.ctx || {};
+  let best = null;
+  list.forEach((e, i) => {
+    if (exclude.includes(e.id) || e.explore || e.busy || e.rain || e.hidden) return;
+    if (A.isSaved?.(e.id) || A.thumbOf?.(e.id) === -1) return;
+    if (daysUntil(e, today) !== 0 || !evCovers(e, today)) return;
+    const sm = startMinutes(e), em = endMinutes(e);
+    if (sm != null && em == null && sm < now - 60) return;    // started over an hour ago
+    if (em != null && em < now + 45) return;                 // ends too soon to go
+    if (e.tt?.mins > 40) return;
+    let c = (e.sc || 0) + Math.max(0, e.lp || 0) * 0.6 + 12 * (1 - i / Math.max(1, n));
+    if (sm != null && sm >= now && sm - now <= 240) c += 6;  // starts in the next few hours
+    if (e.tt?.mins != null && e.tt.mins <= 20) c += 4;
+    if (sm == null) c -= 6;                                 // vague timing: less sure
+    if (!best || c > best.c) best = { e, c };
+  });
+  return best && best.c >= 55 ? best.e : null;
+}
+
 // A mood section: small label, Claude-written title and subtitle, 4 events, "Or:" chip, extra actions
-function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, children }) {
+function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, children, hero }) {
+  const rest = hero ? m.list.filter((e) => e.id !== hero.id) : m.list;
   return (
     <>
       <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
@@ -132,7 +158,8 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
         {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
       </div>
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-        {m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+        {hero && <HeroCard ev={hero} dark={dark} today={today} onOpen={onOpen} label="Top pick for now" />}
+        {rest.slice(0, hero ? 3 : 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
         {!m.list.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{other.title}</span></button>}
@@ -144,7 +171,8 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
 }
 
 // City pulse: what New York is up to. Navy banner card, then the related events as a list.
-function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
+function CityPulse({ m, other, onSwitch, onOpen, dark, today, hero }) {
+  const rest = hero ? m.list.filter((e) => e.id !== hero.id) : m.list;
   // Header with a navy icon badge; events listed below like the other sections
   return (
     <>
@@ -157,7 +185,8 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
         {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
       </div>
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-        {m.list.length ? m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
+        {hero && <HeroCard ev={hero} dark={dark} today={today} onOpen={onOpen} label="Top pick for today" />}
+        {m.list.length ? rest.slice(0, hero ? 3 : 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
           : <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
         {other && <button className="chip" style={{ height: 36, maxWidth: "100%", alignSelf: "flex-start" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
       </div>
@@ -203,22 +232,43 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
   const empty = !data.length;
+  const A = React.useContext(ActionsCtx);
+  topPickNow.ctx = A;
+  const youHero = you?.list ? topPickNow(you.list, today) : null;
+  const cityHero = city?.list ? topPickNow(city.list, today, youHero ? [youHero.id] : []) : null;
 
   return (
     <div>
       <div className="row" style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 0", justifyContent: "space-between" }}>
         <div className="row" style={{ gap: 8 }}>
           <Logo size={28} dark={dark} />
-          <span className="disp" style={{ fontSize: 23 }}>good plans</span>
+          <span className="disp" style={{ fontSize: 23, whiteSpace: "nowrap" }}>good plans</span>
         </div>
-        <button className="chip" onClick={() => setTab("me")} aria-label="Location settings"><Icon name="pin" size={15} /> {locLabel}</button>
+        <div className="row" style={{ gap: 6 }}>
+          {setTogether && (
+            <button className="chip" aria-pressed={!!together} onClick={() => setTogether(!together)} aria-label={together ? "Together: picks for you and " + partnerName + ". Tap for just you" : "Just you. Tap for picks that suit you and " + partnerName}
+              style={{ padding: "0 10px", ...(together ? { background: "var(--navy)", color: "var(--onnavy)", border: "none" } : {}) }}><LIcon node={together ? Users : User} size={16} color="currentColor" /></button>
+          )}
+          <button className="chip" onClick={() => setTab("me")} aria-label="Location settings"><Icon name="pin" size={15} /> {locLabel}</button>
+        </div>
       </div>
+      {goAsk && (
+        <div className="card-sm" style={{ margin: "14px 16px 0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink3)" }}>Did you go?</div>
+            <div className="disp ell" style={{ fontSize: 16 }}>{goAsk.title}</div>
+          </div>
+          <button className="pill pill-dark" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "yes")}>Yes</button>
+          <button className="pill pill-line" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "no")}>No</button>
+          <button aria-label="Don't ask" onClick={() => onGoAnswer(goAsk, "skip")} style={{ border: "none", background: "none", padding: 4, color: "var(--ink3)" }}><Icon name="close" size={16} /></button>
+        </div>
+      )}
       <div style={{ padding: "18px 20px 14px" }}>
         <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + fmtT(w.hi) + (w.rainy ? " · rain later" : "") : ""}</div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{g.title}</h1>
@@ -253,6 +303,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
             <button key={ev.id} onClick={() => onOpen(ev)} className="row" style={{ gap: 10, padding: "0 4px", border: "none", background: "none", textAlign: "left" }}>
               <CatBullet ev={ev} size={30} dark={dark} />
               <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                <span className="ell" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink3)" }}>{catLabel(ev)}</span>
                 <span className="ell" style={{ fontSize: 15, fontWeight: 800 }}>{ev.title}</span>
                 <span className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 700 }}>
                   <span style={{ color: soonLabel(ev).startsWith("On now") ? "var(--free-ink)" : "var(--soon-ink)" }}>{soonLabel(ev)}</span>
@@ -268,7 +319,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
       )}
 
       {!empty && (you ? (
-        <MoodSection eyebrow="Mood meter" m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
+        <MoodSection eyebrow="Mood meter" hero={youHero} m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(true)}><Icon name="up" size={15} /> Nailed it</button>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(false)}><Icon name="down" size={15} /> Not quite</button>
           <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
@@ -283,7 +334,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </>
       ))}
 
-      {!empty && city && <CityPulse m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
+      {!empty && city && <CityPulse hero={cityHero} m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
 
       {!empty && <WhenTabs tabs={[
         ["tonight", freeUntil != null ? "While you're free" : "Tonight", tonight, { when: "tonight" }],

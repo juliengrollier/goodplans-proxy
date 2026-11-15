@@ -3,22 +3,32 @@
  *
  * POST { mode: "tags", events: [{ id, title, desc, cat, sub, venue, price, time }] }   (max 40)
  *   → { tags: { [id]: { k: ["3–5 short keywords"], cat: "<category>" } } }
+ * POST { mode: "taste", likes, dislikes, habits: [{ f, w, n }] } → { lines: [{ text, f: [features] }] }
  * POST { mode: "highlights", taste, weather, picks: [{ title, when, venue, cat, price, why }] }  (max 15)
  *   → { text }
  */
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
-const SUBS2 = {
-  "Concerts": ["Rock & Indie", "Hip-hop & R&B", "Electronic", "Folk & Acoustic", "Jazz & Blues", "Classical", "Pop", "World & Latin"],
-  "Theater": ["Broadway", "Off-Broadway", "Cabaret & Drag", "Immersive"], "Comedy": ["Stand-up", "Improv", "Storytelling", "Variety"],
-  "Film": ["New releases", "Repertory & Classics", "Documentary", "Outdoor"], "Clubs & DJs": ["House & Techno", "Disco & Funk", "Hip-hop", "Queer parties"],
-  "Dance Socials": ["Salsa & Bachata", "Swing", "Tango", "Other styles"], "Tastings": ["Wine", "Beer & Cider", "Spirits", "Food"],
-  "Museums & Galleries": ["Museums", "Galleries", "Openings", "Art fairs"], "Markets": ["Flea & Vintage", "Makers & Crafts", "Holiday", "Records & Books"],
-  "Talks & Panels": ["Ideas & Science", "Culture & Arts", "City & History", "Politics & Society"], "Tours": ["History", "Architecture", "Food", "Nature"],
-  "Arts & Crafts": ["Ceramics", "Painting & Drawing", "Textiles", "Printmaking"], "Play": ["Climbing", "Skating", "Water sports", "Games & Sports"],
+const SUBS2 = {"Concerts": ["Rock & Indie", "Hip-hop & R&B", "Electronic", "Folk & Acoustic", "Jazz", "Blues", "Classical", "Pop", "World & Latin"], "Theater": ["Broadway", "Off-Broadway", "Cabaret & Drag", "Immersive"], "Comedy": ["Stand-up", "Improv", "Storytelling", "Variety"], "Film": ["New releases", "Repertory & Classics", "Documentary", "Outdoor"], "Clubs & DJs": ["House & Techno", "Disco & Funk", "Hip-hop", "Queer parties"], "Dance Socials": ["Salsa & Bachata", "Swing", "Tango", "Other styles"], "Tastings": ["Wine", "Beer & Cider", "Spirits", "Food"], "Museums & Galleries": ["Museums", "Galleries", "Openings", "Art fairs"], "Markets": ["Flea & Vintage", "Makers & Crafts", "Holiday", "Records & Books"], "Talks & Panels": ["Ideas & Science", "Culture & Arts", "City & History", "Politics & Society"], "Tours": ["History", "Architecture", "Food", "Nature"], "Arts & Crafts": ["Ceramics", "Painting & Drawing", "Textiles", "Printmaking"], "Karaoke": ["Live-band karaoke", "Private rooms", "Bar karaoke"], "Trivia & Quizzes": ["Music trivia & bingo", "Film & TV trivia", "Themed trivia", "General trivia"], "Board & Card Games": ["Role-playing", "Chess & classics", "Card games & poker", "Board games"], "Arcades & VR": ["Arcade & pinball", "VR & simulators", "Video games & esports"], "Escape Rooms & Puzzles": ["Escape rooms", "Hunts & mysteries"], "Bar Games & Bowling": ["Bowling", "Ping pong", "Mini golf", "Darts, pool & more"], "Running": ["Run clubs", "Races"], "Cycling": ["Group rides", "Bike tours"], "Pickup Sports": ["Pickleball & tennis", "Basketball", "Soccer", "Volleyball", "Other games"], "Climbing & Skating": ["Climbing", "Ice skating", "Roller & skateboard"], "Water Sports": ["Kayak & paddle", "Swimming", "Sailing"]};
+const CATS2 = ["Comedy", "Cooking & Cocktails", "Arts & Crafts", "Yoga & Wellness", "Dance Socials", "Karaoke", "Trivia & Quizzes", "Escape Rooms & Puzzles", "Arcades & VR", "Board & Card Games", "Bar Games & Bowling", "Clubs & DJs", "Dance & Opera", "Theater", "Film", "Live Sports", "Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours", "Tours", "Books & Readings", "Talks & Panels", "Museums & Galleries", "Festivals & Parades", "Markets", "Running", "Cycling", "Pickup Sports", "Climbing & Skating", "Water Sports", "Hiking & Walks", "Parks & Nature", "Concerts"];
+// Taste dimensions: how an event feels, beyond its category. The app learns which values each person leans to.
+const DIMS = {
+  energy: ["calm", "lively", "wild"],
+  crowd: ["intimate", "medium", "big"],
+  setting: ["indoor", "outdoor", "mixed"],
+  novelty: ["classic", "fresh", "weird"],
+  social: ["solo-friendly", "date", "group", "any"],
+  polish: ["diy", "casual", "polished", "upscale"],
+  mode: ["watch", "take-part", "mingle", "browse"],
+  audience: ["kids", "all-ages", "adults", "21+"],
+  tone: ["fun", "moving", "thoughtful", "romantic", "nostalgic"],
+  scene: ["mainstream", "indie", "underground"],
+  body: ["seated", "on-your-feet", "active"],
+  noise: ["quiet", "moderate", "loud"],
+  length: ["quick", "evening", "half-day+"],
+  food: ["none", "drinks", "food"],
 };
-const CATS2 = ["Theater", "Comedy", "Film", "Dance & Opera", "Live Sports", "Concerts", "Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours", "Clubs & DJs", "Dance Socials", "Karaoke & Trivia", "Arts & Crafts", "Cooking & Cocktails", "Run & Ride", "Yoga & Wellness", "Play", "Museums & Galleries", "Markets", "Festivals & Parades", "Parks & Nature", "Talks & Panels", "Books & Readings", "Tours"];
 const CATS = ["Music", "Comedy", "Art & Culture", "Film", "Food & Drink", "Outdoors", "Sports", "Family", "Talk & Learn", "Get Creative", "Nightlife", "Shopping", "Other"];
 
 function cors(req, res) {
@@ -47,13 +57,15 @@ async function tags(events) {
   const system = `You label New York City events for a personal events app. For each event, give 3 to 5 keywords that tell someone at a glance what to expect: format (e.g. live band, DJ set, stand-up, screening, workshop, walking tour, market, talk, exhibition), style or genre (e.g. jazz, indie rock, experimental, comedy improv), topic, and vibe (e.g. outdoor, late night, family-friendly, hands-on, dance floor). Each keyword is 1 to 3 words, lowercase, no hashtags, no price, no date, no venue name. Use only what the title and description support; do not invent. Also return the best category from this list: ${CATS.join(", ")}.
 And "cat2": the single best fit from this second list, judged by what the person will actually be doing there: ${CATS2.join(", ")}.
 And "sub2": if cat2 is one of these, the single best sub-type from its list, else null: ${Object.entries(SUBS2).map(([c, l]) => c + ": " + l.join(" / ")).join("; ")}.
-Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "...", "cat2": "...", "sub2": "..."}}`;
-  const text = await claude(system, JSON.stringify(list), 3000);
+And "d": how the event will feel, one value per dimension, judged from the title and description (pick the likeliest; use "any"/"mixed"/"all-ages" when unclear): ${Object.entries(DIMS).map(([d, l]) => d + ": " + l.join(" / ")).join("; ")}.
+Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "...", "cat2": "...", "sub2": "...", "d": {"<dimension>": "<value>", ...}}}`;
+  const text = await claude(system, JSON.stringify(list), 9000);
   const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   const out = {};
   for (const [id, v] of Object.entries(json)) {
     const k = (Array.isArray(v?.k) ? v.k : []).map((x) => clip(x, 28).toLowerCase()).filter(Boolean).slice(0, 5);
-    out[id] = { k, cat: CATS.includes(v?.cat) ? v.cat : null, cat2: CATS2.includes(v?.cat2) ? v.cat2 : null, sub2: CATS2.includes(v?.cat2) && (SUBS2[v.cat2] || []).includes(v?.sub2) ? v.sub2 : null };
+    out[id] = { k, cat: CATS.includes(v?.cat) ? v.cat : null, cat2: CATS2.includes(v?.cat2) ? v.cat2 : null, sub2: CATS2.includes(v?.cat2) && (SUBS2[v.cat2] || []).includes(v?.sub2) ? v.sub2 : null,
+      d: Object.fromEntries(Object.entries(DIMS).map(([dim, vals]) => [dim, vals.includes(v?.d?.[dim]) ? v.d[dim] : null]).filter(([, x]) => x)) };
   }
   return out;
 }
@@ -89,6 +101,34 @@ Reply with JSON only: {"title": "...", "sub": "..."}`;
   return { title: clip(j.title, 60), sub: clip(j.sub, 120) };
 }
 
+// Plain-language taste card from the learned model: each line points back to the signals it rests on
+async function tasteCard({ likes, dislikes, habits, counts }) {
+  const fmt = (l) => (l || []).slice(0, 25).map((x) => ({ f: clip(x.f, 60), w: Math.round(Number(x.w) * 100) / 100, n: Math.round(Number(x.n) || 0) }));
+  const system = `You summarise what a personal NYC events app has learned about one person's taste. Input: learned signals as features ("cat:", "sub:", "kw:", "dim:energy=wild", "price:", "dist:", "tod:", "dow:", "hood:", crosses joined by "&"), each with a weight w (positive = likes, negative = avoids) and n (how much evidence). Write 4 to 6 short lines, each at most 60 characters, second person, plain and specific, the strongest and best-supported patterns first (e.g. "Small, weird shows over big polished ones", "Late nights on weekends, early on weekdays", "Rarely goes north of 14th St"). Mention uncertainty only if evidence is thin. Never invent anything not supported by the signals. For each line list the 1 to 4 feature strings (copied exactly from the input) it rests on.
+Reply with JSON only: {"lines": [{"text": "...", "f": ["..."]}]}`;
+  const user = JSON.stringify({ likes: fmt(likes), dislikes: fmt(dislikes), habits: fmt(habits), counts: counts || {} });
+  const t = await claude(system, user, 2500);
+  const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+  const lines = (j.lines || []).slice(0, 6).map((l) => ({ text: clip(l.text, 80), f: (l.f || []).slice(0, 4).map((x) => clip(x, 60)) })).filter((l) => l.text);
+  if (!lines.length) throw new Error("Claude returned no lines");
+  return { lines };
+}
+
+// Google Maps saved lists: what each list says about taste (categories it points to, how those places feel)
+async function listThemes({ lists }) {
+  const input = (lists || []).slice(0, 40).map((l) => ({ name: clip(l.name, 80), places: (l.places || []).slice(0, 12).map((p) => clip(p.title, 60) + (p.note ? " (" + clip(p.note, 60) + ")" : "")) }));
+  const system = `You read someone's Google Maps saved lists (list names, which may include emoji, plus sample places and their notes) for a personal NYC events app. For each list, infer what it says about their taste in going out. Return: "cats": 0 to 3 categories from this list that events at or like these places would fall into: ${CATS2.join(", ")}; "d": the likeliest feel of these places, only for dimensions you can judge, values from: ${Object.entries(DIMS).map(([d, l]) => d + ": " + l.join("/")).join("; ")}; "kind": "want" (places they want to try), "fav" (favourites), "been" (visited/log), or "other" (practical, travel, shopping for errands, places outside going out). Use only what the names and notes support; leave cats empty for lists unrelated to going out.
+Reply with JSON only: {"<list name>": {"cats": [...], "d": {...}, "kind": "..."}}`;
+  const t = await claude(system, JSON.stringify(input), 4000);
+  const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+  const out = {};
+  for (const [name, v] of Object.entries(j)) {
+    out[name] = { cats: (v?.cats || []).filter((c) => CATS2.includes(c)).slice(0, 3), kind: ["want", "fav", "been", "other"].includes(v?.kind) ? v.kind : "other",
+      d: Object.fromEntries(Object.entries(DIMS).map(([dim, vals]) => [dim, vals.includes(v?.d?.[dim]) ? v.d[dim] : null]).filter(([, x]) => x)) };
+  }
+  return out;
+}
+
 export default async function handler(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -100,7 +140,9 @@ export default async function handler(req, res) {
     if (body.mode === "tags") return res.status(200).json({ tags: await tags(body.events || []) });
     if (body.mode === "highlights") return res.status(200).json({ text: await highlights(body) });
     if (body.mode === "mood") return res.status(200).json(await moodTitle(body));
-    return res.status(400).json({ error: "mode must be tags, highlights or mood" });
+    if (body.mode === "taste") return res.status(200).json(await tasteCard(body));
+    if (body.mode === "lists") return res.status(200).json({ themes: await listThemes(body) });
+    return res.status(400).json({ error: "mode must be tags, highlights, mood, taste or lists" });
   } catch (e) {
     return res.status(500).json({ error: String(e.message || e).slice(0, 300) });
   }
