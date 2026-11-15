@@ -123,3 +123,97 @@ export function activeWindow(entry, today, wide) {
   }
   return null;
 }
+
+// ── Standing items for the Regulars view: where each yearly event happens and what it is.
+// [category, venue (shown), lat, lon, one-line description, photo search]. Entries without a row (heritage months,
+// religious days with no single NYC event) stay in the city's mood but are not listed as regulars.
+const LES = [40.7186, -73.9865];
+export const META = {
+  "nye": ["Other", "Times Square", 40.758, -73.9855, "The ball drops over Times Square at midnight, with a citywide countdown and fireworks in the parks.", "Times Square New Year's Eve ball drop"],
+  "polar-bear": ["Outdoors", "Coney Island Beach", 40.5749, -73.9859, "Hundreds of swimmers charge into the freezing Atlantic on New Year's Day.", "Coney Island Polar Bear Plunge"],
+  "restaurant-week-w": ["Food & Drink", "Restaurants citywide", ...LES, "Prix-fixe lunch and dinner menus at hundreds of restaurants across the city.", "NYC Restaurant Week"],
+  "lunar": ["Art & Culture", "Chinatown", 40.7158, -73.997, "Lion dances, firecrackers and a parade through the streets of Chinatown.", "Chinatown Lunar New Year parade New York"],
+  "fashion-week-feb": ["Art & Culture", "Citywide", ...LES, "Runway shows, parties and pop-ups as designers present their new collections.", "New York Fashion Week"],
+  "stpat": ["Other", "Fifth Avenue", 40.7587, -73.9768, "The world's oldest and largest St. Patrick's Day parade marches up Fifth Avenue.", "St Patrick's Day Parade Fifth Avenue"],
+  "greek-parade": ["Other", "Fifth Avenue", 40.7700, -73.9700, "Marching bands and traditional dress on Fifth Avenue for Greek Independence Day.", "Greek Independence Day Parade New York"],
+  "flower-show": ["Art & Culture", "Macy's Herald Square", 40.7508, -73.9887, "Macy's flagship store fills with flowers and large floral displays.", "Macy's Flower Show"],
+  "easter": ["Other", "Fifth Avenue", 40.7585, -73.9760, "Elaborate bonnets and costumes parade on Fifth Avenue around St. Patrick's Cathedral.", "Easter Parade Bonnet Festival Fifth Avenue"],
+  "cherry": ["Outdoors", "Brooklyn Botanic Garden", 40.6694, -73.9624, "Cherry trees bloom across the city, with the Brooklyn Botanic Garden's collection the best known.", "Brooklyn Botanic Garden cherry blossoms"],
+  "tribeca": ["Film", "Tribeca", 40.7163, -74.0086, "Film premieres, talks and screenings across Lower Manhattan.", "Tribeca Festival"],
+  "five-boro": ["Sports", "Five boroughs", ...LES, "Tens of thousands of cyclists ride car-free streets through all five boroughs.", "TD Five Boro Bike Tour"],
+  "frieze": ["Art & Culture", "The Shed", 40.7536, -74.0023, "An international contemporary art fair in Hudson Yards.", "Frieze New York The Shed"],
+  "fleet-week": ["Other", "Intrepid Museum", 40.7645, -73.9996, "Navy ships dock and sailors fill the city, with ship tours and Memorial Day events.", "Fleet Week New York ships"],
+  "manhattanhenge-may": ["Outdoors", "42nd Street", 40.7527, -73.9772, "The setting sun lines up exactly with Manhattan's cross streets.", "Manhattanhenge 42nd Street"],
+  "pride-march": ["Other", "Fifth Avenue to the West Village", 40.7336, -74.0027, "The Pride March heads down Fifth Avenue toward the Stonewall National Monument.", "NYC Pride March"],
+  "museum-mile": ["Art & Culture", "Museum Mile, Fifth Avenue", 40.7794, -73.9632, "Fifth Avenue closes to traffic and its museums open free for an evening.", "Museum Mile Festival Fifth Avenue"],
+  "gov-ball": ["Music", "Flushing Meadows Corona Park", 40.7400, -73.8407, "A three-day music festival with big headliners.", "Governors Ball music festival"],
+  "puerto-rican": ["Other", "Fifth Avenue", 40.7700, -73.9700, "One of the city's biggest parades, celebrating Puerto Rican culture on Fifth Avenue.", "National Puerto Rican Day Parade"],
+  "juneteenth": ["Art & Culture", "Citywide", ...LES, "Celebrations of emancipation and Black culture across the city.", "Juneteenth New York celebration"],
+  "mermaid": ["Other", "Coney Island", 40.5755, -73.9707, "Mermaids, sea creatures and floats parade along Surf Avenue and the boardwalk.", "Coney Island Mermaid Parade"],
+  "summerstage": ["Music", "Rumsey Playfield, Central Park", 40.7713, -73.9718, "Free and benefit concerts in parks across the five boroughs.", "SummerStage Central Park concert"],
+  "shakespeare": ["Art & Culture", "Delacorte Theater, Central Park", 40.7799, -73.9690, "Free Public Theater productions under the stars.", "Shakespeare in the Park Delacorte Theater"],
+  "summer-for-city": ["Art & Culture", "Lincoln Center", 40.7725, -73.9835, "Free outdoor music, dance and an open-air ballroom at Lincoln Center.", "Summer for the City Lincoln Center"],
+  "broadway-bryant": ["Music", "Bryant Park", 40.7536, -73.9832, "Free lunchtime performances by casts of Broadway shows.", "Broadway in Bryant Park"],
+  "july4": ["Other", "East River", 40.7065, -73.9969, "Macy's fireworks over the river, and Nathan's hot dog contest at Coney Island.", "Macy's Fourth of July fireworks New York"],
+  "manhattanhenge-jul": ["Outdoors", "42nd Street", 40.7527, -73.9772, "The setting sun lines up exactly with Manhattan's cross streets.", "Manhattanhenge 42nd Street"],
+  "restaurant-week-s": ["Food & Drink", "Restaurants citywide", ...LES, "Prix-fixe lunch and dinner menus at hundreds of restaurants across the city.", "NYC Restaurant Week"],
+  "summer-streets": ["Outdoors", "Park Avenue", 40.7505, -73.9790, "Park Avenue closes to cars on summer Saturday mornings for walking, biking and play.", "Summer Streets Park Avenue"],
+  "harlem-week": ["Art & Culture", "Harlem", 40.8116, -73.9465, "A month of concerts, food and culture celebrating Harlem.", "Harlem Week festival"],
+  "dominican": ["Other", "Sixth Avenue", 40.7600, -73.9800, "Merengue, bachata and floats celebrating Dominican culture.", "Dominican Day Parade New York"],
+  "india-day": ["Other", "Madison Avenue", 40.7500, -73.9800, "A parade marking Indian Independence Day.", "India Day Parade New York"],
+  "us-open": ["Sports", "USTA Billie Jean King National Tennis Center", 40.7498, -73.8456, "Two weeks of Grand Slam tennis in Queens.", "US Open tennis Arthur Ashe Stadium"],
+  "west-indian": ["Other", "Eastern Parkway, Brooklyn", 40.6720, -73.9580, "Carnival costumes, steelpan and soca along Eastern Parkway on Labor Day.", "West Indian American Day Carnival Eastern Parkway"],
+  "fashion-week-sep": ["Art & Culture", "Citywide", ...LES, "Runway shows, parties and pop-ups as designers present their new collections.", "New York Fashion Week"],
+  "tribute-light": ["Other", "9/11 Memorial", 40.7115, -74.0134, "Twin beams of light rise from Lower Manhattan in remembrance.", "Tribute in Light New York"],
+  "san-gennaro": ["Food & Drink", "Mulberry Street, Little Italy", 40.7191, -73.9973, "Food stalls, processions and cannoli on Mulberry Street for about eleven days.", "Feast of San Gennaro Little Italy"],
+  "steuben": ["Other", "Fifth Avenue", 40.7700, -73.9700, "German-American parade up Fifth Avenue, followed by Oktoberfest parties.", "Steuben Parade New York"],
+  "african-american-parade": ["Other", "Harlem", 40.8116, -73.9465, "A parade through Harlem celebrating African American culture.", "African American Day Parade Harlem"],
+  "oktoberfest": ["Food & Drink", "Beer gardens citywide", ...LES, "Steins, pretzels and oompah bands in beer gardens across the city.", "Oktoberfest beer garden New York"],
+  "atlantic-antic": ["Other", "Atlantic Avenue, Brooklyn", 40.6866, -73.9894, "Brooklyn's biggest street fair, with food, music and stalls along Atlantic Avenue.", "Atlantic Antic street fair Brooklyn"],
+  "nyff": ["Film", "Lincoln Center", 40.7725, -73.9835, "Premieres and new international films at Lincoln Center.", "New York Film Festival Lincoln Center"],
+  "pulaski": ["Other", "Fifth Avenue", 40.7700, -73.9700, "Polish-American parade on Fifth Avenue.", "Pulaski Day Parade New York"],
+  "comic-con": ["Other", "Javits Center", 40.7578, -74.0022, "Comics, cosplay and fan panels at the Javits Center.", "New York Comic Con Javits Center"],
+  "columbus": ["Other", "Fifth Avenue", 40.7700, -73.9700, "Italian-American parade on Fifth Avenue, alongside Indigenous Peoples' Day events.", "Columbus Day Parade Fifth Avenue"],
+  "ohny": ["Art & Culture", "Citywide", ...LES, "Buildings usually closed to the public open their doors for a weekend.", "Open House New York weekend"],
+  "wine-food": ["Food & Drink", "Citywide", ...LES, "Tastings, dinners and chef events across the city.", "New York City Wine & Food Festival"],
+  "dog-halloween": ["Other", "Tompkins Square Park", 40.7265, -73.9815, "Dogs in costume parade in the East Village.", "Tompkins Square Halloween Dog Parade"],
+  "halloween": ["Other", "Sixth Avenue, Greenwich Village", 40.7336, -73.9990, "The Village Halloween Parade marches up Sixth Avenue; anyone in costume can join.", "Village Halloween Parade Sixth Avenue"],
+  "marathon": ["Sports", "Five boroughs, finish in Central Park", 40.7716, -73.9748, "Tens of thousands of runners cross all five boroughs to finish in Central Park.", "New York City Marathon"],
+  "veterans": ["Other", "Fifth Avenue", 40.7700, -73.9700, "The nation's largest Veterans Day parade, on Fifth Avenue.", "Veterans Day Parade New York"],
+  "thanksgiving": ["Other", "Central Park West to Herald Square", 40.7685, -73.9786, "Giant balloons float from Central Park West to Herald Square on Thanksgiving morning.", "Macy's Thanksgiving Day Parade balloons"],
+  "tree-lighting": ["Other", "Rockefeller Center", 40.7587, -73.9787, "The Rockefeller Center Christmas tree is lit for the season.", "Rockefeller Center Christmas tree lighting"],
+  "hanukkah": ["Art & Culture", "Grand Army Plaza", 40.7644, -73.9730, "Giant menorahs are lit each night of Hanukkah, including at Grand Army Plaza.", "Grand Army Plaza menorah lighting"],
+  "dyker": ["Outdoors", "Dyker Heights, Brooklyn", 40.6219, -74.0117, "Homes in Dyker Heights put on the city's most extravagant Christmas lights.", "Dyker Heights Christmas lights"],
+  "santacon": ["Nightlife", "Bars citywide", ...LES, "Thousands in Santa suits crawl the city's bars.", "SantaCon New York"],
+};
+
+const cap = (s) => s.replace(/^the /, "").replace(/^./, (c) => c.toUpperCase());
+const iso = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+// Next (or current) occurrence of each yearly event, as an event-like card. Moving festivals use the feed's dates
+// when listed, otherwise their usual month.
+export function annualItems(today, events) {
+  const out = [];
+  NYC.forEach((n) => {
+    const meta = META[n.id];
+    if (!meta) return;
+    let s = null, e = null, exact = !n.confirm || n.season;
+    for (const y of [today.getFullYear(), today.getFullYear() + 1]) {
+      const w = n.win(y);
+      if (w && w[1] >= today) { [s, e] = w; break; }
+    }
+    if (!s) return;
+    if (n.confirm) {
+      const c = confirmedWindow(n, today, events);
+      if (c) { s = c.start; e = c.end; exact = true; }
+    }
+    const [cat, venue, lat, lon, desc, imgQ] = meta;
+    out.push({
+      id: "annual-" + n.id + "-" + s.getFullYear(), title: cap(n.name), E: iso(s), X: iso(e) !== iso(s) ? iso(e) : undefined, time: "",
+      venue, coord: [lat, lon], cat, desc, imgQ, price: "", src: "NYC calendar", tier: 1, recurring: "annual",
+      recLabel: "Every year", annual: true, exact, usual: MONTH[s.getMonth()],
+    });
+  });
+  return out.sort((a, b) => (a.E < b.E ? -1 : 1));
+}

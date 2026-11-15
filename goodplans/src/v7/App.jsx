@@ -12,6 +12,7 @@ import EventSheet from "./EventSheet.jsx";
 import { FreeUntilDialog, Surprise, WhyDialog } from "./Extras.jsx";
 import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
+import { annualItems } from "./nyc.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
@@ -306,6 +307,8 @@ export default function App() {
   const effFree = freeUntil != null && freeUntil > nowMinutes() ? freeUntil : null;
 
   const visible = useMemo(() => scored.filter((e) => !e.hidden && evActive(e, today) && !isOver(e, today)), [scored, today]);
+  // Yearly NYC events as standing regulars (nyc.js), scored like any event
+  const annual = useMemo(() => annualItems(today, visible).map((e) => scoreOne(e)).filter((e) => !e.hidden), [today, visible, scoreOne]);
   // The week's top picks: shown on Today and used as the only source for the "don't miss" paragraph, so the text never mentions something that is not on screen
   const weekPool = useMemo(() => {
     const seen = new Set();
@@ -423,7 +426,7 @@ export default function App() {
 
   // ── Event sheet and deep links
   const openEvent = useCallback((ev) => { setOpenEv(ev.id); track(ev, "viewedCats"); }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
-  const sheetEv = openEv ? (scored.find((e) => e.id === openEv) || regulars.find((x) => x.ev.id === openEv)?.ev || (favs[openEv] && scoreOne(favs[openEv]))) : null;
+  const sheetEv = openEv ? (scored.find((e) => e.id === openEv) || regulars.find((x) => x.ev.id === openEv)?.ev || annual.find((e) => e.id === openEv) || (favs[openEv] && scoreOne(favs[openEv]))) : null;
 
   useEffect(() => {
     if (!ready) return;
@@ -501,7 +504,7 @@ export default function App() {
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} {...moodProps} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} />}
+        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit}

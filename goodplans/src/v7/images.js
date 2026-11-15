@@ -19,7 +19,7 @@ const queued = new Set();
 let active = 0;
 let saveT = null;
 
-const venueOf = (ev) => (ev.venue || "").split(",")[0].trim();
+const venueOf = (ev) => (ev.imgQ || (ev.venue || "").split(",")[0]).trim(); // imgQ: photo search for standing annual items
 const fresh = (r) => r && Date.now() - r.at < (TTL[r.kind] || DAY);
 const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch { /* full: ignore */ } }, 800); };
 const emit = (id) => (listeners.get(id) || []).forEach((fn) => fn(store[id]));
