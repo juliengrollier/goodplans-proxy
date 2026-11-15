@@ -83,7 +83,7 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit })
     return (
       <div style={{ position: "relative", height, borderRadius: radius, overflow: "hidden", background: "var(--media)" }}>
         <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-        {credit && img.credit && <span style={{ position: "absolute", right: 8, bottom: 6, fontSize: 10, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>{img.credit}</span>}
+        {credit && img.credit && <span style={{ position: "absolute", left: 12, bottom: 8, fontSize: 10, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>{img.credit}</span>}
       </div>
     );
   }
@@ -172,13 +172,14 @@ export function PosterCard({ ev, dark, today, onOpen }) {
 
 export const ResultRow = CompactCard;
 
-export function SectionHead({ title, n, color, icon }) {
+export function SectionHead({ title, n, color, icon, onMore }) {
   return (
     <div className="sec-h">
       {icon && <Icon name={icon} size={22} />}
       <h2>{title}</h2>
       {color && <svg width="56" height="14" viewBox="0 0 64 14" aria-hidden="true"><path d="M3 7c8-6 14 6 22 0s14-6 22 0 10 4 14 0" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" /></svg>}
-      {n != null && <span className="n">{n}</span>}
+      {n != null && !onMore && <span className="n">{n}</span>}
+      {onMore && <button className="chip" onClick={onMore} style={{ marginLeft: "auto", height: 32, flexShrink: 0 }} aria-label={"See all: " + title}>More <Icon name="chev" size={14} /></button>}
     </div>
   );
 }

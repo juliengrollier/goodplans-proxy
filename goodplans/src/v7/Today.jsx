@@ -57,7 +57,7 @@ function Forecast({ weather, today }) {
 }
 
 // Top picks for one topic: tap a category icon to switch. Defaults to the category you rate highest.
-function TopPicks({ data, dark, today, onOpen, eprof }) {
+function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
   const counts = data.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {});
   // Order is fixed once per session (favourite first), so icons don't jump around while taste updates
   const order = React.useRef(null);
@@ -71,7 +71,7 @@ function TopPicks({ data, dark, today, onOpen, eprof }) {
   const list = data.filter((e) => e.cat === cur).sort((a, b) => b.sc - a.sc).slice(0, 5);
   return (
     <>
-      <SectionHead title="Top picks" n={cur} color={catColor(cur, dark)} />
+      <SectionHead title={"Top picks · " + cur} color={catColor(cur, dark)} onMore={() => onMore({ cats: [cur], when: "week" })} />
       <div className="hscroll" style={{ gap: 8, padding: "0 20px 12px" }} role="tablist" aria-label="Topic">
         {cats.map((c) => {
           const on = c === cur, col = catColor(c, dark);
@@ -114,6 +114,23 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
   );
 }
 
+// City pulse: what New York is up to. Banner card + poster carousel, so it reads differently from "Your mood".
+function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
+  return (
+    <div style={{ margin: "26px 0 0" }}>
+      <div style={{ margin: "0 16px", padding: "18px 18px 16px", borderRadius: 26, background: dark ? "#2A2F5C" : "var(--navy)", color: "#FBF7EF", display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", opacity: 0.75 }}><Icon name="pin" size={14} /> City pulse</span>
+        <span className="disp" style={{ fontSize: 26, lineHeight: 1.1, opacity: m.writing ? 0.6 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</span>
+        {m.sub && <span style={{ fontSize: 14.5, lineHeight: 1.4, opacity: 0.85 }}>{m.sub}</span>}
+        {other && <button onClick={onSwitch} className="row" style={{ alignSelf: "flex-start", marginTop: 6, gap: 6, height: 32, padding: "0 12px", borderRadius: 16, border: "1.5px solid rgba(251,247,239,.35)", background: "transparent", color: "#FBF7EF", fontWeight: 700, fontSize: 13, maxWidth: "100%" }}><span style={{ opacity: 0.7 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
+      </div>
+      {m.list.length ? (
+        <div className="hscroll" style={{ marginTop: 14 }}>{m.list.slice(0, 8).map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+      ) : <div className="muted" style={{ fontSize: 14, padding: "12px 20px 0" }}>Nothing in your feed is truly about this yet.</div>}
+    </div>
+  );
+}
+
 function renderHighlights(text, ids, data, onOpen) {
   text = text.replace(/\[\[[^\]]*$/, "").trim();
   const out = []; let last = 0, k = 0; const re = /\[\[(\d+)\|([^\]]+)\]\]/g; let m;
@@ -129,7 +146,7 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, you, youOther, city, cityOther, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -208,12 +225,12 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </>
       ))}
 
-      {!empty && city && <MoodSection eyebrow="The city's mood" m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
+      {!empty && city && <CityPulse m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
 
 
       {tonight.length > 0 && (
         <>
-          <SectionHead title={freeUntil != null ? "While you're free" : "Tonight"} n={tonight.length + " pick" + (tonight.length > 1 ? "s" : "")} color={catColor("Music", dark)} />
+          <SectionHead title={freeUntil != null ? "While you're free" : "Tonight"} color={catColor("Music", dark)} onMore={() => onMore({ when: "tonight" })} />
           <div className="hscroll">{tonight.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </>
       )}
@@ -243,14 +260,14 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
 
       {weekend.length > 0 && (
         <>
-          <SectionHead title="This weekend" n={weekend.length + " picks"} color={catColor("Outdoors", dark)} />
+          <SectionHead title="This weekend" color={catColor("Outdoors", dark)} onMore={() => onMore({ when: "weekend" })} />
           <div className="hscroll">{weekend.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </>
       )}
 
       {weekPicks.length > 0 && (
         <>
-          <SectionHead title="Don't miss" n={"This week · " + weekPicks.length} color={catColor("Art & Culture", dark)} />
+          <SectionHead title="This week" color={catColor("Art & Culture", dark)} onMore={() => onMore({ when: "week" })} />
           <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
             <HeroCard ev={weekPicks[0]} dark={dark} today={today} onOpen={onOpen} label={null} />
             {weekPicks.slice(1).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
@@ -258,7 +275,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </>
       )}
 
-      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} />}
+      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} onMore={onMore} />}
 
       {book.length > 0 && (
         <>

@@ -502,7 +502,7 @@ export default function App() {
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
-          weekPicks={weekPicks} eprof={eprof} {...moodProps} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
+          weekPicks={weekPicks} eprof={eprof} {...moodProps} onMore={(patch) => { setFilters({ ...EMPTY_FILTERS, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}

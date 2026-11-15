@@ -42,6 +42,7 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
         <Media ev={ev} dark={dark} height={300} radius={30} big hideTitle credit />
         <button onClick={onClose} aria-label="Back" style={{ position: "absolute", top: 14, left: 14, width: 44, height: 44, borderRadius: 22, border: "none", background: "#fff", color: "#1B1F3B", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(27,31,59,.15)" }}><Icon name="back" size={20} width={2.6} /></button>
         {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: 21, right: 14, height: 30, fontSize: 13 }}>One night only</span>}
+        <button onClick={onClose} aria-label="Close" style={{ position: "absolute", right: 16, bottom: -26, width: 52, height: 52, borderRadius: 26, border: "3px solid var(--bg)", background: "var(--navy)", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 16px rgba(27,31,59,.25)", zIndex: 2 }}><Icon name="close" size={22} width={2.6} /></button>
       </div>
 
       <div style={{ padding: "18px 20px 0", display: "flex", flexDirection: "column", gap: 8 }}>
