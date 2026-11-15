@@ -21,6 +21,8 @@ export function CatBullet({ cat, ev, size = 30, dark }) {
 export function PriceTag({ ev }) {
   if (isFree(ev)) return <span className="tag tag-free">Free</span>;
   const p = (ev.price || "").split("/")[0].trim();
+  // Only real prices: "See website" or "Tickets" say nothing on a card
+  if (!/\$\s?\d|\d\s?(usd|\$)/i.test(p)) return null;
   return p ? <span className="tag tag-plain">{p.length > 14 ? p.slice(0, 13) + "…" : p}</span> : null;
 }
 
@@ -49,7 +51,8 @@ export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
 
 // First words of the description, so a card says what the event is
 export function Snippet({ ev, lines = 2, size = 13.5 }) {
-  const d = (ev.desc || "").replace(/\s+/g, " ").trim();
+  // A punchy one-liner written by Claude when tagging; the source's description otherwise
+  const d = (ev.hook || ev.desc || "").replace(/\s+/g, " ").trim();
   if (!d || d.toLowerCase() === (ev.title || "").toLowerCase()) return null;
   return <div style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink3)", opacity: 0.7, display: "-webkit-box", WebkitLineClamp: lines, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{d}</div>;
 }
@@ -74,7 +77,7 @@ export function CardActions({ ev, size = 34, onNfm }) {
     <div className="row" style={{ gap: 6 }}>
       <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1, true)} onClick={stop(() => { if (t === 1) a.onReact(ev, "undo"); else { a.onReact(ev, "up", null, true); a.askWhy(ev, "up"); } })}><Icon name="up" size={is} /></button>
       <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1, true)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
-      <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={btn(saved)} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is} fill={saved ? "currentColor" : "none"} /></button>
+      <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={{ ...btn(saved), width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, border: saved ? "none" : "2px solid var(--ink)", background: saved ? "var(--navy)" : "transparent" }} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is + 2} fill={saved ? "currentColor" : "none"} /></button>
     </div>
   );
 }
@@ -154,8 +157,7 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
         <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
         <Snippet ev={ev} />
         <div className="row" style={{ gap: 10, fontSize: 14, fontWeight: 800 }}>
-          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} /><Venue ev={ev} />
-          <Keywords ev={ev} max={4} oneLine />
+          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} />
           <span style={{ marginLeft: "auto", flexShrink: 0 }}><PriceTag ev={ev} /></span>
         </div>
         <div className="row" style={{ gap: 8, justifyContent: "space-between" }}>
@@ -177,10 +179,10 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
         <Snippet ev={ev} lines={2} size={12.5} />
         <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, minWidth: 0 }}>
-          <span style={{ whiteSpace: "nowrap" }}>{when || whenLabel(ev, today)}{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><Travel tt={ev.tt} /><Venue ev={ev} />
+          <span style={{ whiteSpace: "nowrap" }}>{when || whenLabel(ev, today)}{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><Travel tt={ev.tt} />
         </span>
         <div className="row" style={{ gap: 6, justifyContent: "space-between", marginTop: 2, minWidth: 0 }}>
-          <div className="row" style={{ gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} compact />}<Keywords ev={ev} max={3} oneLine /></div>
+          <div className="row" style={{ gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} compact />}</div>
           <CardActions ev={ev} size={30} />
         </div>
       </div>
@@ -188,19 +190,20 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   );
 }
 
+// Home card (one style everywhere on Home): picture, category, title, one-line hook, when and how far, Free, actions
 export function PosterCard({ ev, dark, today, onOpen }) {
   const seenRef = useSeen(ev);
   return (
-    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 176, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer" }}>
-      <Media ev={ev} dark={dark} height={200} radius={24} hideTitle />
-      <div className="row" style={{ gap: 6 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{catLabel(ev)}</span></div>
-      <div className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.12 }}>{ev.title}</div>
+    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 186, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
+      <Media ev={ev} dark={dark} height={190} radius={22} hideTitle />
+      <div className="row" style={{ gap: 6 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{ev.ncat || ev.cat}</span></div>
+      <div className="disp clamp2" style={{ fontSize: 16.5, lineHeight: 1.12 }}>{ev.title}</div>
       <Snippet ev={ev} lines={2} size={12.5} />
-      <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 800 }}><span className="ell">{whenLabel(ev, today)}</span><Travel tt={ev.tt} muted /></div>
-      <div className="ell muted" style={{ fontSize: 12.5, fontWeight: 600, marginTop: -4 }}>{(ev.venue || "").split(",")[0]}</div>
-      <div className="row" style={{ gap: 6, minWidth: 0 }}><PriceTag ev={ev} /><Keywords ev={ev} max={2} oneLine /></div>
-      <WeatherTag ev={ev} />
-      <CardActions ev={ev} size={30} />
+      <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 800, minWidth: 0 }}><span className="ell">{whenLabel(ev, today)}</span><Travel tt={ev.tt} muted /></div>
+      <div className="row" style={{ gap: 6, justifyContent: "space-between", minHeight: 38 }}>
+        <span className="row" style={{ gap: 6 }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} compact />}</span>
+        <CardActions ev={ev} size={30} />
+      </div>
     </div>
   );
 }

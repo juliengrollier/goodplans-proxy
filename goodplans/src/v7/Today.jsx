@@ -1,6 +1,8 @@
 import React from "react";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx } from "./components.jsx";
+import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media } from "./components.jsx";
+import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
+import { useEventImage } from "./images.js";
 import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS, daysUntil } from "../lib/core.js";
@@ -232,7 +234,41 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+// Banner background for New York right now: the lead event's real photo, else a plain navy-to-coral wash
+function CityBg({ ev }) {
+  const img = useEventImage(ev || { id: "none" });
+  const [broken, setBroken] = React.useState(false);
+  if (ev && img?.src && !broken) return <img src={img.src} alt="" referrerPolicy="no-referrer" onError={() => setBroken(true)} style={{ width: "100%", height: 200, objectFit: "cover", display: "block" }} />;
+  return <div style={{ height: 200, background: "linear-gradient(135deg, #1B1F3B 0%, #3A2F6B 55%, #E5533D 130%)" }} />;
+}
+
+// Section header: a title and one line saying what the section is for
+function Head({ title, sub, right }) {
+  return (
+    <div className="sec-h" style={{ alignItems: "flex-end", gap: 10 }}>
+      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+        <h2 style={{ lineHeight: 1.1 }}>{title}</h2>
+        {sub && <span className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{sub}</span>}
+      </span>
+      {right}
+    </div>
+  );
+}
+
+// Spotify-style tile for a curated list: colour, icon, title and count; tapping opens Explore filtered to it
+function Tile({ t }) {
+  return (
+    <button onClick={t.open} style={{ gridColumn: t.big ? "1 / -1" : undefined, border: "none", borderRadius: 20, padding: "14px 14px 12px", background: t.color, color: "#fff", textAlign: "left", minHeight: t.big ? 112 : 104, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden" }}>
+      <span style={{ position: "absolute", right: -6, top: -6, opacity: 0.25 }} aria-hidden="true">
+        {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
+      </span>
+      <span className="disp" style={{ fontSize: t.big ? 22 : 18, lineHeight: 1.08, maxWidth: "88%" }}>{t.title}</span>
+      <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.sub ? t.sub + " · " : ""}{t.n} {t.n > 1 ? "events" : "event"}</span>
+    </button>
+  );
+}
+
+export default function Today({ picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -242,6 +278,25 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
   topPickNow.ctx = A;
   const youHero = you?.list ? topPickNow(you.list, today) : null;
   const cityHero = city?.list ? topPickNow(city.list, today, youHero ? [youHero.id] : []) : null;
+
+  // ── Home v8 (after Theo's feedback): five distinct sections, one card style, curated lists as tiles
+  const now = nowMinutes();
+  const notOver = (e) => { const em = endMinutes(e); return em == null || em > now; };
+  const mine = data.filter((e) => (A.isSaved(e.id) || A.thumbOf(e.id) === 1) && evCovers(e, today) && notOver(e))
+    .sort((a, b) => (startMinutes(a) ?? 0) - (startMinutes(b) ?? 0)).slice(0, 10);
+  const count = (patch) => applyFilters(data, { ...EMPTY_FILTERS, ...patch, xcats: hiddenCats, xsubs: hiddenSubs }, today).length;
+  const tiles = [];
+  const listTile = (m, color, extra = {}) => m?.list?.length && tiles.push({ key: "mood-" + m.id, title: String(m.title || "").replace(/[.!]+$/, ""), sub: m.sub, n: m.list.length, color, icon: m.icon, open: () => onMore({ ids: m.list.map((e) => e.id), list: String(m.title || "For you").replace(/[.!]+$/, ""), when: "any" }), ...extra });
+  listTile(you, dark ? "#2A2F5C" : "#1B1F3B", { big: true });
+  [["tonight", "Tonight", "#7B4BD6", { when: "tonight" }], ["free", "Free tonight", "#1E9E5A", { when: "tonight", price: "free" }],
+    ["weekend", "This weekend", "#F2611D", { when: "weekend" }], ["week", "This week", "#2563EB", { when: "week" }]]
+    .forEach(([k, t, c, patch]) => { const n = count(patch); if (n) tiles.push({ key: k, title: t, n, color: c, open: () => onMore(patch) }); });
+  // Picks: your strongest taste combinations, each a list of this week's best matches
+  const pickTiles = picks.map((mx) => ({ key: "pick-" + mx.id, title: mx.name, sub: "Picks", n: mx.list.length, color: mx.color, open: () => onMore({ ids: mx.list.map((e) => e.id), list: mx.name, when: "any" }) }));
+  tiles.splice(tiles.length && tiles[0].big ? 1 : 0, 0, ...pickTiles);
+  if (book.length) tiles.push({ key: "book", title: "Book ahead", sub: "Needs a ticket soon", n: book.length, color: "#C2410C", open: () => onMore({ ids: book.map((e) => e.id), list: "Book ahead", when: "any" }) });
+  listTile(youOther, dark ? "#3B3F6B" : "#4B4F7A");
+  const cityImgEv = city?.list?.[0];
 
   return (
     <div>
@@ -269,16 +324,9 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
           <button aria-label="Don't ask" onClick={() => onGoAnswer(goAsk, "skip")} style={{ border: "none", background: "none", padding: 4, color: "var(--ink3)" }}><Icon name="close" size={16} /></button>
         </div>
       )}
-      <div style={{ padding: "18px 20px 14px" }}>
+      <div style={{ padding: "18px 20px 6px" }}>
         <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + fmtT(w.hi) + (w.rainy ? " · rain later" : "") : ""}</div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{g.title}</h1>
-        {highlights?.text ? (
-          <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.55, color: "var(--ink2)", whiteSpace: "pre-line" }}>{renderHighlights(highlights.text, highlights.ids, data, onOpen)}</p>
-        ) : highlights?.status === "loading" ? (
-          <p className="muted" style={{ margin: "10px 0 0", fontSize: 14 }}>Writing your week's highlights…</p>
-        ) : String(highlights?.status || "").startsWith("error") ? (
-          <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>Weekly highlights unavailable: {String(highlights.status).slice(7)}</p>
-        ) : null}
       </div>
 
       {empty && (
@@ -289,117 +337,66 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
         </div>
       )}
 
-      {!empty && <div className="sec-sep" aria-hidden="true" />}
-      {!empty && (
-        <div className="card" style={{ margin: "0 16px", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div className="row" style={{ padding: "0 4px", justifyContent: "space-between" }}>
-            <span className="disp" style={{ fontSize: 20 }}>Now &amp; soon nearby</span>
-            <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{nowSoon.length ? nowSoon.length + " within 25 min" : "Quiet right now"}</span>
-          </div>
-          <button onClick={() => setTab("map")} aria-label="Open the map" style={{ border: "none", padding: 0, background: "none", display: "block" }}>
-            <LeafletMap events={nowSoon} home={home} dark={dark} height={170} interactive={false} zoom={14} />
-          </button>
-          {nowSoon.slice(0, showAllNow ? 12 : 4).map((ev) => (
-            <button key={ev.id} onClick={() => onOpen(ev)} className="row" style={{ gap: 10, padding: "0 4px", border: "none", background: "none", textAlign: "left" }}>
-              <CatBullet ev={ev} size={30} dark={dark} />
-              <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-                <span className="ell" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink3)" }}>{catLabel(ev)}</span>
-                <span className="ell" style={{ fontSize: 15, fontWeight: 800 }}>{ev.title}</span>
-                <span className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 700 }}>
-                  <span style={{ color: soonLabel(ev).startsWith("On now") ? "var(--free-ink)" : "var(--soon-ink)" }}>{soonLabel(ev)}</span>
-                  <Travel tt={ev.tt} size={12} muted />
-                </span>
-              </span>
-              <Icon name="chev" size={16} />
-            </button>
-          ))}
-          {nowSoon.length > 4 && <button className="chip" style={{ alignSelf: "center" }} onClick={() => setShowAllNow(!showAllNow)}>{showAllNow ? "Show fewer" : "Show all " + nowSoon.length}</button>}
-          {!nowSoon.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing starting nearby in the next couple of hours. Tonight's picks are below.</div>}
+      {/* 1. Your plans today: what you explicitly said yes to, so you don't forget */}
+      {!empty && mine.length > 0 && (
+        <>
+          <Head title="Your plans today" sub="Saved or liked, and happening today." />
+          <div className="hscroll">{mine.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+        </>
+      )}
+
+      {/* 2. This week at a glance: the keyword paragraph */}
+      {!empty && (highlights?.text || highlights?.status === "loading") && (
+        <div style={{ padding: "18px 20px 4px" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>This week at a glance</div>
+          {highlights?.text
+            ? <p style={{ margin: 0, fontSize: 15.5, lineHeight: 1.55, color: "var(--ink2)", whiteSpace: "pre-line" }}>{renderHighlights(highlights.text, highlights.ids, data, onOpen)}</p>
+            : <p className="muted" style={{ margin: 0, fontSize: 14 }}>Writing your week's highlights…</p>}
         </div>
       )}
 
-      {!empty && (you ? (
-        <MoodSection eyebrow="Mood meter" hero={youHero} m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
-          <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(true)}><Icon name="up" size={15} /> Nailed it</button>
-          <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(false)}><Icon name="down" size={15} /> Not quite</button>
-          <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
-        </MoodSection>
-      ) : (
+      {/* 3. Around you right now: out and about, what's close and starting soon */}
+      {!empty && (
         <>
-          <SectionHead title="Something different" icon="spark" />
-          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-            {wildcard && <CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" />}
-            <button className="pill pill-line" onClick={onSurprise}><Icon name="spark" size={18} /> Surprise me</button>
+          <Head title="Around you right now" sub={nowSoon.length ? "Out and about? On now or starting soon, within 25 min." : "Nothing starting nearby in the next couple of hours."}
+            right={<button className="chip" style={{ height: 32 }} onClick={() => setTab("map")}><Icon name="pin" size={14} /> Map</button>} />
+          {nowSoon.length > 0 && <div className="hscroll">{nowSoon.slice(0, 12).map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>}
+        </>
+      )}
+
+      {/* 4. For you: curated lists as tiles, each opening a filtered Explore */}
+      {!empty && tiles.length > 0 && (
+        <>
+          <Head title="For you" sub="Your Picks, built from your taste, plus lists for the moment. Tap one to see it all." />
+          <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {tiles.map((t) => <Tile key={t.key} t={t} />)}
           </div>
         </>
-      ))}
+      )}
 
-      {!empty && city && <CityPulse hero={cityHero} m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
-
-      {!empty && <WhenTabs tabs={[
-        ["tonight", freeUntil != null ? "While you're free" : "Tonight", tonight, { when: "tonight" }],
-        ["weekend", "This weekend", weekend, { when: "weekend" }],
-        ["week", "This week", weekPicks, { when: "week" }],
-      ]} dark={dark} today={today} onOpen={onOpen} onMore={onMore} />}
-
-
-
-      {(() => {
-        if (!weather?.byDate) return null;
-        const shown = new Set([...tonight, ...weekend, ...book].map((e) => e.id));
-        for (let k = 0; k < 3; k++) {
-          const d = new Date(today); d.setDate(today.getDate() + k);
-          const w2 = weather.byDate[isoDay(d)];
-          if (!w2 || !(w2.rainy || w2.pmax >= 60)) continue;
-          const swaps = data.filter((e) => !e.outdoor && evCovers(e, d) && !shown.has(e.id)).sort((a, b) => b.sc - a.sc).slice(0, 3);
-          if (!swaps.length) return null;
-          const dayName = k === 0 ? "today" : k === 1 ? "tomorrow" : FULL[d.getDay()];
-          return (
-            <>
-              <SectionHead title="Rainy-day swaps" icon="rain" n={"Rain " + dayName} />
-              <div className="muted" style={{ padding: "0 20px 10px", fontSize: 14, marginTop: -4 }}>{w2.pmax}% chance of rain {dayName}. Good indoor picks instead:</div>
-              <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                {swaps.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
-              </div>
-            </>
-          );
-        }
-        return null;
-      })()}
-
-
-
-      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} onMore={onMore} xcats={hiddenCats} xsubs={hiddenSubs} onHideCat={onHideCat} />}
-
-      {book.length > 0 && (
+      {/* 5. New York right now: what the city is doing this season (traditions, big yearly moments) */}
+      {!empty && city && (
         <>
-          <SectionHead title="Book before it's gone" />
-          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-            {book.map((ev) => {
-              const d = new Date(ev.E + "T00:00:00");
-              return (
-                <button key={ev.id} onClick={() => onOpen(ev)} className="card-sm row" style={{ border: "none", textAlign: "left", padding: "10px 14px 10px 10px", gap: 12 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 18, background: "var(--soon-bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--soon-ink)", letterSpacing: 0.8 }}>{MONTHS[d.getMonth()].toUpperCase()}</span>
-                    <span className="disp" style={{ fontSize: 22, lineHeight: 1 }}>{d.getDate()}</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.15 }}>{ev.title}</div>
-                    <div className="muted ell" style={{ fontSize: 13 }}>{(ev.venue || "").split(",")[0]} · {isFree(ev) ? "Free" : (ev.price || "").split("/")[0]}</div>
-                  </div>
-                  <Icon name="chev" size={18} />
-                </button>
-              );
-            })}
-          </div>
+          <Head title="New York right now" sub="What the city is doing this season, from yearly traditions to big moments." />
+          <button onClick={() => city.list?.length && onMore({ ids: city.list.map((e) => e.id), list: String(city.title || "New York right now").replace(/[.!]+$/, ""), when: "any" })}
+            style={{ display: "block", width: "calc(100% - 32px)", margin: "0 16px", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 24, overflow: "hidden" }}>
+<CityBg ev={cityImgEv} />
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(20,24,51,0) 25%, rgba(20,24,51,.88) 100%)" }} />
+            <div style={{ position: "absolute", left: 18, right: 18, bottom: 16, color: "#fff", display: "flex", flexDirection: "column", gap: 4 }}>
+              <span className="row" style={{ gap: 8, alignItems: "center" }}>
+                {city.icon && React.createElement(city.icon, { size: 20, strokeWidth: 2.2 })}
+                <span className="disp" style={{ fontSize: 24, lineHeight: 1.05, opacity: city.writing ? 0.6 : 1 }}>{String(city.title || "").replace(/[.!]+$/, "")}</span>
+              </span>
+              {city.sub && <span style={{ fontSize: 14, lineHeight: 1.35, opacity: 0.9 }}>{city.sub}</span>}
+              {city.list?.length > 0 && <span style={{ fontSize: 13, fontWeight: 800, marginTop: 2 }}>See {city.list.length} {city.list.length > 1 ? "events" : "event"} ›</span>}
+            </div>
+          </button>
         </>
       )}
 
       {!empty && (
         <div style={{ padding: "34px 20px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
-          <Logo size={44} dark={dark} />
-          <div className="disp" style={{ fontSize: 23 }}>That's it. You're all caught up.</div>
-          <div className="muted" style={{ fontSize: 14 }}>{total} picks from {data.length} events. New ones arrive with each refresh.</div>
+          <div className="muted" style={{ fontSize: 14 }}>{data.length} events in your feed.</div>
           <button className="pill pill-line" onClick={() => setTab("explore")}>Explore everything</button>
         </div>
       )}
