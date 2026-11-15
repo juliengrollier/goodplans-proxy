@@ -10,6 +10,7 @@ import Plans from "./Plans.jsx";
 import Me from "./Me.jsx";
 import EventSheet from "./EventSheet.jsx";
 import { FreeUntilDialog, Surprise, WhyDialog } from "./Extras.jsx";
+import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
@@ -87,6 +88,10 @@ export default function App() {
   const [sort, setSort] = useState("best");
   const [rec, setRec] = useState({});
   const [whyAsk, setWhyAsk] = useState(null); // {ev, dir}
+  const [moodStore, setMoodStore] = useState(() => { try { return JSON.parse(localStorage.getItem(MOOD_KEY) || "{}"); } catch { return {}; } });
+  const [moodTxt, setMoodTxt] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_moodtxt_v1") || "{}"); } catch { return {}; } });
+  const [moodPick, setMoodPick] = useState(null); // id chosen via the runner-up chip
+  const [lastSaveAt, setLastSaveAt] = useState(() => { const v = +localStorage.getItem("gp_lastsave"); return v || null; });
   const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
   const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
   const [hlStatus, setHlStatus] = useState("idle");
@@ -307,6 +312,52 @@ export default function App() {
     return weekPool.filter((e) => !shown.has(e.id)).slice(0, 5);
   }, [weekPool, sections]);
 
+  // ── Mood of the moment (see mood.js): context → ranked moods → top one shown, runner-up as a chip
+  const saveMood = (st) => { setMoodStore(st); try { localStorage.setItem(MOOD_KEY, JSON.stringify(st)); } catch { /* full */ } };
+  const moodCtx = useMemo(() => buildContext({ events: visible, weather, now: new Date(), busySlots, calOk: calStatus === "ok", home, homeBase: LES, lastSaveAt, tasteLog: taste.log || [] }),
+    [visible, weather, busySlots, calStatus, home[0], home[1], lastSaveAt, taste.log, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moods = useMemo(() => scoreMoods(moodCtx, visible, moodStore), [moodCtx, visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const activeMood = (moodPick && moods.all.find((x) => x.id === moodPick)) || moods.first;
+  const otherMood = activeMood && moods.first && activeMood.id !== moods.first.id ? moods.first : moods.second;
+  const moodKey = (m) => m && m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|" + m.list.slice(0, 4).map((e) => e.id).join(",");
+  useEffect(() => {
+    if (!moods.first) return;
+    const t = (moodStore.shown || {})[moods.first.id];
+    if (!t || Date.now() - t > 3 * 3600000) saveMood({ ...moodStore, shown: { ...(moodStore.shown || {}), [moods.first.id]: Date.now() } });
+  }, [moods.first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Claude writes the title + subtitle for the shown mood and the runner-up (cached per mood, day part and events)
+  useEffect(() => {
+    if (!ready || aiOff.current) return;
+    [activeMood, otherMood].filter(Boolean).forEach((m) => {
+      const k = moodKey(m);
+      if (moodTxt[k]) return;
+      postJSON("/api/enrich", {
+        mode: "mood", moment: momentSummary(moodCtx), mood: { id: m.id, facts: m.facts, titles: m.titles },
+        events: m.list.slice(0, 4).map((e) => ({ title: e.title, venue: (e.venue || "").split(",")[0], when: whenLabel(e, today), cat: e.cat })),
+      }).then((d) => {
+        setMoodTxt((prev) => {
+          const keep = Object.fromEntries(Object.entries(prev).filter(([, v]) => Date.now() - v.at < 2 * 86400000));
+          const n = { ...keep, [k]: { title: d.title, sub: d.sub, at: Date.now() } };
+          try { localStorage.setItem("gp_moodtxt_v1", JSON.stringify(n)); } catch { /* full */ }
+          return n;
+        });
+      }).catch((e) => { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
+    });
+  }, [ready, moodKey(activeMood), moodKey(otherMood)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moodView = (m) => m && { id: m.id, title: moodTxt[moodKey(m)]?.title || m.fallback, sub: moodTxt[moodKey(m)]?.sub || m.facts, list: m.list, writing: !moodTxt[moodKey(m)] };
+  const moodProps = {
+    mood: moodView(activeMood), other: moodView(otherMood),
+    onSwitch: () => {
+      if (!otherMood) return;
+      const aff = { ...(moodStore.aff || {}) };
+      aff[otherMood.id] = (aff[otherMood.id] || 0) + 1;
+      if (activeMood) aff[activeMood.id] = (aff[activeMood.id] || 0) - 0.5;
+      saveMood({ ...moodStore, aff });
+      setMoodPick(otherMood.id);
+    },
+    onMoodOpen: (ev) => { if (activeMood) saveMood({ ...moodStore, aff: { ...(moodStore.aff || {}), [activeMood.id]: ((moodStore.aff || {})[activeMood.id] || 0) + 0.5 } }); openEvent(ev); },
+  };
+
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
   const tagBusy = useRef(false);
   useEffect(() => {
@@ -378,6 +429,7 @@ export default function App() {
     else {
       const { bd, why, sc, hidden, tt, rain, dark: _d, busy, outdoor, followed, calChecked, ...raw } = ev; // eslint-disable-line no-unused-vars
       n[ev.id] = raw; track(ev, "savedCats"); toast("Added to plans");
+      const ts = Date.now(); setLastSaveAt(ts); try { localStorage.setItem("gp_lastsave", String(ts)); } catch { /* full */ }
     }
     setFavs(n); ss(SK_F, n);
   };
@@ -428,7 +480,7 @@ export default function App() {
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
-          weekPicks={weekPicks} eprof={eprof} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
+          weekPicks={weekPicks} eprof={eprof} {...moodProps} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}

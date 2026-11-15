@@ -56,6 +56,19 @@ async function highlights({ taste, weather, picks }) {
   return text;
 }
 
+async function moodTitle({ moment, mood, events }) {
+  const list = (events || []).slice(0, 4).map((e) => ({ title: clip(e.title, 100), venue: clip(e.venue, 50), when: clip(e.when, 30), cat: clip(e.cat, 30) }));
+  const system = `You write the headline of one section in Good Plans, a personal NYC events app for a couple on the Lower East Side. The section groups events that fit the mood of this exact moment. Write a title and a subtitle.
+Title: at most 40 characters. Witty, playful and enticing, like a clever friend or a great magazine headline: wordplay, a wink, a nudge to go out. It must clearly connect to the moment (the reason given) and fit the events. Avoid generic phrases ("the holiday season starts", "things to do"), clichés, exclamation marks and emojis.
+Subtitle: at most 80 characters, one line that makes the plan concrete (a vivid hint at what's on, or why now), using only the facts given.
+Reply with JSON only: {"title": "...", "sub": "..."}`;
+  const user = `Moment: ${clip(moment, 200)}\nWhy this mood: ${clip(mood?.facts, 200)}\nTone examples (do not copy): ${(mood?.titles || []).map((t) => clip(t, 60)).join(" | ")}\nEvents: ${JSON.stringify(list)}`;
+  const t = await claude(system, user, 1500);
+  const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+  if (!j.title) throw new Error("Claude returned no title");
+  return { title: clip(j.title, 60), sub: clip(j.sub, 120) };
+}
+
 export default async function handler(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -66,7 +79,8 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
     if (body.mode === "tags") return res.status(200).json({ tags: await tags(body.events || []) });
     if (body.mode === "highlights") return res.status(200).json({ text: await highlights(body) });
-    return res.status(400).json({ error: "mode must be tags or highlights" });
+    if (body.mode === "mood") return res.status(200).json(await moodTitle(body));
+    return res.status(400).json({ error: "mode must be tags, highlights or mood" });
   } catch (e) {
     return res.status(500).json({ error: String(e.message || e).slice(0, 300) });
   }

@@ -5,7 +5,6 @@ import { catColor, catIcon } from "./theme.js";
 import { startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
-import { pickMood } from "./mood.js";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -109,9 +108,8 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof }) {
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, mood, other, onSwitch, onMoodOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
-  const mood = React.useMemo(() => pickMood({ events: data, weather }), [data, weather, today]);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
@@ -175,12 +173,17 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
 
       {!empty && (
         <>
-          <SectionHead title={mood ? mood.title : "Something different"} icon={mood ? mood.icon : "spark"} />
-          {mood && <div className="muted" style={{ padding: "0 20px 10px", fontSize: 14, marginTop: -6 }}>{mood.sub}</div>}
+          <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+            <h2 style={{ lineHeight: 1.1, opacity: mood?.writing ? 0.55 : 1, transition: "opacity .3s" }}>{mood ? mood.title : "Something different"}</h2>
+            {mood?.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{mood.sub}</div>}
+          </div>
           <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-            {mood ? mood.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
+            {mood ? mood.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onMoodOpen} />)
               : wildcard && <CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" />}
-            <button className="pill pill-line" onClick={onSurprise}><Icon name="spark" size={18} /> Surprise me</button>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{other.title}</span></button>}
+              <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
+            </div>
           </div>
         </>
       )}
