@@ -1,4 +1,4 @@
-// Mixes: personal lists built from your strongest taste combinations (like Spotify mixes).
+// Picks: personal lists built from your strongest taste combinations.
 // Each recipe names the features it stands for (to score how much it suits you) and which events belong in it.
 import { weightOf, catFeature, dimFeature } from "./learn.js";
 import { isFree, todOf } from "./engine.js";
@@ -25,8 +25,8 @@ export const RECIPES = [
   { id: "saved", name: "Your saved places", color: "#0F766E", f: [], is: (e) => !!e.savedPlace, always: true },
 ];
 
-// The 4–6 mixes that suit you best, each with at least 3 upcoming events and not a near-copy of another
-export function buildMixes(m, events, max = 5) {
+// The 4–6 picks that suit you best, each with at least 3 upcoming events and not a near-copy of another
+export function buildPicks(m, events, max = 5) {
   const scored = RECIPES.map((r) => {
     const list = events.filter(r.is).sort((a, b) => b.sc - a.sc);
     const fit = r.always ? 2 : r.f.reduce((a, f) => a + weightOf(m, f), 0);

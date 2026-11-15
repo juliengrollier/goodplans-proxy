@@ -19,7 +19,7 @@ import * as L from "./learn.js";
 import * as M from "./maps.js";
 import * as Q from "./quiz.js";
 import Quiz from "./Quiz.jsx";
-import { buildMixes } from "./mixes.js";
+import { buildPicks } from "./picks.js";
 import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
 const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
@@ -752,10 +752,10 @@ export default function App() {
     setShowQuiz(false); toast("Nice to meet you, " + prof.name.replace(/^The /, ""));
   };
 
-  // ── Mixes: personal lists from your strongest taste combinations (next 7 days)
-  const mixes = useMemo(() => {
+  // ── Picks: personal lists from your strongest taste combinations (next 7 days)
+  const picks = useMemo(() => {
     const wk = new Date(today); wk.setDate(today.getDate() + 7);
-    return buildMixes(modelRef.current, visible.filter((e) => evStart(e) <= wk));
+    return buildPicks(modelRef.current, visible.filter((e) => evStart(e) <= wk));
   }, [visible, modelVer, today]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── Taste chart in Me: each dimension as an axis; a nudge moves it a notch
   const axes = useMemo(() => ({
@@ -796,7 +796,7 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today mixes={mixes} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
+        {tab === "today" && <Today picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
