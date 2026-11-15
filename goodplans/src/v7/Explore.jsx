@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ResultRow, CompactCard } from "./components.jsx";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
+import { collapseSeries } from "./dedupe.js";
 
 export default function Explore({ scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
   const [limit, setLimit] = useState(40);
@@ -11,7 +12,8 @@ export default function Explore({ scored, dark, today, onOpen, filters, setFilte
   useEffect(() => { if (first.current) { first.current = false; return; } if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: "smooth" }); }, [filters, sort]);
 
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
-  const results = useMemo(() => sortEvents(applyFilters(scored, filters, today), sort), [scored, filters, sort, today]);
+  // Repeated dates of the same series collapse into one card ("+N more dates")
+  const results = useMemo(() => collapseSeries(sortEvents(applyFilters(scored, filters, today), sort)), [scored, filters, sort, today]);
 
   // Regulars: series learned from the feed (weekly, every other week, monthly, varying) plus the city's yearly events.
   // The When filter doesn't apply here; the other filters do.

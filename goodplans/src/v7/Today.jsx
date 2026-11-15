@@ -3,7 +3,8 @@ import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx } from "./components.jsx";
 import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
-import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
+import { DAYS, MONTHS, evCovers, CATS, daysUntil } from "../lib/core.js";
+import { collapseSeries } from "./dedupe.js";
 import { Travel } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
 
@@ -60,7 +61,7 @@ function Forecast({ weather, today }) {
 // Top picks for one family (Watch, Listen, …): tap an icon to switch. Order fixed per session, favourite families first.
 function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs = [], onHideCat = () => {} }) {
   const A = React.useContext(ActionsCtx);
-  const counts = data.reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {});
+  const counts = data.filter((e) => daysUntil(e, today) <= 30).reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {});
   const order = React.useRef(null);
   const avail = FAMILIES.map((f) => f.id).filter((id) => counts[id] >= 2);
   // Rank families by how much their events score for you on average
@@ -75,7 +76,7 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   const [cat, setCat] = React.useState(null); // optional category inside the family
   const [sub, setSub] = React.useState(null);
   if (!cur) return null;
-  const inFam = data.filter((e) => e.fam === cur);
+  const inFam = data.filter((e) => e.fam === cur && daysUntil(e, today) <= 30); // within the next month
   const catN = inFam.reduce((m, e) => ((m[e.ncat] = (m[e.ncat] || 0) + 1), m), {});
   const cats = CATEGORIES.filter((c) => c.fam === cur && (catN[c.id] || xcats.includes(c.id))).sort((a, b) => catN[b.id] - catN[a.id]);
   const hide = (id) => { onHideCat(id); if (cat === id) setCat(null); };
@@ -86,7 +87,8 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   const subs = focus && SUBTYPES[focus] ? SUBTYPES[focus].map(([n]) => n).filter((n) => subN[n] || xsubs.includes(n)) : [];
   const showSubs = subs.length >= 2;
   const curSub = sub && subN[sub] && focus ? sub : null;
-  const list = inFam.filter((e) => (!curCat || e.ncat === curCat) && !xcats.includes(e.ncat) && (!curSub || e.nsub === curSub) && !(e.nsub && xsubs.includes(e.nsub))).sort((a, b) => b.sc - a.sc).slice(0, 5);
+  const list = inFam.filter((e) => (!curCat || e.ncat === curCat) && !xcats.includes(e.ncat) && (!curSub || e.nsub === curSub) && !(e.nsub && xsubs.includes(e.nsub))).sort((a, b) => b.sc - a.sc);
+  const shown = collapseSeries(list).slice(0, 5);
   return (
     <>
       <SectionHead title={"Top picks · " + (curSub || curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], subs: curSub ? [curSub] : [], when: "week" })} />
@@ -117,7 +119,7 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
         </div>
       )}
       <div key={cur + (curCat || "") + (curSub || "")} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18, minHeight: 300 }}>
-        {list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+        {shown.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
       </div>
     </>
   );
