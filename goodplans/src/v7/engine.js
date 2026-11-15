@@ -1,7 +1,7 @@
 // v7 engine: taste learning, scoring wrapper, time helpers, weather, Today sections.
 import {
   calcBd, safeCoord, kmdist, transitTime, evCovers, evActive, evStart, evEnd, runLen, daysUntil,
-  hasKnownTime, eHour, isImprecise, isEventBusy, bookSoon, floorDay, mkDate, DAYS, MONTHS, DEFAULT_SUBS,
+  hasKnownTime, eHour, isImprecise, isEventBusy, bookSoon, floorDay, mkDate, DAYS, MONTHS, DEFAULT_SUBS, matchV,
 } from "../lib/core.js";
 
 export const LES = [40.7186, -73.9865];
@@ -43,6 +43,16 @@ export function applyReaction(taste, prof, ev, kind, reason) {
     if (r === "dow" && arg !== "") t.dowAdj = { ...(t.dowAdj || {}), [arg]: clamp(((t.dowAdj || {})[arg] || 0) + 4 * sgn, -16, 10) };
     if (r === "tod" && arg) t.todAdj = { ...(t.todAdj || {}), [arg]: clamp(((t.todAdj || {})[arg] || 0) + 4 * sgn, -16, 10) };
     if (r === "outdoor") t.todAdj = { ...(t.todAdj || {}), outdoor: clamp(((t.todAdj || {}).outdoor || 0) + 4 * sgn, -16, 10) };
+    // Reasons from the questionnaire (Nov 2026): what actually drives a thumb
+    const adj = (key, k, d, lo, hi) => { t[key] = { ...(t[key] || {}) }; t[key][k] = clamp((t[key][k] || 0) + d, lo, hi); };
+    const kws = (ev.kw || []).slice(0, 3).map((k) => k.toLowerCase());
+    if (r === "act") { adj("seriesAdj", seriesKey(ev), 12, -20, 20); }
+    if (r === "genre") { if (ev.ncat) adj("ncatAdj", ev.ncat, 5, -24, 12); if (ev.nsub) adj("nsubAdj", ev.nsub, 6, -24, 12); if (kws[0]) adj("kwAdj", kws[0], 3, -24, 18); }
+    if (r === "unique") { t.uniqueAdj = clamp((t.uniqueAdj || 0) + 3, 0, 12); }
+    if (r === "vibe") { kws.forEach((k) => adj("kwAdj", k, 4, -24, 18)); }
+    if (r === "value") { t.priceSens = clamp((t.priceSens || 0) + 1, 0, 3); }
+    if (r === "scene") { if (ev.ncat) adj("ncatAdj", ev.ncat, -6, -24, 12); if (ev.nsub) adj("nsubAdj", ev.nsub, -8, -24, 12); kws.forEach((k) => adj("kwAdj", k, -4, -24, 18)); }
+    if (r === "pricey") { t.priceSens = clamp((t.priceSens || 0) + 1, 0, 3); const p = priceNum(ev); if (p) t.priceCeil = Math.min(t.priceCeil || 999, Math.max(10, Math.round(p * 0.8))); }
     if (dir === "up") {
       if (r === "type") bump(5, 8);
       if (r === "venue" && ev.venue) { t.follows = { ...t.follows, [venueKey(ev)]: venueLabel(ev) }; }
@@ -198,6 +208,9 @@ export function scoreEvent(ev, ctx) {
   if (taste.mutedVenues?.[venueKey(ev)]) s -= 15;
   // Categories hidden or picked in filters (ncatAdj: -24 … +12)
   if (taste.ncatAdj && ev.ncat) s += taste.ncatAdj[ev.ncat] || 0;
+  if (taste.seriesAdj) s += taste.seriesAdj[seriesKey(ev)] || 0;
+  if (taste.uniqueAdj && (runLen(ev) === 1 || matchV(ev, "weird") || matchV(ev, "nyc"))) s += taste.uniqueAdj;
+  if (taste.priceCeil && !isFree(ev) && (priceNum(ev) || 0) > taste.priceCeil) s -= 8;
   if (taste.nsubAdj && ev.nsub) s += taste.nsubAdj[ev.nsub] || 0;
   // Starred (boosted) categories and sub-types
   if (taste.stars?.cats?.[ev.ncat]) { s += 10; why.push("You boosted " + ev.ncat); }

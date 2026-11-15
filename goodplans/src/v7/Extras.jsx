@@ -65,41 +65,44 @@ export function Surprise({ ev, dark, today, weather, onOpen, onAnother, onClose,
   );
 }
 
-// Asked right after a thumb on a card: what made it a yes or a no, built from this event's own traits.
-// Several can be picked. Closing keeps the thumb.
-const DOWP = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
-const TODL = { morning: "Mornings", afternoon: "Afternoons", evening: "Evenings", late: "Late nights" };
-function whyOptions(ev, dir, today) {
-  const up = dir === "up", o = [];
-  const kws = (ev.kw || []).slice(0, 3);
-  kws.forEach((k) => o.push(["kw:" + k.toLowerCase(), up ? "Into " + k : "Not into " + k]));
-  const kind = (ev.sub || ev.cat || "").toLowerCase();
-  if (kind && !kws.some((k) => k.toLowerCase() === kind)) o.push([up ? "type" : "notus", up ? "More " + kind : "No more " + kind]);
-  if (ev.venue) o.push(["venue", up ? venueLabel(ev) + " is great" : "Not " + venueLabel(ev)]);
+// Asked right after a thumb on a card. The options are the reasons Julien actually gives (questionnaire, Nov 2026),
+// each naming this event's own detail; the ones used most often come first. Several can be picked; skipping keeps the thumb.
+const money = (ev) => (ev.price || "").split("/")[0].trim();
+function whyOptions(ev, dir, today, counts = {}) {
   const free = /free|pwyw|pay what/i.test(ev.price || "");
-  if (up && free) o.push(["price", "It's free"]);
-  else if (!up && !free && ev.price) o.push(["price", "Too pricey · " + ev.price.split("/")[0].trim()]);
-  else if (up && ev.price) o.push(["price", "Good price · " + ev.price.split("/")[0].trim()]);
-  if (ev.tt) { if (up && ev.tt.mins <= 15) o.push(["near", "Close by · " + ev.tt.mins + " min"]); if (!up && ev.tt.mins > 15) o.push(["far", "Too far · " + ev.tt.mins + " min"]); }
-  const day = ev.E && new Date((ev.E <= isoDay(today) ? isoDay(today) : ev.E) + "T12:00:00").getDay();
-  if (day != null && day !== false) o.push(["dow:" + day, up ? DOWP[day] + " work for us" : "Bad day · " + DOWP[day].slice(0, -1)]);
-  const td = todOf(ev);
-  if (td) o.push(["tod:" + td, up ? TODL[td] + " suit us" : TODL[td] + " don't suit us"]);
-  if (ev.outdoor) o.push(["outdoor", up ? "Love it outdoors" : "Not outdoors"]);
-  if (up && ev.why?.includes("One night only")) o.push(["unique", "One night only"]);
-  if (!up) o.push(["seen", "Seen it / not again"]);
-  return o;
+  const kinds = [ev.ncat, ev.nsub].filter(Boolean);
+  const vibe = (ev.kw || []).slice(0, 2).join(", ");
+  const o = dir === "up"
+    ? [
+      ["act", "This act or show", ev.title.length > 34 ? ev.title.slice(0, 32) + "…" : ev.title],
+      ["genre", "The topic or genre", kinds.join(" · ") || ev.cat],
+      ["unique", "Unusual or one-off", "More rare, only-in-NYC things"],
+      ["vibe", "The atmosphere", vibe || "The setting and crowd"],
+      ["value", free ? "It's free" : "Good value", free ? "Free things get a boost" : money(ev) || "Price"],
+    ]
+    : [
+      ["scene", "Not our scene", kinds.join(" · ") || ev.cat],
+      ["pricey", "Too expensive", free ? "Free, but not worth it" : money(ev) || "Price"],
+    ];
+  return o.sort((a, b) => (counts[dir + ":" + b[0]] || 0) - (counts[dir + ":" + a[0]] || 0));
 }
-export function WhyDialog({ ev, dir, today, onPick, onClose }) {
+export function WhyDialog({ ev, dir, today, counts, onPick, onClose }) {
   const [sel, setSel] = React.useState([]);
-  const opts = whyOptions(ev, dir, today);
-  const tog = (k) => setSel(sel.includes(k) ? sel.filter((x) => x !== k) : [...sel, k]);
+  const opts = whyOptions(ev, dir, today, counts);
+  const tog = (k) => setSel(sel.includes(k) ? sel.filter((y) => y !== k) : [...sel, k]);
   return (
     <Dialog title={dir === "up" ? "What do you like about it?" : "What's not right?"} onClose={onClose}>
       <div className="muted ell" style={{ fontSize: 14, marginTop: -6, marginBottom: 12 }}>{ev.title} · pick any</div>
-      <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-        {opts.map(([k, l]) => (
-          <button key={k} className={"chip" + (sel.includes(k) ? " on" : "")} aria-pressed={sel.includes(k)} style={{ height: 38, fontSize: 14 }} onClick={() => tog(k)}>{l}</button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {opts.map(([k, l, d]) => (
+          <button key={k} className="card-sm" aria-pressed={sel.includes(k)} onClick={() => tog(k)}
+            style={{ border: sel.includes(k) ? "2px solid var(--ink)" : "2px solid transparent", textAlign: "left", padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, background: sel.includes(k) ? "var(--chip)" : undefined }}>
+            <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, border: "2px solid var(--ink)", background: sel.includes(k) ? "var(--ink)" : "transparent", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800 }}>{sel.includes(k) ? "✓" : ""}</span>
+            <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+              <span style={{ fontSize: 15.5, fontWeight: 800 }}>{l}</span>
+              {d && <span className="muted ell" style={{ fontSize: 13 }}>{d}</span>}
+            </span>
+          </button>
         ))}
       </div>
       <div className="row" style={{ gap: 8, marginTop: 16 }}>
