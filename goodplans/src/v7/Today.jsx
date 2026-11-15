@@ -366,6 +366,12 @@ function NYRow({ row, ri, onTile }) {
 }
 
 export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+  // Best for you right now: what is still to come today (or on now), else tomorrow, by your score, sooner first on ties
+  const bestNow = React.useMemo(() => {
+    const now = nowMinutes();
+    const ok = (data || []).filter((e) => { const d = daysUntil(e, today); if (d > 1 || d < 0) return false; if (d === 1) return true; const st = startMinutes(e), en = endMinutes(e); return st == null ? true : st >= now - 20 || (en != null && en > now + 30); });
+    return ok.map((e) => [e, (e.sc || 0) * (daysUntil(e, today) === 0 ? 1 : 0.82)]).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([e]) => e);
+  }, [data, today]);
   const [moreN, setMoreN] = useState(0);
   // My moods: pinned ones (newest first), then the lists you open most (recent opens count more); four at most
   const pool = tiles ? (tiles.every || tiles.all) : [];
@@ -464,6 +470,12 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
           {tiles.quick.length > 0 && (
             <div style={{ padding: "0 16px 10px", display: "grid", gridTemplateColumns: "repeat(" + tiles.quick.length + ", 1fr)", gap: 8 }}>
               {tiles.quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
+            </div>
+          )}
+          {bestNow.length > 0 && (
+            <div style={{ margin: "6px 0 18px" }}>
+              <div style={{ padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Best for you right now</div>
+              <DotScroll>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
             </div>
           )}
           {favTiles.length > 0 && (

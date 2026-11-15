@@ -8,7 +8,7 @@ import { startMinutes, whenLabel } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 import { AroundMap } from "./Today.jsx";
 
-export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap }) {
+export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
   const [style, setStyle] = useState("carousel"); // carousel: one row per category; list: one long list
@@ -144,7 +144,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       {view === "all" && more.length > 0 && (
         <div style={{ marginTop: 22 }}>
           <div className="sec-h"><h2>More ideas</h2></div>
-          <DotScroll>{more.map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} />)}</DotScroll>
+          <DotScroll>{more.map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}</DotScroll>
         </div>
       )}
       {view !== "all" && (

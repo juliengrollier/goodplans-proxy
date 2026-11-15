@@ -219,13 +219,14 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
       if (!base) { const pure = share(l, (e) => e.fam === fam) >= 0.75; const b = c.ncat === "Yoga & Wellness" ? CHILL : pure ? TITLES[fam] || NEUTRAL : NEUTRAL; base = b[(hash(c.key) + day) % b.length].replace("{X}", up1(c.label)).replace("{x}", lowFirst(c.label)); }
       title = up1(base);
     }
-    const first = l[0], venue = String(first.venue || "").split(",")[0];
-    const lead = whenLabel(first, today).split(" · until")[0] + (venue ? " at " + venue : "");
+    // Teaser: a taste of what is in it (two distinct titles) and what it costs
+    const seenT = new Set(), names = [];
+    for (const e of l) { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (seenT.has(k)) continue; seenT.add(k); names.push(String(e.title).length > 30 ? String(e.title).slice(0, 28).trim() + "…" : e.title); if (names.length === 2) break; }
     const free = l.filter(isFree).length, paid = l.map(price).filter((p) => p != null && p > 0);
     const cost = free === n ? "all free" : paid.length && free ? "free to $" + Math.max(...paid) : paid.length ? "from $" + Math.min(...paid) : null;
     const teaser = c.kind === "rare"
-      ? up1(c.note) + ": " + l.slice(0, 2).map((e) => e.title).join(", ") + (n > 2 ? " and more." : ".")
-      : (c.note ? up1(c.note) + ". " : "") + "Next: " + lead + [n > 1 ? (series(l) === 1 ? (n - 1) + (n === 2 ? " other date" : " other dates") : (n - 1) + " more") : null, cost].filter(Boolean).map((x) => " · " + x).join("") + ".";
+      ? up1(c.note) + ": " + names.join(", ") + "."
+      : (c.note ? up1(c.note) + ". " : "") + names.join(", ") + (cost ? " · " + cost : "") + ".";
     const node = (MOMENT.has(c.kind) && c.kind !== "cut" ? FAM[fam]?.icon : null) || CAT[c.ncat]?.icon || FAM[fam]?.icon;
     const vk = c.ncat === "Comedy" ? "laugh" : c.ncat === "Yoga & Wellness" ? "chill" : VERB_OF_FAM[fam];
     // Why this is here, in one line: discovery first, then your own history, then the moment
