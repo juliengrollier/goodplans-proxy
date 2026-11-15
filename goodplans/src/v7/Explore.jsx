@@ -6,7 +6,7 @@ import { collapseSeries } from "./dedupe.js";
 import { startMinutes } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 
-export default function Explore({ tiles, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
+export default function Explore({ tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
   const [limit, setLimit] = useState(40);
@@ -24,11 +24,10 @@ export default function Explore({ tiles, onTile = () => {}, scored, dark, today,
   const fromTile = !!filters.list;
   const soonest = (a, b) => (Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today))) || ((startMinutes(a) ?? 9999) - (startMinutes(b) ?? 9999));
   const results = useMemo(() => { const base = applyFilters(scored, filters, today); return collapseSeries(fromTile ? [...base].sort(soonest) : sortEvents(base, sort)); }, [scored, filters, sort, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
   const groups = useMemo(() => {
     if (!fromTile) return null;
     const by = new Map();
-    const saved = results.slice(0, limit).filter((e) => act.isSaved(e.id));
-    if (saved.length) by.set("Saved", saved);
     results.slice(0, limit).forEach((e) => { if (act.isSaved(e.id)) return; const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
     return [...by.entries()];
   }, [results, fromTile, limit, act]);
@@ -69,7 +68,14 @@ export default function Explore({ tiles, onTile = () => {}, scored, dark, today,
             <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 28, lineHeight: 1.05 }}>{filters.list}</h1>
             {listTile?.teaser && <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginTop: 4 }}>{listTile.teaser}</div>}
           </div>
-          <button className="chip" aria-label="Clear" onClick={() => setFilters({ ...filters, ids: [], list: null })} style={{ height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0 }}><Icon name="close" size={16} /></button>
+          {listTile && onMoodFav && (() => { const on = moodFav.includes(listTile.key); return <button className="chip" aria-label={on ? "Remove from your moods" : "Add to your moods"} aria-pressed={on} onClick={() => onMoodFav(listTile)} style={{ height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0, color: on ? "#DB2777" : undefined }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>; })()}
+          <button className="chip" aria-label="Close and go back to Home" onClick={() => (onClose ? onClose() : setFilters({ ...filters, ids: [], list: null }))} style={{ height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0 }}><Icon name="close" size={16} /></button>
+        </div>
+      )}
+      {savedHere.length > 0 && (
+        <div style={{ paddingTop: 14 }}>
+          <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
+          <div className="hscroll">{savedHere.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </div>
       )}
       <div className="row" style={{ padding: "12px 16px 8px", gap: 6 }} role="tablist">

@@ -801,7 +801,9 @@ export default function App() {
     setTab("explore"); window.scrollTo(0, 0);
   };
   // Map-only "Around you right now": open the full Map tab on the same pins
-  const openFullMap = (ids, title) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids, list: title, price: "any", when: "any", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
+  // Closing a mood page: filters back to default, then Home at the "For you" section
+  const closeList = () => { setFilters({ ...EMPTY_FILTERS, xcats: filters.xcats || [], xsubs: filters.xsubs || [] }); setTab("today"); setTimeout(() => { const el = document.getElementById("for-you"); if (el) el.scrollIntoView(); else window.scrollTo(0, 0); }, 60); };
+  const openFullMap = (ids, title) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
   // ── Taste chart in Me: each dimension as an axis; a nudge moves it a notch
   const axes = useMemo(() => ({
     axes: L.AXES.map(([dim, loL, lo, hiL, hi]) => ({ dim, loL, lo, hiL, hi, v: L.axisScore(modelRef.current, dim, lo, hi) })),
@@ -873,7 +875,7 @@ export default function App() {
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore tiles={tileSet} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
+        {tab === "explore" && <Explore tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}

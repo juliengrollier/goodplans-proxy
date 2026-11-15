@@ -240,7 +240,7 @@ export function SectionHead({ title, n, color, icon, onMore }) {
 }
 
 export function TabBar({ tab, setTab, plansCount }) {
-  const items = [["today", "Today"], ["explore", "Explore"], ["map", "Map"], ["plans", "Plans"], ["me", "Me"]];
+  const items = [["today", new Date().getHours() >= 18 ? "Tonight" : "Today"], ["explore", "Explore"], ["map", "Map"], ["plans", "Plans"], ["me", "Me"]];
   return (
     <nav className="tabbar" aria-label="Main">
       {items.map(([k, l]) => (

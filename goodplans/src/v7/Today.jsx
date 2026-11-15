@@ -324,11 +324,11 @@ function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
 
 export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [moreN, setMoreN] = useState(0);
-  const allT = tiles ? tiles.all : [];
+  const allT = tiles ? tiles.all.filter((t) => !moodFav.includes(t.key)) : [];
   const nShow = tiles ? tiles.base + 4 * moreN : 0;
   // Endless: once every list has been shown, the sequence starts over from a shifted position
   const shownMoods = allT.length ? Array.from({ length: Math.min(nShow, allT.length) }, (_, i) => allT[(i + (nShow > allT.length ? nShow - allT.length : 0)) % allT.length]) : [];
-  const favTiles = tiles ? moodFav.map((k) => (tiles.every || allT).find((t) => t.key === k)).filter(Boolean) : [];
+  const favTiles = tiles ? moodFav.map((k) => (tiles.every || tiles.all).find((t) => t.key === k)).filter(Boolean) : [];
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -410,15 +410,15 @@ export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMo
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
       {!empty && tiles && (tiles.quick.length > 0 || tiles.lists.length > 0) && (
         <>
-          <Head title="For you" sub="Pick a moment, or a mood. Each list tells you what it is built on." />
+          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Pick a moment, or a mood. Each list tells you what it is built on." />
           {tiles.quick.length > 0 && (
             <div style={{ padding: "0 16px 10px", display: "grid", gridTemplateColumns: "repeat(" + tiles.quick.length + ", 1fr)", gap: 8 }}>
               {tiles.quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
             </div>
           )}
           {favTiles.length > 0 && (
-            <div style={{ padding: "0 16px 12px" }}>
-              <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Your moods</div>
+            <div style={{ margin: "4px 16px 14px", padding: "10px 0 12px", borderTop: "1px solid var(--line, rgba(128,128,128,.25))", borderBottom: "1px solid var(--line, rgba(128,128,128,.25))" }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 8 }}>Your moods</div>
               <div className="hscroll" style={{ margin: "0 -16px", padding: "0 16px", gap: 8 }}>
                 {favTiles.map((t) => (
                   <button key={"f" + t.key} onClick={() => onTile(t)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 7, height: 38, padding: "0 8px 0 12px", borderRadius: 19, border: "none", background: t.color, color: "#fff", fontWeight: 800, fontSize: 13.5 }}>
@@ -430,6 +430,7 @@ export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMo
               </div>
             </div>
           )}
+          {favTiles.length > 0 && <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Discover</div>}
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {shownMoods.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}
           </div>

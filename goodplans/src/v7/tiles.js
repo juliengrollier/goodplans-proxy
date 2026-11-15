@@ -4,7 +4,7 @@ import { Moon, PartyPopper, Heart, Smile, Beer, Coffee, Sunrise, Sunset, TreePin
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { PULSE_ICON } from "./pulseIcons.js";
 import { daysUntil } from "../lib/core.js";
-import { isFree } from "./engine.js";
+import { isFree, startMinutes } from "./engine.js";
 
 const MOOD_ICON = {
   "nightcap": Moon, "big-night": PartyPopper, "date-night": Heart, "laugh": Smile, "shake-week": Beer, "after-work": Coffee,
@@ -21,18 +21,35 @@ const QUICK = [
   ["week", "This week", "#2563EB", { when: "week" }],
 ];
 
-// Endless tail: lists generated from what is actually on in the next two weeks (by category, sub-type, area, free)
+// Endless tail: inventive lists built from what is actually on in the next two weeks, ranked by how well they fit your taste
+const low = (k) => String(k).toLowerCase();
+const priceOf = (e) => { const m = String(e.price || "").match(/\$\s*(\d+)/); return m ? +m[1] : null; };
 function facetTiles(visible, today, hid) {
   const ok = visible.filter((e) => { const d = daysUntil(e, today); return d <= 14 && !hid.xcats.includes(e.cat) && !hid.xsubs.includes(e.sub); });
-  const by = (key, label, teaser, icon, pick, pre) => { const m = new Map(); ok.forEach((e) => { const k = pick(e); if (k) { if (!m.has(k)) m.set(k, []); m.get(k).push(e); } });
-    return [...m.entries()].filter(([, l]) => l.length >= 3).map(([k, l]) => ({ key: "gen-" + key + "-" + k, title: label(k), teaser: teaser(k), n: l.length, icon, list: l, facet: pre })); };
-  const all = [
-    ...by("cat", (k) => "More " + k.toLowerCase(), (k) => "Everything in " + k.toLowerCase() + " over the next two weeks.", Sparkles, (e) => e.ncat || e.cat, "cat:"),
-    ...by("sub", (k) => k, (k) => "Just " + k.toLowerCase() + ", soonest first.", Compass, (e) => e.sub, "sub:"),
-    ...by("hood", (k) => "Around " + k, (k) => "What is on in " + k + " in the next two weeks.", MapPin, (e) => e.hood, "hood:"),
-    ...by("free", (k) => "Free " + k.toLowerCase(), (k) => "No ticket needed, in " + k.toLowerCase() + ".", Tag, (e) => (isFree(e) ? e.ncat || e.cat : null), "price:"),
+  const sm = (e) => startMinutes(e);
+  const dowOf = (e) => new Date(e.E + "T12:00:00").getDay();
+  const cat = (e) => e.ncat || e.cat;
+  const out = [];
+  // [id, group by, keep, title, teaser, icon, facet prefix]
+  const T = [
+    ["dark", cat, (e) => sm(e) != null && sm(e) >= 21 * 60, (k) => "After dark: " + low(k), (k) => "Starts at 9 PM or later: " + low(k) + " for night owls.", Moon, "cat:"],
+    ["cheap", cat, (e) => { const p = priceOf(e); return p != null && p > 0 && p <= 20; }, (k) => "Cheap thrills: " + low(k), (k) => "Paid, but $20 or less: " + low(k) + ".", Tag, "cat:"],
+    ["free", cat, (e) => isFree(e), (k) => "Free: " + low(k), (k) => "No ticket needed, in " + low(k) + ".", Tag, "cat:"],
+    ["midweek", cat, (e) => { const d = dowOf(e); return d >= 1 && d <= 4 && (sm(e) ?? 0) >= 17 * 60; }, (k) => "Midweek escape: " + low(k), (k) => "Monday to Thursday evenings, so the week isn't wasted: " + low(k) + ".", Coffee, "cat:"],
+    ["wkend", cat, (e) => { const d = dowOf(e); return d === 0 || d === 6; }, (k) => "Weekend only: " + low(k), (k) => "Saturday and Sunday: " + low(k) + ".", Sun, "cat:"],
+    ["early", cat, (e) => sm(e) != null && sm(e) < 12 * 60, (k) => "Early bird: " + low(k), (k) => "Before noon: " + low(k) + ", with the whole day left.", Sunrise, "cat:"],
+    ["deep", (e) => e.sub, (e) => true, (k) => "Deep cut: " + low(k), (k) => "A niche you rarely see: " + low(k) + ", only a few this fortnight.", Compass, "sub:", (l) => l.length >= 3 && l.length <= 8],
+    ["sub", (e) => e.sub, (e) => true, (k) => k, (k) => "Just " + low(k) + ", soonest first.", Compass, "sub:", (l) => l.length >= 9],
+    ["hoodfree", (e) => e.hood, (e) => isFree(e), (k) => "Free in " + k, (k) => "Nothing to pay, around " + k + ".", MapPin, "hood:"],
+    ["hooddark", (e) => e.hood, (e) => sm(e) != null && sm(e) >= 20 * 60, (k) => k + " after dark", (k) => "Evening plans in " + k + ", 8 PM or later.", MapPin, "hood:"],
+    ["hood", (e) => e.hood, (e) => true, (k) => "Around " + k, (k) => "What is on in " + k + " in the next two weeks.", MapPin, "hood:"],
   ];
-  return all.sort((a, b) => b.n - a.n).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
+  for (const [id, by, keep, title, teaser, icon, facet, test] of T) {
+    const m = new Map();
+    ok.filter(keep).forEach((e) => { const k = by(e); if (k) { if (!m.has(k)) m.set(k, []); m.get(k).push(e); } });
+    for (const [k, l] of m) { if (l.length < 3 || (test && !test(l))) continue; out.push({ key: "gen-" + id + "-" + k, title: title(k), teaser: teaser(k), n: l.length, icon, list: l, facet, fit: l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 5).reduce((s, e) => s + (e.sc || 0), 0) }); }
+  }
+  return out.sort((a, b) => b.fit - a.fit).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
 }
 
 export function buildTiles({ visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
