@@ -192,6 +192,18 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
   );
 }
 
+// Standard carousel item: squarish picture on top, title and when below
+export function SquareCard({ ev, dark, today, onOpen, size = 156 }) {
+  const seenRef = useSeen(ev);
+  return (
+    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: size, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={size} radius={18} hideTitle /><PicOverlay ev={ev} size={28} /></div>
+      <span className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</span>
+      <span style={{ fontSize: 12.5, lineHeight: 1.25 }}><When text={whenLabel(ev, today)} /></span>
+    </div>
+  );
+}
+
 export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   const seenRef = useSeen(ev);
   return (
@@ -366,6 +378,7 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
         {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
       </span>
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {t.verb && <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.85 }}>{t.verb}</span>}
         <span className="disp" style={{ fontSize: 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
         {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
       </span>

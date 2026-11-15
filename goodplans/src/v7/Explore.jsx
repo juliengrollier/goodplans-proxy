@@ -1,12 +1,13 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ResultRow, CompactCard, MoodTile, ActionsCtx } from "./components.jsx";
+import { ResultRow, CompactCard, SquareCard, MoodTile, ActionsCtx } from "./components.jsx";
 import { Icon } from "./icons.jsx";
+import { LIcon } from "./taxonomy.js";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
 import { startMinutes } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 
-export default function Explore({ tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
+export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
   const [style, setStyle] = useState("carousel"); // carousel: one row per category; list: one long list
@@ -67,21 +68,31 @@ export default function Explore({ tiles, moodFav = [], onMoodFav, onClose, onTil
   return (
     <div>
       <FilterHeader filters={filters} setFilters={(f) => { setFilters((f.ids || []).length ? f : { ...f, list: null }); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />
-      {filters.list && (
-        <div style={{ padding: "14px 20px 0", display: "flex", alignItems: "flex-start", gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.1, textTransform: "uppercase", color: "var(--ink3)" }}>From Home</div>
-            <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 28, lineHeight: 1.05 }}>{filters.list}</h1>
-            {listTile?.teaser && <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginTop: 4 }}>{listTile.teaser}</div>}
+      {filters.list && (() => {
+        const meta = listTile || (listMeta && listMeta.title === filters.list ? listMeta : null);
+        const col = meta?.color, fg = col ? "#fff" : undefined;
+        const btn = { height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0, ...(col ? { background: "rgba(255,255,255,.22)", color: "#fff", border: "none" } : {}) };
+        const on = listTile && moodFav.includes(listTile.key);
+        return (
+          <div style={{ margin: col ? "14px 16px 0" : 0, padding: col ? "16px 16px 16px 18px" : "14px 20px 0", borderRadius: 22, background: col || undefined, color: fg, position: "relative", overflow: "hidden", display: "flex", alignItems: "flex-start", gap: 10 }}>
+            {col && <span style={{ position: "absolute", right: 56, top: -6, opacity: 0.18 }} aria-hidden="true">{meta.node ? <LIcon node={meta.node} size={92} color="#fff" stroke={1.6} /> : meta.icon ? React.createElement(meta.icon, { size: 92, strokeWidth: 1.6 }) : null}</span>}
+            <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+              <div className="row" style={{ gap: 7, fontSize: 12, fontWeight: 800, letterSpacing: 1.1, textTransform: "uppercase", color: col ? "rgba(255,255,255,.85)" : "var(--ink3)" }}>
+                {col && (meta.node ? <LIcon node={meta.node} size={15} color="#fff" stroke={2.2} /> : meta.icon ? React.createElement(meta.icon, { size: 15, strokeWidth: 2.4 }) : null)}
+                <span>{meta?.verb ? meta.verb : "From Home"}</span>
+              </div>
+              <h1 className="disp" style={{ margin: "3px 0 0", fontSize: 28, lineHeight: 1.05 }}>{filters.list}</h1>
+              {meta?.teaser && <div style={{ fontSize: 14, lineHeight: 1.4, marginTop: 4, opacity: col ? 0.92 : 1, color: col ? undefined : "var(--ink2)" }}>{meta.teaser}</div>}
+            </div>
+            {listTile && onMoodFav && <button className={col ? "chip" : "chip"} aria-label={on ? "Remove from your moods" : "Add to your moods"} aria-pressed={on} onClick={() => onMoodFav(listTile)} style={{ ...btn, position: "relative" }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>}
+            <button className="chip" aria-label="Close and go back to Home" onClick={() => (onClose ? onClose() : setFilters({ ...filters, ids: [], list: null }))} style={{ ...btn, position: "relative" }}><Icon name="close" size={16} /></button>
           </div>
-          {listTile && onMoodFav && (() => { const on = moodFav.includes(listTile.key); return <button className="chip" aria-label={on ? "Remove from your moods" : "Add to your moods"} aria-pressed={on} onClick={() => onMoodFav(listTile)} style={{ height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0, color: on ? "#DB2777" : undefined }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>; })()}
-          <button className="chip" aria-label="Close and go back to Home" onClick={() => (onClose ? onClose() : setFilters({ ...filters, ids: [], list: null }))} style={{ height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0 }}><Icon name="close" size={16} /></button>
-        </div>
-      )}
+        );
+      })()}
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 14 }}>
           <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
-          <div className="hscroll">{savedHere.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+          <div className="hscroll">{savedHere.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </div>
       )}
       <div className="row" style={{ padding: "12px 16px 8px", gap: 6 }} role="tablist">
@@ -99,7 +110,7 @@ export default function Explore({ tiles, moodFav = [], onMoodFav, onClose, onTil
           {catGroups.map(([cat, list]) => (
             <div key={cat}>
               <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "6px 20px 8px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
-              {!collapsed[cat] && <div className="hscroll">{list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>}
+              {!collapsed[cat] && <div className="hscroll">{list.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>}
             </div>
           ))}
           {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
