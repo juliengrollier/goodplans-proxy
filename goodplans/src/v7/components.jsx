@@ -238,16 +238,23 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
 }
 
 // Home card (one style everywhere on Home): picture, category, title, one-line hook, when and how far, Free, actions
-export function PosterCard({ ev, dark, today, onOpen }) {
+export function PosterCard({ ev, dark, today, onOpen, hideCat }) {
   const seenRef = useSeen(ev);
+  const w = whenLabel(ev, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, ""); // the end date is on the event page; the card keeps one short line
   return (
-    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 186, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
-      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={190} radius={22} hideTitle /><PicOverlay ev={ev} /></div>
-      <div className="row" style={{ gap: 6 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{ev.ncat || ev.cat}</span></div>
-      <div className="disp clamp2" style={{ fontSize: 16.5, lineHeight: 1.12 }}>{ev.title}</div>
-      <Snippet ev={ev} lines={2} size={12.5} />
-      <div className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}><span className="ell"><When text={whenLabel(ev, today)} /></span><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} muted /></span></div>
-      <div className="row" style={{ justifyContent: "flex-end" }}><CardActions ev={ev} size={28} noSave /></div>
+    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", gap: 5, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
+      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} />
+        {hideCat && <span style={{ position: "absolute", right: 6, bottom: 6, padding: "0 4px", borderRadius: 16, background: "rgba(255,255,255,.88)", color: "#1b1f3b" }}><CardActions ev={ev} size={26} noSave /></span>}
+      </div>
+      {!hideCat && (
+        <div className="row" style={{ gap: 5, justifyContent: "space-between", minWidth: 0 }}>
+          <span className="row" style={{ gap: 5, minWidth: 0 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell muted" style={{ fontSize: 11.5, fontWeight: 700 }}>{ev.ncat || ev.cat}</span></span>
+          <CardActions ev={ev} size={24} noSave />
+        </div>
+      )}
+      <div className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</div>
+      <Snippet ev={ev} lines={2} size={12} />
+      <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between" }}><span className="ell" style={{ minWidth: 0 }}><When text={w} /></span><span style={{ fontWeight: 400, color: "var(--ink3)", flexShrink: 0 }}><Travel tt={ev.tt} muted size={12} /></span></div>
     </div>
   );
 }

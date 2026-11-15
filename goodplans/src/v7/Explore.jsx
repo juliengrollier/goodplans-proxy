@@ -1,10 +1,10 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, ActionsCtx } from "./components.jsx";
+import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, CatBullet, ActionsCtx } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { LIcon } from "./taxonomy.js";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
-import { startMinutes } from "./engine.js";
+import { startMinutes, whenLabel } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 
 export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
@@ -70,31 +70,27 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       {!filters.list && (<FilterHeader filters={filters} setFilters={(f) => { setFilters((f.ids || []).length ? f : { ...f, list: null }); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />)}
       {filters.list && (() => {
         const meta = listTile || (listMeta && listMeta.title === filters.list ? listMeta : null);
-        const col = meta?.color, fg = col ? "#fff" : undefined;
-        const btn = { height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0, ...(col ? { background: "rgba(255,255,255,.22)", color: "#fff", border: "none" } : {}) };
+        const col = meta?.color || "#1F2A5C";
+        const dk = "#" + [1, 3, 5].map((i) => Math.round(parseInt(col.slice(i, i + 2), 16) * 0.72).toString(16).padStart(2, "0")).join("");
+        const ico = (n) => (meta?.node ? <LIcon node={meta.node} size={n} color="#fff" stroke={2.2} /> : meta?.icon ? React.createElement(meta.icon, { size: n, strokeWidth: 2.2 }) : null);
+        const btn = { width: 36, height: 36, borderRadius: 18, border: "none", background: "rgba(255,255,255,.18)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 };
         const on = listTile && moodFav.includes(listTile.key);
+        const first = results[0];
         return (
-          <div style={{ margin: 0, padding: col ? "16px 16px 18px 20px" : "14px 20px 0", borderRadius: 0, background: col || undefined, color: fg, position: "relative", overflow: "hidden", display: "flex", alignItems: "flex-start", gap: 10 }}>
-            {col && <span style={{ position: "absolute", right: 56, top: -6, opacity: 0.18 }} aria-hidden="true">{meta.node ? <LIcon node={meta.node} size={92} color="#fff" stroke={1.6} /> : meta.icon ? React.createElement(meta.icon, { size: 92, strokeWidth: 1.6 }) : null}</span>}
-            <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-              <div className="row" style={{ gap: 7, fontSize: 12, fontWeight: 800, letterSpacing: 1.1, textTransform: "uppercase", color: col ? "rgba(255,255,255,.85)" : "var(--ink3)" }}>
-                {col && (meta.node ? <LIcon node={meta.node} size={15} color="#fff" stroke={2.2} /> : meta.icon ? React.createElement(meta.icon, { size: 15, strokeWidth: 2.4 }) : null)}
-                <span>{meta?.verb ? meta.verb : "From Home"}</span>
-              </div>
-              <h1 className="disp" style={{ margin: "3px 0 0", fontSize: 28, lineHeight: 1.05 }}>{filters.list}</h1>
-              {meta?.teaser && <div style={{ fontSize: 14, lineHeight: 1.4, marginTop: 4, opacity: col ? 0.92 : 1, color: col ? undefined : "var(--ink2)" }}>{meta.teaser}</div>}
+          <div style={{ background: `linear-gradient(135deg, ${col} 0%, ${dk} 100%)`, color: "#fff", padding: "14px 16px 16px 18px" }}>
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span className="row" style={{ gap: 7, padding: "5px 11px 5px 9px", borderRadius: 16, background: "rgba(255,255,255,.18)", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.1, textTransform: "uppercase" }}>{ico(14)}{meta?.verb || "Your list"}</span>
+              <span className="row" style={{ gap: 8 }}>
+                {listTile && onMoodFav && <button aria-label={on ? "Remove from your moods" : "Add to your moods"} aria-pressed={on} onClick={() => onMoodFav(listTile)} style={btn}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>}
+                <button aria-label="Close and go back to Home" onClick={() => (onClose ? onClose() : setFilters({ ...filters, ids: [], list: null }))} style={btn}><Icon name="close" size={16} /></button>
+              </span>
             </div>
-            {listTile && onMoodFav && <button className={col ? "chip" : "chip"} aria-label={on ? "Remove from your moods" : "Add to your moods"} aria-pressed={on} onClick={() => onMoodFav(listTile)} style={{ ...btn, position: "relative" }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>}
-            <button className="chip" aria-label="Close and go back to Home" onClick={() => (onClose ? onClose() : setFilters({ ...filters, ids: [], list: null }))} style={{ ...btn, position: "relative" }}><Icon name="close" size={16} /></button>
+            <h1 className="disp" style={{ margin: 0, fontSize: 27, lineHeight: 1.06 }}>{filters.list}</h1>
+            {meta?.teaser && <div style={{ fontSize: 14, lineHeight: 1.4, marginTop: 5, opacity: 0.92, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.teaser}</div>}
+            <div style={{ fontSize: 12.5, fontWeight: 700, marginTop: 9, opacity: 0.8 }}>{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
           </div>
         );
       })()}
-      {savedHere.length > 0 && (
-        <div style={{ paddingTop: 14 }}>
-          <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
-          <DotScroll>{savedHere.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
-        </div>
-      )}
       <div className="row" style={{ padding: "12px 16px 8px", gap: 6 }} role="tablist">
         <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
         <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Regulars · {nReg}</button>
@@ -105,12 +101,20 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
           </span>
         )}
       </div>
+      {savedHere.length > 0 && (
+        <div style={{ paddingTop: 4 }}>
+          <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
+          {savedHere.length === 1
+            ? <div style={{ padding: "0 16px" }}><CompactCard ev={savedHere[0]} dark={dark} today={today} onOpen={onOpen} /></div>
+            : <DotScroll>{savedHere.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
+        </div>
+      )}
       {view === "all" && style === "carousel" ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 8 }}>
           {catGroups.map(([cat, list]) => (
             <div key={cat}>
-              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "6px 20px 8px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
-              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
+              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "2px 20px 6px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><CatBullet ev={list[0]} size={24} dark={dark} /><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
+              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard hideCat key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
             </div>
           ))}
           {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
