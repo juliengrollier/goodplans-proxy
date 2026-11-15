@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
-import { hoodCards, buildTiles } from "./tiles.js";
+import { hoodCards, genericCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
 import Today from "./Today.jsx";
 import Explore from "./Explore.jsx";
@@ -494,11 +494,18 @@ export default function App() {
   };
   // New York right now: three rows of one-card carousels (season and festivities, neighbourhoods, weather)
   const hoodItems = useMemo(() => hoodCards(visible, today, { xcats: filters.xcats || [], xsubs: filters.xsubs || [] }), [visible, today, filters.xcats, filters.xsubs]); // eslint-disable-line react-hooks/exhaustive-deps
-  const nyRows = [
-    cityHol.map((m) => view("city", m, m.facts)),
-    hoodItems,
-    cityWx.map((m) => view("city", m, m.facts)),
-  ].map((items, slot) => ({ key: "ny" + slot, slot, items: items.filter((c) => c && c.list?.length) })).filter((r) => r.items.length);
+  const view2 = (arr) => arr.map((m) => view("city", m, m.facts));
+  // Each row holds three cards: its own kind first, then leftovers (other city themes, more neighbourhoods, generic ones)
+  const genCards = useMemo(() => genericCards(visible, today), [visible, today]);
+  const nyRows = (() => {
+    const used = new Set();
+    const take = (arr, n) => arr.filter((c) => c && c.list?.length && !used.has(c.id)).slice(0, n).map((c) => (used.add(c.id), c));
+    const rest = () => [...cityR.all.filter((x) => x.list.length >= 2).map((m) => view("city", m, m.facts)), ...genCards];
+    const hol = view2(cityHol), wx = view2(cityWx), hood = hoodItems;
+    const rows = [hol, hood, wx].map((own, slot) => { const got = take(own, 3); return { key: "ny" + slot, slot, items: got }; });
+    rows.forEach((r, i) => { if (r.items.length < 3) r.items.push(...take(i === 1 ? [...hoodItems, ...rest()] : rest(), 3 - r.items.length)); });
+    return rows.filter((r) => r.items.length);
+  })();
 
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
   const tagBusy = useRef(false);
@@ -813,7 +820,9 @@ export default function App() {
     setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
     toast(on ? "Removed from your moods" : "Added to your moods");
   };
+  const [listMeta, setListMeta] = useState(null);
   const openTile = (t) => {
+    setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: t.teaser, verb: t.verb });
     if (/^(mood|pick|gen)-/.test(t.key || "")) { const c = { ...moodClicks, [t.key]: { n: (moodClicks[t.key]?.n || 0) + 1, at: Date.now() } }; setMoodClicks(c); try { localStorage.setItem("gp_moodclicks_v1", JSON.stringify(c)); } catch { /* full */ } if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } } }
     const base = { ...filters, fam: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
     setFilters(t.list ? { ...base, ids: t.list.map((e) => e.id), when: "any" } : { ...base, ...t.patch });
@@ -894,7 +903,7 @@ export default function App() {
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
+        {tab === "explore" && <Explore listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}

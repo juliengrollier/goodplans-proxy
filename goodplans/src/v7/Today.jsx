@@ -326,9 +326,9 @@ const NY_TINT = [["#7C2D12", "Season"], ["#1E3A8A", "Neighbourhood"], ["#0F766E"
 function NYCard({ c, tint, onTile }) {
   const [r, g, bl] = [parseInt(tint.slice(1, 3), 16), parseInt(tint.slice(3, 5), 16), parseInt(tint.slice(5, 7), 16)];
   return (
-    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list })}
+    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.sub })}
       style={{ flex: "0 0 100%", scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
-      <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={124} /></div>
+      <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={150} /></div>
       <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(${r},${g},${bl},.10) 0%, rgba(${r},${g},${bl},.35) 35%, rgba(8,10,26,.9) 100%)` }} />
       <span style={{ position: "absolute", top: 10, right: 10, padding: "3px 10px", borderRadius: 12, background: "rgba(255,255,255,.2)", color: "#fff", fontSize: 12, fontWeight: 800, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>{c.list.length} {c.list.length > 1 ? "events" : "event"}</span>
       <div style={{ position: "absolute", left: 14, right: 14, bottom: 11, color: "#fff", display: "flex", flexDirection: "column", gap: 2, textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>
@@ -354,7 +354,6 @@ function NYRow({ row, ri, onTile }) {
         {items.length > 1 && (
           <span className="row" style={{ gap: 5 }} aria-label={"Card " + (i + 1) + " of " + items.length}>
             {items.map((_, k) => <span key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 3, background: k === i ? "var(--ink)" : "var(--ink3)", opacity: k === i ? 0.9 : 0.35, transition: "all .2s" }} />)}
-            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--ink3)", marginLeft: 2 }}>swipe ›</span>
           </span>
         )}
       </div>

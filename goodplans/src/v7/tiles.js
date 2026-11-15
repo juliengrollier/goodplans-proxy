@@ -50,19 +50,42 @@ function facetTiles(visible, today, hid) {
 }
 
 // Colour follows the action verb a list is really about, so the same colour always means the same kind of outing
-const VERBS = [
-  [/free|cheap|under \$|no ticket/i, "#475569"],
-  [/laugh|comedy|stand-?up|funny/i, "#D97706"],
-  [/dance|club|\bdj\b|party|big night|nightcap|after dark|night owl/i, "#C026D3"],
-  [/eat|food|feed|cocktail|drink|brunch|taste|cook|dinner|beer|wine|shake|market/i, "#EA580C"],
-  [/meet|date|social|friends|mingle|together|group/i, "#DB2777"],
-  [/music|concert|gig|live|jazz|listen|band/i, "#7C3AED"],
-  [/film|movie|screen|watch|theat|stage|show/i, "#2563EB"],
-  [/culture|museum|gallery|learn|talk|book|weird|art\b|deep cut|class|workshop/i, "#4F46E5"],
-  [/move|run|ride|fresh air|outdoor|walk|park|wander|hike|sport|fitness|explor|bike|yoga/i, "#16A34A"],
-  [/lazy|chill|sunday|cosy|cozy|warm|hideout|early|coffee|slow|rain/i, "#0D9488"],
+const VERB = { eat: ["Eat", "#EA580C"], dance: ["Dance", "#C026D3"], laugh: ["Laugh", "#D97706"], meet: ["Meet", "#DB2777"], listen: ["Listen", "#7C3AED"], watch: ["Watch", "#2563EB"], learn: ["Learn", "#4F46E5"], move: ["Move", "#16A34A"], chill: ["Chill", "#0D9488"], save: ["Save", "#475569"], make: ["Make", "#BE185D"], go: ["Explore", "#0891B2"] };
+const BY_ID = {
+  food: "eat", "feed-me": "eat", "shake-week": "eat",
+  bignight: "dance", "big-night": "dance", nightcap: "dance", lateloud: "dance", underground: "dance",
+  laugh: "laugh", meet: "meet", date: "meet", "date-night": "meet", handson: "make", smallrooms: "listen",
+  weird: "learn", think: "learn", culture: "learn", classic: "learn", explorer: "go", saved: "go",
+  move: "move", freeout: "move", "fresh-air": "move", wander: "move",
+  talk: "chill", "lazy-sunday": "chill", "sunday-scaries": "chill", hideout: "chill", "warm-up": "chill", early: "chill", "after-work": "chill", quick: "go",
+  cheap: "save", "free-ride": "save",
+};
+const BY_TEMPLATE = { dark: "dance", cheap: "save", free: "save", midweek: "chill", wkend: "go", early: "chill", deep: "learn", sub: "go" };
+const BY_WORD = [
+  [/comedy|stand-?up|improv|laugh/i, "laugh"], [/music|concert|jazz|band|gig|\blive\b|opera|classical|listen/i, "listen"], [/film|movie|cinema|screen|theat|stage|watch/i, "watch"],
+  [/dance|club|\bdj\b|party|nightlife/i, "dance"], [/food|eat|drink|cocktail|wine|beer|brunch|tasting|cook|market/i, "eat"], [/run|ride|yoga|sport|fitness|hike|walk|bike|outdoor|park/i, "move"],
+  [/museum|gallery|art\b|talk|book|class|workshop|lecture|learn|history/i, "learn"], [/meet|social|mixer|friends|date/i, "meet"],
 ];
-export const verbColor = (t) => { const hit = (txt) => VERBS.find(([re]) => re.test(txt)); const h = hit((t.title || "") + " " + (t.key || "")) || hit(t.teaser || ""); return h ? h[1] : "#0891B2"; };
+export function verbOf(t) {
+  const m = /^(mood|pick|gen)-(.+)$/.exec(t.key || ""); const kind = m && m[1], id = m ? m[2] : (t.key || "");
+  let v = null;
+  if (kind === "gen") { const tm = /^(\w+?)-/.exec(id); const w = BY_WORD.find(([re]) => re.test(t.title)); v = (w && w[1]) || BY_TEMPLATE[tm && tm[1]]; }
+  else v = BY_ID[id];
+  if (!v) { const w = BY_WORD.find(([re]) => re.test((t.title || "") + " " + (t.teaser || ""))); v = w ? w[1] : "go"; }
+  return VERB[v] || VERB.go;
+}
+
+// Generic New York cards, used to fill a row up to three
+export function genericCards(visible, today) {
+  const wk = visible.filter((e) => daysUntil(e, today) <= 7);
+  const mk = (id, title, sub, icon, list) => ({ id, title, sub, icon, list });
+  return [
+    mk("gen-free", "Free this week", "No ticket needed", Tag, wk.filter((e) => isFree(e))),
+    mk("gen-late", "Open late", "Starts 9 PM or later", Moon, wk.filter((e) => (startMinutes(e) ?? 0) >= 21 * 60)),
+    mk("gen-wknd", "This weekend", "Saturday and Sunday", Sun, wk.filter((e) => { const d = new Date(e.E + "T12:00:00").getDay(); return d === 0 || d === 6; })),
+    mk("gen-early", "Before noon", "Start the day out", Sunrise, wk.filter((e) => (startMinutes(e) ?? 1e4) < 12 * 60)),
+  ].filter((c) => c.list.length >= 2);
+}
 
 // New York right now, neighbourhood row: where the most good stuff is this week
 const topCats = (l) => { const c = {}; l.forEach((e) => { const k = e.ncat || e.cat; if (k) c[k] = (c[k] || 0) + 1; }); const t = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k); return t.length ? "Mostly " + t.join(", ").toLowerCase() : "Busy this week"; };
@@ -70,9 +93,9 @@ export function hoodCards(visible, today, hid) {
   const m = new Map();
   const BORO = /^(manhattan|brooklyn|queens|the bronx|bronx|staten island|nyc|new york|new york city|citywide|various)$/i;
   visible.forEach((e) => { if (!e.hood || BORO.test(e.hood.trim()) || daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; if (!m.has(e.hood)) m.set(e.hood, []); m.get(e.hood).push(e); });
-  return [...m.entries()].filter(([, l]) => l.length >= 3)
+  return [...m.entries()].filter(([, l]) => l.length >= 2)
     .map(([k, l]) => ({ id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: "Around " + k, sub: topCats(l), list: l, fit: l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 5).reduce((x, e) => x + (e.sc || 0), 0) }))
-    .sort((a, b) => b.fit - a.fit).slice(0, 3);
+    .sort((a, b) => b.fit - a.fit).slice(0, 6);
 }
 
 export function buildTiles({ visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
@@ -109,8 +132,8 @@ export function buildTiles({ visible, today, filters, youR, youA, youTitle, pick
     }
   }
   out.sort((a, b) => (fb[a.key] === -1) - (fb[b.key] === -1));
-  out.forEach((t) => { if (!/^(quick|book)/.test(t.key)) t.color = verbColor(t); });
-  order.forEach((t) => { if (t.key !== "book") t.color = verbColor(t); });
+  const tag = (t) => { if (t.key === "book") return; const [verb, color] = verbOf(t); t.verb = verb; t.color = color; };
+  out.forEach(tag); order.forEach(tag);
   const base = Math.min(6, out.length) - (Math.min(6, out.length) % 2);
   return { quick, lists: out.slice(0, base), all: out, every: order, base };
 }
