@@ -5,6 +5,7 @@ import { catColor, catIcon } from "./theme.js";
 import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
 import { whenLabel, isFree, weatherBadge } from "./engine.js";
 import { useEventImage, dropImage } from "./images.js";
+import { neighbourhoodOf } from "./tiles.js";
 
 export const ActionsCtx = createContext({ onSeen: () => {}, prefOf: () => 0, onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0, isStar: () => false, toggleStar: () => {} });
 
@@ -51,17 +52,18 @@ export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
 
 // First words of the description, so a card says what the event is
 // Dot-separated keywords on one line, in the same soft style as the blurb they replace
+// One word that says the most about the event (the rarest of its keywords in the feed, or its activity), then its area
+let KW_DF = {};
+export const setKeywordDf = (events) => { const df = {}; events.forEach((e) => new Set((e.kw || []).map((k) => String(k).toLowerCase())).forEach((k) => { df[k] = (df[k] || 0) + 1; })); KW_DF = df; };
+const KW_JUNK = /^(nyc|new york|brooklyn|manhattan|queens|free|event|events|other|misc|general|live|night|show|fun|social|outdoor|indoor|family-friendly|all ages|21\+|late night)$/i;
 export function KeywordLine({ ev, size = 12 }) {
-  const t = (ev.title || "").toLowerCase();
-  const junk = /^(nyc|new york|other|misc|miscellaneous|general|event|events|n\/a)$/i;
-  const seen = new Set();
-  // Claude's keywords first, then the sub-type, category and area, so no card is ever left without a line
-  const kw = [...(ev.kw || []), ev.nsub, ev.sub, ev.ncat || ev.cat, ev.hood && String(ev.hood).split(",")[0]]
-    .map((k) => (k == null ? "" : String(k).trim()))
-    .filter((k) => { const l = k.toLowerCase(); if (!k || junk.test(k) || l === t || seen.has(l)) return false; seen.add(l); return true; })
-    .slice(0, 4);
-  if (!kw.length) return <div style={{ fontSize: size, lineHeight: 1.35 }}>&nbsp;</div>;
-  return <div className="ell" style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink3)", opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kw.join(" · ")}</div>;
+  const t = (ev.title || "").toLowerCase(), cat = String(ev.ncat || ev.cat || "").toLowerCase();
+  const kws = (ev.kw || []).map((k) => String(k).trim()).filter((k) => k && !KW_JUNK.test(k) && k.toLowerCase() !== cat && !t.includes(k.toLowerCase()));
+  const word = kws.sort((a, b) => (KW_DF[a.toLowerCase()] || 1) - (KW_DF[b.toLowerCase()] || 1) || a.length - b.length)[0] || ev.nsub || ev.sub;
+  const area = neighbourhoodOf(ev) || (ev.hood ? String(ev.hood).split(",")[0] : null);
+  const bits = [word, area].filter(Boolean);
+  if (!bits.length) return <div style={{ fontSize: size, lineHeight: 1.35 }}>&nbsp;</div>;
+  return <div className="ell" style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink3)", opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{bits.join(" · ")}</div>;
 }
 
 export function Snippet({ ev, lines = 2, size = 13.5 }) {
@@ -148,10 +150,10 @@ export function Flags({ ev }) {
 }
 
 // Day and time stay semi-bold; "until Dec 3" is context, so it is regular weight and softer
-export function When({ text }) {
-  const i = (text || "").indexOf(" · until ");
-  if (i < 0) return <span style={{ fontWeight: 700 }}>{text}</span>;
-  return <span><span style={{ fontWeight: 700 }}>{text.slice(0, i)}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}>{text.slice(i)}</span></span>;
+export function When({ text, plain }) {
+  const i = (text || "").indexOf(" · until "), fw = plain ? 500 : 700;
+  if (i < 0) return <span style={{ fontWeight: fw }}>{text}</span>;
+  return <span><span style={{ fontWeight: fw }}>{text.slice(0, i)}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}>{text.slice(i)}</span></span>;
 }
 
 // Category · sub-type, shown next to the icon on cards
@@ -198,7 +200,7 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
         <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
         <Snippet ev={ev} />
         <div className="row" style={{ gap: 10, fontSize: 14, minWidth: 0 }}>
-          <When text={whenLabel(ev, today)} /><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} size={14} /></span>
+          <When text={whenLabel(ev, today)} plain /><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} size={14} /></span>
           <span style={{ marginLeft: "auto", flexShrink: 0 }}><CardActions ev={ev} noSave /></span>
         </div>
       </div>
@@ -225,7 +227,7 @@ export function DotScroll({ children, className = "hscroll", style }) {
     <>
       <div ref={ref} className={className} style={style} onScroll={onScroll}>{children}</div>
       {n > 1 && (
-        <div className="row" style={{ justifyContent: "center", gap: 5, padding: "8px 0 0" }} aria-hidden="true">
+        <div className="row" style={{ justifyContent: "center", gap: 5, padding: "14px 0 0" }} aria-hidden="true">
           {Array.from({ length: shown }, (_, k) => <span key={k} style={{ width: k === at ? 16 : 6, height: 6, borderRadius: 3, background: "var(--ink)", opacity: k === at ? 0.85 : 0.22, transition: "all .2s" }} />)}
         </div>
       )}
@@ -243,7 +245,7 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
         <Snippet ev={ev} lines={2} size={12.5} />
         <span className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}>
-          <span style={{ whiteSpace: "nowrap" }}><When text={when || whenLabel(ev, today)} />{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} /></span>
+          <span style={{ whiteSpace: "nowrap" }}><When text={when || whenLabel(ev, today)} plain />{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} /></span>
         </span>
         <div className="row" style={{ justifyContent: "flex-end", marginTop: 2 }}><CardActions ev={ev} size={28} noSave /></div>
       </div>
@@ -268,7 +270,7 @@ export function PosterCard({ ev, dark, today, onOpen, hideCat }) {
       )}
       <div className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</div>
       <KeywordLine ev={ev} />
-      <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between" }}><span className="ell" style={{ minWidth: 0 }}><When text={w} /></span><span style={{ fontWeight: 400, color: "var(--ink3)", flexShrink: 0 }}><Travel tt={ev.tt} muted size={12} /></span></div>
+      <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between" }}><span className="ell" style={{ minWidth: 0 }}><When text={w} plain /></span><span style={{ fontWeight: 400, color: "var(--ink3)", flexShrink: 0 }}><Travel tt={ev.tt} muted size={12} /></span></div>
     </div>
   );
 }
@@ -337,7 +339,7 @@ function loadLeaflet() {
 }
 
 export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger, hideHome }) {
-  const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef(false);
+  const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef("");
   const [err, setErr] = useState(null);
   const [hint, setHint] = useState(false);
   useEffect(() => {
@@ -368,10 +370,14 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap", className: dark ? "gp-tiles-dark" : "gp-tiles-light" }).addTo(m);
     layerRef.current.clearLayers();
     if (!hideHome) L.marker(home, { icon: L.divIcon({ className: "", html: '<div class="gp-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(layerRef.current);
-    if (fit && events.length && !fitted.current) {
-      const pts = [home, ...events.map((e) => e.coord)];
-      m.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 15 });
-      fitted.current = true;
+    // Fit every shortlisted pin (home only when there are no pins); refit whenever the set of pins changes
+    const fk = events.map((e) => e.id).join(",");
+    if (fit && events.length && fitted.current !== fk) {
+      m.invalidateSize();
+      const pts = events.map((e) => e.coord).filter((c) => Array.isArray(c) && c.length === 2);
+      if (pts.length === 1) m.setView(pts[0], 15); else if (pts.length) m.fitBounds(L.latLngBounds(pts), { padding: [34, 34], maxZoom: 16 });
+      fitted.current = fk;
+      setTimeout(() => { try { m.invalidateSize(); if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [34, 34], maxZoom: 16 }); } catch { /* unmounted */ } }, 250);
     }
     events.forEach((ev) => {
       const c = evColor(ev, dark), sel = ev.id === selectedId, sz = sel ? 44 : 34;

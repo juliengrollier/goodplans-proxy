@@ -3,6 +3,7 @@ import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
 import { markSeen } from "./moods2.js";
+import { setKeywordDf } from "./components.jsx";
 import { logMood, moodStats } from "./moodlog.js";
 import { actOf } from "./activities.js";
 import { ingest, getSpace, tasteOf, neighbours, labelOf } from "./embed.js";
@@ -806,6 +807,7 @@ export default function App() {
   }, [visible, modelVer, today, meet]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickPool = useMemo(() => { const wk = new Date(today); wk.setDate(today.getDate() + 7); return poolPicks(visible.filter((e) => evStart(e) <= wk)); }, [visible, today]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── Home tiles (quick time tiles + moods/picks); reused as "More ideas" in Explore
+  useMemo(() => setKeywordDf(visible), [visible]); // keyword rarity, so cards show the most telling word
   // Taste space: grows with every enriched event; your taste (and Theo's, when blended) is a point in it
   const [embVer, setEmbVer] = useState(0);
   useEffect(() => { const ready2 = visible.filter((e) => tags[e.id] || aiOff.current); if (ready2.length && ingest(ready2, today)) setEmbVer((v) => v + 1); }, [visible, tags]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -933,7 +935,7 @@ export default function App() {
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} home={home} onFullMap={openFullMap} />}
+        {tab === "explore" && <Explore listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} home={home} onFullMap={openFullMap} moodFb={moodFb} onMoodFb={reactMood} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
@@ -947,7 +949,7 @@ export default function App() {
 
       <TabBar tab={tab} setTab={(t) => { setTab(t); window.scrollTo(0, 0); }} plansCount={plansCount} />
 
-      {showQuiz && <Quiz initial={quiz?.v === Q.QUIZ_VERSION ? quiz.answers || {} : {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
+      {showQuiz && <Quiz dark={dark} initial={quiz?.v === Q.QUIZ_VERSION ? quiz.answers || {} : {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
       {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
