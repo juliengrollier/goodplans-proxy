@@ -114,7 +114,7 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
   );
 }
 
-// City pulse: what New York is up to. Banner card + poster carousel, so it reads differently from "Your mood".
+// City pulse: what New York is up to. Navy banner card, then the related events as a list.
 function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
   return (
     <div style={{ margin: "26px 0 0" }}>
@@ -125,7 +125,7 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
         {other && <button onClick={onSwitch} className="row" style={{ alignSelf: "flex-start", marginTop: 6, gap: 6, height: 32, padding: "0 12px", borderRadius: 16, border: "1.5px solid rgba(251,247,239,.35)", background: "transparent", color: "#FBF7EF", fontWeight: 700, fontSize: 13, maxWidth: "100%" }}><span style={{ opacity: 0.7 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
       </div>
       {m.list.length ? (
-        <div className="hscroll" style={{ marginTop: 14 }}>{m.list.slice(0, 8).map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+        <div style={{ padding: "12px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>{m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
       ) : <div className="muted" style={{ fontSize: 14, padding: "12px 20px 0" }}>Nothing in your feed is truly about this yet.</div>}
     </div>
   );
