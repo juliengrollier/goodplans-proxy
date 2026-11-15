@@ -28,7 +28,7 @@ const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
 const TAGS_KEY = "gp_tags_v8";
-const HL_KEY = "gp_hl_v12";
+const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
   const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -277,7 +277,7 @@ export default function App() {
   // The week's top picks: shown on Today and used as the only source for the "don't miss" paragraph, so the text never mentions something that is not on screen
   const weekPool = useMemo(() => {
     const seen = new Set();
-    return visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+    return visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 10);
   }, [visible, today]);
   const weekPicks = useMemo(() => weekPool.slice(0, 5), [weekPool]);
   const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof, pinned: weekPicks.map((e) => e.id) }), [scored, today, effFree, eprof, weekPicks]);
