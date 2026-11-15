@@ -90,13 +90,13 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   return (
     <>
       <SectionHead title={"Top picks · " + (curSub || curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], subs: curSub ? [curSub] : [], when: "week" })} />
-      <div className="row" style={{ justifyContent: "space-between", padding: "0 12px 14px" }} role="tablist" aria-label="Topic">
+      <div className="hscroll" style={{ gap: 4, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="tablist" aria-label="Topic">
         {fams.map((id) => FAM[id]).map((f) => {
           const on = f.id === cur, col = famColor(f.id, dark);
           return (
             <button key={f.id} role="tab" aria-selected={on} aria-label={f.label} onClick={() => pick(f.id)}
-              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 38, opacity: on ? 1 : 0.45 }}>
-              <span style={{ width: 34, height: 34, borderRadius: 17, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
+              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 46, flexShrink: 0, opacity: on ? 1 : 0.45 }}>
+              <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
                 <LIcon node={f.icon} size={19} color="#fff" />
               </span>
               <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap" }}>{f.short || f.label}</span>
