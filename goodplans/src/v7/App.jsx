@@ -325,7 +325,7 @@ export default function App() {
   const pickOf = (r, id) => (id && r.all.find((x) => x.id === id)) || r.first;
   const cityA = pickOf(cityR, cityPick), cityB = cityA && cityR.first && cityA.id !== cityR.first.id ? cityR.first : cityR.second;
   const youA = pickOf(youR, youPick), youB = youA && youR.first && youA.id !== youR.first.id ? youR.first : youR.second;
-  const mKey = (scope, m) => m && scope + ":" + m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|v2|" + m.list.slice(0, 4).map((e) => e.id).join(",");
+  const mKey = (scope, m) => m && scope + ":" + m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|v3|" + m.list.slice(0, 4).map((e) => e.id).join(",");
   useEffect(() => {
     if (!cityR.first) return;
     const t = (moodStore.shown || {})[cityR.first.id];

@@ -35,7 +35,7 @@ export function Travel({ tt, size = 13, muted }) {
 
 // What to expect: Claude keywords when available, else the sub-category
 export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
-  const k = (ev.kw && ev.kw.length ? ev.kw : ev.sub ? [ev.sub.toLowerCase()] : []).slice(0, max);
+  const k = (ev.kw && ev.kw.length ? ev.kw : ev.sub ? [ev.sub.toLowerCase()] : []).filter((w) => !/^(other|misc|miscellaneous|general|event|events|n\/a)$/i.test(String(w).trim())).slice(0, max);
   if (!k.length) return null;
   return (
     <div className="row" style={oneLine ? { gap: 4, flexWrap: "nowrap", overflow: "hidden", minWidth: 0, flex: 1, maskImage: "linear-gradient(90deg,#000 85%,transparent)", WebkitMaskImage: "linear-gradient(90deg,#000 85%,transparent)" } : { gap: 5, flexWrap: "wrap" }}>

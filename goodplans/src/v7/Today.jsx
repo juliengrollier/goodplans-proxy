@@ -99,11 +99,12 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
     <>
       <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{eyebrow}</span>
-        <h2 style={{ lineHeight: 1.1, opacity: m.writing ? 0.55 : 1, transition: "opacity .3s" }}>{m.title}</h2>
+        <h2 style={{ lineHeight: 1.1, opacity: m.writing ? 0.55 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</h2>
         {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
       </div>
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
         {m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+        {!m.list.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{other.title}</span></button>}
           {children}

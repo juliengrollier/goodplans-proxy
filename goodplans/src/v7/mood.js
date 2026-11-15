@@ -47,6 +47,17 @@ export function buildContext({ events, weather, now = new Date(), busySlots = []
   const rainIn = !rainNow ? next(4).findIndex((h) => h.pp >= 60) : -1;
   const clearIn = rainNow ? next(4).findIndex((h) => h.pp < 25) : -1;
 
+  // Temperature trend: last 3 days vs today vs next 3 days
+  const dayW = (k) => weather?.byDate?.[isoDay(addD(today, k))] || null;
+  const past = [-3, -2, -1].map(dayW).filter(Boolean), fut = [1, 2, 3].map((k) => ({ k, w: dayW(k) })).filter((x) => x.w);
+  const pastAvg = past.length ? past.reduce((a, x) => a + x.hi, 0) / past.length : null;
+  const warmest = fut.sort((a, b) => b.w.hi - a.w.hi)[0];
+  const trend = {
+    drop: w && pastAvg != null ? Math.round(pastAvg - w.hi) : 0,
+    firstFreeze: !!w && w.lo <= 32 && past.every((x) => x.lo > 32),
+    warming: w && warmest ? warmest.w.hi - w.hi : 0, warmDayK: warmest?.k ?? null, warmHi: warmest?.w.hi ?? null,
+    warmDays: fut.filter((x) => w && x.w.hi >= w.hi + 6).map((x) => isoDay(addD(today, x.k))),
+  };
   const tg = nthDow(y, 10, 4, 4);
   const cal = {
     tg, tgWeek: within(today, addD(tg, -3), addD(tg, 3)), tgDay: same(today, tg), blackFriday: same(today, addD(tg, 1)),
@@ -57,6 +68,7 @@ export function buildContext({ events, weather, now = new Date(), busySlots = []
     usOpen: lastDow(y, 7, 1), santacon: nthDow(y, 11, 6, 2), museumMile: nthDow(y, 5, 2, 2),
     mermaid: (() => { const s = D(y, 5, 21); return addD(s, (6 - s.getDay() + 7) % 7); })(),
     ohny: nthDow(y, 9, 6, 3), indigenous: nthDow(y, 9, 1, 2),
+    dstStart: nthDow(y, 2, 0, 2),
     lunar: tbl("lunar", y), diwali: tbl("diwali", y), hanukkah: tbl("hanukkah", y), eid: tbl("eid", y),
     rosh: tbl("roshhashanah", y), passover: tbl("passover", y), holi: tbl("holi", y),
   };
@@ -90,7 +102,7 @@ export function buildContext({ events, weather, now = new Date(), busySlots = []
     wx: {
       ok: !!w, temp: wn?.temp ?? w?.hi ?? null, feels: wn?.feels ?? wn?.temp ?? null, hi: w?.hi ?? null, lo: w?.lo ?? null, pmax: w?.pmax ?? 0,
       rainNow, snowNow, snowToday: (w?.snow ?? 0) > 0.2, rainIn, clearIn, wind: wn?.wind ?? 0, sunset: w?.sunset ?? 17 * 60, eveTemp: w?.eveTemp ?? null,
-      jump: w && wy ? w.hi - wy.hi : 0, eveRain: w?.evening ?? 0,
+      jump: w && wy ? w.hi - wy.hi : 0, eveRain: w?.evening ?? 0, ...trend,
     },
     cal, longWeekend,
     me: { busyHours, eveningBusy, calOk, daysSinceSave, awayKm, streak: streak && streak[1] >= 3 ? streak[0] : null },
@@ -109,10 +121,20 @@ const tn = (e, c) => tonightish(c)(e);
 const COZY = "film|screening|cinema|museum|exhibit|gallery|jazz|piano|reading|book|tea|cocoa|hot chocolate|ramen|soup|wine|candle|acoustic|library|talk|comedy|theat|cabaret|board game|trivia|fondue|whisk";
 const XMAS = T("christmas|xmas|holiday|tree lighting|tree arrives|\\btree\\b|santa|winter village|rink|skat|nutcracker|carol|festive|ornament|advent|gl[oö]gg|gingerbread|wreath");
 const TG = T("thanksgiving|friendsgiving|turkey");
+const DAYS_TO = (c, d) => Math.round((d - c.today) / 86400000);
+const fmtDate = (d) => d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 const fmtSun = (m) => `${Math.floor(m / 60) - 12}:${String(m % 60).padStart(2, "0")} PM`;
 
 export const MOODS = [
   // City rituals and holidays
+  // Clear seasonal and weather themes (plain, confident, context-first). key = what makes an event truly related.
+  { id: "thanksgiving-soon", theme: "Thanksgiving is coming up", rarity: 78, fit: (c) => { const d = DAYS_TO(c, c.cal.tg); return d >= 5 && d <= 21 ? 0.55 + ((21 - d) / 21) * 0.4 : 0; }, days: 14, key: "thanksgiving|friendsgiving|turkey|pumpkin pie|pie[- ]making|gratitude|harvest (dinner|feast|market)|cranberr|stuffing|gravy", titles: ["Thanksgiving is coming", "Getting ready for Thanksgiving"], facts: (c) => `Thanksgiving is in ${DAYS_TO(c, c.cal.tg)} days, on ${fmtDate(c.cal.tg)}` },
+  { id: "cold-snap", theme: "a sudden drop in temperature", rarity: 72, fit: (c) => (c.wx.drop >= 8 || c.wx.firstFreeze ? 0.6 + Math.min(0.35, Math.max(c.wx.drop, 8) / 40) : 0), days: 2, key: "cocoa|hot chocolate|soup|ramen|pho|fondue|sauna|bathhouse|bath house|spa|mulled|gl[oö]gg|hot cider|toddy|whisk|fireplace|knit|sweater|warm(ing|th)", titles: ["The cold is here", "Time to warm up"], facts: (c) => (c.wx.firstFreeze ? `First freeze of the season: low of ${c.wx.lo}°F` : `${c.wx.drop}°F colder than the last few days: high of ${c.wx.hi}°F today`) },
+  { id: "warming", theme: "warmer days ahead", rarity: 66, fit: (c) => (c.wx.warming >= 8 ? 0.55 + Math.min(0.35, c.wx.warming / 40) : 0), days: 4, key: "park|walk|hike|garden|market|rooftop|outdoor|open[- ]air|bike|pier|waterfront|picnic|tour", only: (e, c) => outdoorish(e) && c.wx.warmDays.some((d) => evCovers(e, new Date(d + "T12:00:00"))), titles: ["Warmer days ahead", "A warm spell is coming"], facts: (c) => `It warms up to ${c.wx.warmHi}°F in ${c.wx.warmDayK} day${c.wx.warmDayK > 1 ? "s" : ""} (${c.wx.warming}°F warmer than today)` },
+  { id: "last-leaves", theme: "the last autumn leaves falling", rarity: 62, fit: (c) => (c.m === 10 && c.dom >= 6 && c.dom <= 25 && c.wx.pmax < 50 ? (c.dow === 0 || c.dow === 6 ? 0.7 : 0.6) : 0), days: 4, key: "foliage|fall colou?r|autumn|leaves|leaf|arboretum|botanic|garden|green-wood|forest|nature walk|park walk|tree walk|ramble|wildlife", titles: ["The last leaves are falling", "Last call for autumn"], facts: () => "Late November: the last autumn leaves are coming down in the parks" },
+  { id: "dark-evenings", theme: "darker evenings since the clocks went back", rarity: 66, fit: (c) => { const d = -DAYS_TO(c, c.cal.dstEnd); return d >= 0 && d <= 14 ? 0.75 - d / 30 : 0; }, days: 3, key: "sunset|stargaz|astronom|planetarium|night walk|lantern|light show|after dark|candlelight|night market|glow|illuminat|telescope", titles: ["Darker evenings are here", "Dark by 5? Make it count"], facts: (c) => `The clocks went back ${-DAYS_TO(c, c.cal.dstEnd)} days ago; sunset is now around ${fmtSun(c.wx.sunset)}` },
+  { id: "light-evenings", theme: "lighter evenings since the clocks went forward", rarity: 66, fit: (c) => { const d = -DAYS_TO(c, c.cal.dstStart); return d >= 0 && d <= 12 ? 0.75 - d / 30 : 0; }, days: 3, key: "sunset|rooftop|evening walk|golden hour|outdoor|waterfront|pier|park", only: outdoorish, titles: ["Light evenings are back", "Sunset after 7 again"], facts: (c) => `The clocks went forward ${-DAYS_TO(c, c.cal.dstStart)} days ago; sunset is now around ${fmtSun(c.wx.sunset)}` },
+
   { id: "marathon", rarity: 95, fit: (c) => (same(c.today, c.cal.marathon) ? 1 : 0), days: 1, match: any(T("marathon|runner|brunch|cheer"), (e) => matchV(e, "sunday")), titles: ["Cheer the runners, then brunch", "26.2 miles of reasons to go out"], facts: () => "NYC Marathon day" },
   { id: "halloween-night", rarity: 95, fit: (c) => (c.m === 9 && c.dom === 31 ? 1 : 0), days: 1, match: T("halloween|costume|parade|haunt|spook|horror|ghost"), titles: ["Costume required (basically)", "Boo-k your Halloween night"], facts: () => "It's Halloween; the Village parade is tonight" },
   { id: "halloween", rarity: 72, fit: (c) => (c.m === 9 && c.dom >= 17 && c.dom < 31 ? 0.6 + (c.dom - 17) / 35 : 0), days: 7, match: T("halloween|haunt|ghost|spook|costume|horror|zombie|witch|pumpkin|scary|occult|tarot"), titles: ["Spooky season, sorted", "Things that go bump this week"], facts: () => "Days before Halloween" },
@@ -122,7 +144,7 @@ export const MOODS = [
   { id: "thanksgiving-week", rarity: 85, fit: (c) => (c.cal.tgWeek && !c.cal.tgDay ? 0.9 : 0), days: 5, match: T("thanksgiving|friendsgiving|turkey|parade|balloon|harvest|pie|feast|potluck|gratitude"), titles: ["Stretchy-pants week", "Friendsgiving energy"], facts: () => "Thanksgiving week" },
   { id: "black-friday", rarity: 85, fit: (c) => (c.cal.blackFriday ? 1 : 0), days: 1, match: any(T("market|vintage|flea|maker|craft|museum|walk|hike|film"), outdoorish), titles: ["Skip the mall, do this instead", "Black Friday, no lines"], facts: () => "Black Friday" },
   { id: "tree-lighting", rarity: 92, fit: (c) => (same(c.today, c.cal.treeLighting) ? 1 : 0), days: 1, match: T("tree|lighting|rockefeller|christmas|holiday|lights|rink|skat"), titles: ["The big tree goes on tonight", "Lights, crowds, cocoa"], facts: () => "Rockefeller tree lighting night" },
-    { id: "season-opens", theme: "the Christmas season opening in New York", rarity: 60, fit: (c) => (within(c.today, D(c.y, 10, 8), addD(c.cal.tg, -4)) ? (c.dow === 0 || c.dow === 6 ? 0.7 : 0.6) : 0), days: 7, match: (e) => XMAS(e) && !TG(e), titles: ["Tinsel o'clock: the season's open", "Cocoa-in-hand season starts now"], facts: () => "The Christmas season is opening: the tree, rinks and holiday markets are arriving" },
+    { id: "season-opens", theme: "the Christmas season opening in New York", rarity: 55, fit: (c) => (within(c.today, D(c.y, 10, 8), addD(c.cal.tg, -4)) ? (c.dow === 0 || c.dow === 6 ? 0.7 : 0.6) : 0), days: 7, match: (e) => XMAS(e) && !TG(e), titles: ["Tinsel o'clock: the season's open", "Cocoa-in-hand season starts now"], facts: () => "The Christmas season is opening: the tree, rinks and holiday markets are arriving" },
     { id: "holiday-lights", theme: "peak Christmas lights and markets season", rarity: 62, fit: (c) => (within(c.today, addD(c.cal.tg, 4), D(c.y, 11, 17)) ? (c.hour >= 16 ? 0.8 : 0.65) : 0), days: 7, match: (e) => XMAS(e) || T("lights|dyker|window")(e), titles: ["Sparkle hunting season", "Peak twinkle"], facts: () => "Peak holiday lights and markets season" },
   { id: "hanukkah", rarity: 85, fit: (c) => (within(c.today, addD(c.cal.hanukkah, -1), addD(c.cal.hanukkah, 7)) ? 0.95 : 0), days: 3, match: T("hanukkah|chanukah|menorah|latke|jewish|klezmer|sufganiy"), titles: ["Latkes & lights", "Eight nights, good plans"], facts: () => "Hanukkah" },
   { id: "santacon", rarity: 80, fit: (c) => (same(c.today, c.cal.santacon) ? 0.8 : 0), days: 1, match: all(indoor, T(COZY)), titles: ["Santa-free zones", "Dodge the Santas"], facts: () => "SantaCon day; bars full of drunk Santas, these avoid it" },
@@ -148,7 +170,7 @@ export const MOODS = [
   { id: "labor", rarity: 72, fit: (c) => (within(c.today, addD(c.cal.labor, -3), c.cal.labor) ? 0.85 : 0), days: 4, match: any(outdoorish, T("bbq|barbecue|beach|rooftop|boat|pier")), titles: ["Squeeze the last drop of summer", "Summer's encore"], facts: () => "Labor Day weekend, last of summer" },
   { id: "rosh", rarity: 75, fit: (c) => (within(c.today, addD(c.cal.rosh, -1), addD(c.cal.rosh, 1)) ? 0.8 : 0), days: 2, match: T("rosh hashanah|jewish|apple|honey|shofar|tashlich|klezmer"), titles: ["Sweet new year", "Apples, honey, good plans"], facts: () => "Rosh Hashanah" },
   { id: "ohny", rarity: 85, fit: (c) => (within(c.today, addD(c.cal.ohny, -1), addD(c.cal.ohny, 1)) ? 1 : 0), days: 2, match: T("open house|architecture|building|tour|behind the scenes|historic"), titles: ["Doors that are usually locked", "Nosy-neighbour weekend"], facts: () => "Open House New York weekend" },
-  { id: "foliage", rarity: 60, fit: (c) => ((c.m === 9 && c.dom >= 18) || (c.m === 10 && c.dom <= 12) ? (c.wx.pmax < 40 && c.part !== "late" ? 0.8 : 0) : 0), days: 2, match: all(outdoorish, T("park|garden|walk|hike|botanical|tour|cemetery|green-wood|forest|river")), titles: ["Leaf-peeping, no car needed", "Peak orange, peak plans"], facts: () => "Peak fall foliage" },
+  { id: "foliage", theme: "peak autumn colours", rarity: 60, fit: (c) => ((c.m === 9 && c.dom >= 18) || (c.m === 10 && c.dom <= 5) ? (c.wx.pmax < 40 && c.part !== "late" ? 0.8 : 0) : 0), days: 2, match: all(outdoorish, T("park|garden|walk|hike|botanical|tour|cemetery|green-wood|forest|river")), titles: ["Leaf-peeping, no car needed", "Peak orange, peak plans"], facts: () => "Peak fall foliage" },
 
   // Weather
   { id: "snow", rarity: 92, fit: (c) => (c.wx.snowNow ? 1 : c.wx.snowToday && c.part !== "late" ? 0.75 : 0), days: 1, match: any(all(outdoorish, T("park|walk|sled|skat|rink|garden")), all(indoor, T(COZY))), titles: ["Snow day, grown-up edition", "Flakes outside, fun inside"], facts: (c) => (c.wx.snowNow ? "It's snowing now" : "Snow forecast today") + `, ${c.wx.temp}°F` },
@@ -161,37 +183,43 @@ export const MOODS = [
 
 // ── 3. Scoring
 export function scoreMoods(ctx, events, store = {}) {
-  const shown = store.shown || {}, aff = store.aff || {};
-  const pool = (days, match) => events.filter((e) => {
-    if (e.hidden) return false;
-    let ok = false;
-    for (let k = 0; k < days && !ok; k++) {
+  const aff = store.aff || {};
+  // Upcoming within the mood's window; today's undated listings drop out after 6 PM (they may be over)
+  const inWindow = (e, days) => {
+    for (let k = 0; k < days; k++) {
       const d = addD(ctx.today, k);
       if (!evCovers(e, d)) continue;
-      if (k > 0) { ok = true; break; }
-      const en = endMinutes(e), s = startMinutes(e);
-      ok = en != null ? en > ctx.mins : s == null || s > ctx.mins - 60;
+      if (k > 0) return true;
+      const en = endMinutes(e), st = startMinutes(e);
+      if (st == null) return ctx.mins < 18 * 60 || (e.X && e.X !== e.E);
+      return en != null ? en > ctx.mins : st > ctx.mins - 60;
     }
-    return ok && match(e, ctx);
-  }).sort((a, b) => b.sc - a.sc);
-  const fill = (s) => s.replace("{hood}", ctx.feed.topHood || "").replace("{cat}", ctx.feed.spike || "");
+    return false;
+  };
   const out = [];
   MOODS.forEach((m) => {
     const fit = m.fit(ctx);
     if (!fit) return;
-    const list = pool(m.days, m.match);
-    if (list.length < (m.rarity >= 85 ? 1 : 2)) return;
+    const keyRe = m.key ? new RegExp(m.key, "i") : null;
+    // Relevance: 2 = the title says it, 1 = the description or keywords do, 0 = unrelated (left out)
+    const rel = (e) => {
+      if (keyRe) { if (keyRe.test(e.title || "")) return 2; if (keyRe.test(text(e))) return 1; return 0; }
+      return m.match(e, ctx) ? 1 : 0;
+    };
+    const list = events.filter((e) => !e.hidden && inWindow(e, m.days) && (!m.only || m.only(e, ctx)))
+      .map((e) => ({ e, r: rel(e) })).filter((x) => x.r > 0)
+      .sort((x, y) => (y.r - x.r) || ((x.e.E < y.e.E ? -1 : x.e.E > y.e.E ? 1 : 0)) || (y.e.sc - x.e.sc)).map((x) => x.e);
+    if (!keyRe && list.length < 1) return; // holidays need at least one real event; clear themes can stand alone
     const top = list.slice(0, 4);
-    const supply = Math.min(1, list.length / 5) * (top.reduce((a, e) => a + e.sc, 0) / top.length / 100) * (m.days > 1 ? 0.85 : 1);
+    const supply = top.length ? Math.min(1, list.length / 4) * (top.reduce((acc, e) => acc + e.sc, 0) / top.length / 100) : 0;
     const affinity = Math.max(0.7, Math.min(1.3, 1 + 0.08 * (aff[m.id] || 0)));
-    // Context first: the moment decides; events only need to exist (supply is a small tie-breaker)
     const score = (0.55 * (m.rarity / 100) + 0.4 * fit + 0.05 * supply) * affinity;
+    const fill = (x) => x.replace("{hood}", "").replace("{cat}", "");
     out.push({ id: m.id, theme: m.theme || m.facts(ctx), score, list, titles: m.titles.map(fill), facts: m.facts(ctx), fallback: fill(m.titles[Math.floor(ctx.today.getTime() / 86400000) % m.titles.length]) });
   });
   out.sort((a, b) => b.score - a.score);
   const first = out[0] || null;
-  const firstIds = new Set(first ? first.list.slice(0, 4).map((e) => e.id) : []);
-  const second = first ? out.slice(1).find((x) => x.list.slice(0, 4).filter((e) => !firstIds.has(e.id)).length >= 2) || null : null;
+  const second = first ? out.find((x) => x.id !== first.id) || null : null;
   return { first, second, all: out };
 }
 

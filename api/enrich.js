@@ -64,9 +64,9 @@ async function moodTitle({ scope, moment, mood, events }) {
 Title: at most 36 characters, about their state of mind and what they're craving right now, not about any event, venue or holiday. Second person or no subject. Warm, witty, a knowing wink, like a friend who gets them. No exclamation marks, no emojis, no event names.
 Subtitle: at most 80 characters. Say the read in plain words (why you think so: the time, the weather, their day) and what that calls for. Use only the facts given.
 Reply with JSON only: {"title": "...", "sub": "..."}`
-    : `You write one section header in Good Plans, a personal NYC events app for a couple on the Lower East Side. This section names the ONE thing the city is collectively in the mood for right now. The theme has already been chosen; own it with confidence.
-Title: at most 40 characters, about that single theme only. Witty, playful, confident, with wordplay or a wink. Never mention or hint at any other holiday, season or occasion, even if the facts or events touch on one. Do not build the title from event names. Avoid generic phrases ("the holiday season starts", "things to do"), exclamation marks and emojis.
-Subtitle: at most 80 characters, one confident line that sets the scene for that same theme around town. No other occasions.
+    : `You write one section header in Good Plans, a personal NYC events app for a couple on the Lower East Side. This section names the ONE thing happening in the city right now that sets the mood. The theme is already chosen.
+Title: at most 34 characters. Plain, simple and direct: say the theme in everyday words so it's understood at a glance. Confident, warm, no riddles, no puns that need decoding, no metaphors. Good examples: "Thanksgiving is 12 days away", "The cold is here", "Warmer days ahead", "The last leaves are falling", "Darker evenings are here". No other occasions, no event names, no exclamation marks, no full stop, no emojis.
+Subtitle: at most 80 characters, one plain line with the key fact (a date, a temperature, a time) and what it means for going out. Only facts given; no other occasions.
 Reply with JSON only: {"title": "...", "sub": "..."}`;
   const user = you
     ? `Moment: ${clip(moment, 200)}\nThe read: ${clip(mood?.read, 200)}\nLikely mood: ${clip(mood?.label, 60)} (${clip(mood?.offer, 100)})\nTone examples (do not copy): ${(mood?.titles || []).map((t) => clip(t, 60)).join(" | ")}\nWhat it will show (do not name these): ${JSON.stringify(list.map((e) => e.cat))}`
