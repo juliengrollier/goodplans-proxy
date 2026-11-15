@@ -62,3 +62,9 @@ export function buildPicks(m, events, max = 5) {
   }
   return out;
 }
+
+// Every recipe with enough events, most events first: fills the Home grid when your taste has not singled out eight yet
+export function poolPicks(events, min = 2) {
+  return RECIPES.map((r) => ({ ...r, list: events.filter(r.is).sort((a, b) => b.sc - a.sc), icon: ABOUT[r.id]?.[0], teaser: ABOUT[r.id]?.[1] }))
+    .filter((r) => r.list.length >= min && !r.always).sort((a, b) => b.list.length - a.list.length);
+}

@@ -20,7 +20,7 @@ import * as L from "./learn.js";
 import * as M from "./maps.js";
 import * as Q from "./quiz.js";
 import Quiz from "./Quiz.jsx";
-import { buildPicks } from "./picks.js";
+import { buildPicks, poolPicks } from "./picks.js";
 import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
 const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
@@ -758,9 +758,10 @@ export default function App() {
     const wk = new Date(today); wk.setDate(today.getDate() + 7);
     return buildPicks(modelRef.current, visible.filter((e) => evStart(e) <= wk));
   }, [visible, modelVer, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickPool = useMemo(() => { const wk = new Date(today); wk.setDate(today.getDate() + 7); return poolPicks(visible.filter((e) => evStart(e) <= wk)); }, [visible, today]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── Home tiles (quick time tiles + moods/picks); reused as "More ideas" in Explore
-  const tileSet = useMemo(() => buildTiles({ visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, book: sections.book || [], dark }),
-    [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, sections, dark]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tileSet = useMemo(() => buildTiles({ visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, book: sections.book || [], dark }),
+    [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark]); // eslint-disable-line react-hooks/exhaustive-deps
   const openTile = (t) => {
     const base = { ...filters, fam: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
     setFilters(t.list ? { ...base, ids: t.list.map((e) => e.id), when: "any" } : { ...base, ...t.patch });
