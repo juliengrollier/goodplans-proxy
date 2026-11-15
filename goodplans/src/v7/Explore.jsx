@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ResultRow, CompactCard, SquareCard, MoodTile, ActionsCtx } from "./components.jsx";
+import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, ActionsCtx } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { LIcon } from "./taxonomy.js";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
@@ -74,7 +74,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
         const btn = { height: 34, width: 34, padding: 0, justifyContent: "center", flexShrink: 0, ...(col ? { background: "rgba(255,255,255,.22)", color: "#fff", border: "none" } : {}) };
         const on = listTile && moodFav.includes(listTile.key);
         return (
-          <div style={{ margin: col ? "14px 16px 0" : 0, padding: col ? "16px 16px 16px 18px" : "14px 20px 0", borderRadius: 22, background: col || undefined, color: fg, position: "relative", overflow: "hidden", display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ margin: 0, padding: col ? "16px 16px 18px 20px" : "14px 20px 0", borderRadius: 0, background: col || undefined, color: fg, position: "relative", overflow: "hidden", display: "flex", alignItems: "flex-start", gap: 10 }}>
             {col && <span style={{ position: "absolute", right: 56, top: -6, opacity: 0.18 }} aria-hidden="true">{meta.node ? <LIcon node={meta.node} size={92} color="#fff" stroke={1.6} /> : meta.icon ? React.createElement(meta.icon, { size: 92, strokeWidth: 1.6 }) : null}</span>}
             <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
               <div className="row" style={{ gap: 7, fontSize: 12, fontWeight: 800, letterSpacing: 1.1, textTransform: "uppercase", color: col ? "rgba(255,255,255,.85)" : "var(--ink3)" }}>
@@ -92,7 +92,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 14 }}>
           <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
-          <div className="hscroll">{savedHere.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+          <DotScroll>{savedHere.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
         </div>
       )}
       <div className="row" style={{ padding: "12px 16px 8px", gap: 6 }} role="tablist">
@@ -110,7 +110,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
           {catGroups.map(([cat, list]) => (
             <div key={cat}>
               <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "6px 20px 8px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
-              {!collapsed[cat] && <div className="hscroll">{list.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>}
+              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
             </div>
           ))}
           {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
@@ -132,7 +132,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       {view === "all" && more.length > 0 && (
         <div style={{ marginTop: 22 }}>
           <div className="sec-h"><h2>More ideas</h2></div>
-          <div className="hscroll">{more.map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} />)}</div>
+          <DotScroll>{more.map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} />)}</DotScroll>
         </div>
       )}
       {view !== "all" && (

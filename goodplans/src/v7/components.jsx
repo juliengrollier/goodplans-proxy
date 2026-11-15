@@ -192,6 +192,33 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
   );
 }
 
+// A horizontal carousel with page dots under it, so it is obvious there is more to swipe to
+export function DotScroll({ children, className = "hscroll", style }) {
+  const ref = useRef(null);
+  const [i, setI] = useState(0);
+  const n = React.Children.count(children);
+  const onScroll = () => {
+    const el = ref.current; if (!el) return;
+    const kids = [...el.children]; if (kids.length < 2) return;
+    const x = el.scrollLeft + (parseFloat(getComputedStyle(el).paddingLeft) || 0);
+    let best = 0, bd = 1e9;
+    kids.forEach((k, j) => { const d = Math.abs(k.offsetLeft - x); if (d < bd) { bd = d; best = j; } });
+    if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 4) best = kids.length - 1;
+    setI(best);
+  };
+  const shown = Math.min(n, 7), at = n > 1 ? Math.round((i / (n - 1)) * (shown - 1)) : 0;
+  return (
+    <>
+      <div ref={ref} className={className} style={style} onScroll={onScroll}>{children}</div>
+      {n > 1 && (
+        <div className="row" style={{ justifyContent: "center", gap: 5, padding: "8px 0 0" }} aria-hidden="true">
+          {Array.from({ length: shown }, (_, k) => <span key={k} style={{ width: k === at ? 16 : 6, height: 6, borderRadius: 3, background: "var(--ink)", opacity: k === at ? 0.85 : 0.22, transition: "all .2s" }} />)}
+        </div>
+      )}
+    </>
+  );
+}
+
 // Standard carousel item: squarish picture on top, title and when below
 export function SquareCard({ ev, dark, today, onOpen, size = 156 }) {
   const seenRef = useSeen(ev);
