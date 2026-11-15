@@ -17,7 +17,7 @@ function Card({ title, children, right }) {
 }
 
 export default function Me(p) {
-  const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, onUnfollow, onUndo,
+  const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
     locSt, onRetryGPS, resetTaste } = p;
@@ -95,6 +95,9 @@ export default function Me(p) {
       <Card title="Appearance">
         <div className="seg" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           {[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([k, l]) => <button key={k} className={theme === k ? "on" : ""} onClick={() => setTheme(k)}>{l}</button>)}
+        </div>
+        <div className="seg" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 10 }}>
+          {[["C", "Celsius"], ["F", "Fahrenheit"]].map(([k, l]) => <button key={k} className={unit === k ? "on" : ""} onClick={() => setUnit(k)}>{l}</button>)}
         </div>
       </Card>
 

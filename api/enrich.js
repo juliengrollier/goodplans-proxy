@@ -65,7 +65,7 @@ Title: at most 36 characters, about their state of mind and what they're craving
 Subtitle: at most 80 characters. Say the read in plain words (why you think so: the time, the weather, their day) and what that calls for. Use only the facts given.
 Reply with JSON only: {"title": "...", "sub": "..."}`
     : `You write one section header in Good Plans, a personal NYC events app for a couple on the Lower East Side. This section names the ONE thing happening in the city right now that sets the mood. The theme is already chosen.
-Title: at most 34 characters. Plain, simple and direct: say the theme in everyday words so it's understood at a glance. Confident, warm, no riddles, no puns that need decoding, no metaphors. Good examples: "Thanksgiving is 12 days away", "The cold is here", "Warmer days ahead", "The last leaves are falling", "Darker evenings are here". No other occasions, no event names, no exclamation marks, no full stop, no emojis.
+Title: at most 34 characters. Plain, simple and direct: say the theme in everyday words so it's understood at a glance. Confident, warm, no riddles, no puns that need decoding, no metaphors. Good examples: "It's Marathon Sunday", "Pride weekend is here", "Fleet Week is in port", "San Gennaro is on in Little Italy", "Thanksgiving is 12 days away", "The cold is here", "Warmer days ahead". No other occasions, no event names, no exclamation marks, no full stop, no emojis.
 Subtitle: at most 80 characters, one plain line with the key fact (a date, a temperature, a time) and what it means for going out. Only facts given; no other occasions.
 Reply with JSON only: {"title": "...", "sub": "..."}`;
   const user = you

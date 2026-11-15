@@ -2,7 +2,7 @@ import React from "react";
 import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet } from "./components.jsx";
 import { catColor, catIcon } from "./theme.js";
-import { startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
+import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
 
@@ -146,7 +146,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         <button className="chip" onClick={() => setTab("me")} aria-label="Location settings"><Icon name="pin" size={15} /> {locLabel}</button>
       </div>
       <div style={{ padding: "18px 20px 14px" }}>
-        <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + w.hi + "°F" + (w.rainy ? " · rain later" : "") : ""}</div>
+        <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + fmtT(w.hi) + (w.rainy ? " · rain later" : "") : ""}</div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{g.title}</h1>
         {highlights?.text ? (
           <p style={{ margin: "10px 0 0", fontSize: 15.5, lineHeight: 1.55, color: "var(--ink2)", whiteSpace: "pre-line" }}>{renderHighlights(highlights.text, highlights.ids, data, onOpen)}</p>
