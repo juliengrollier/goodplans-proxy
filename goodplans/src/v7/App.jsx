@@ -17,6 +17,8 @@ import { annualItems } from "./nyc.js";
 import { mergeDuplicates, collapseSeries } from "./dedupe.js";
 import * as L from "./learn.js";
 import * as M from "./maps.js";
+import * as Q from "./quiz.js";
+import Quiz from "./Quiz.jsx";
 import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
 const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
@@ -133,6 +135,8 @@ export default function App() {
   const [partner, setPartner] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_partner_model") || "null"); } catch { return null; } });
   const [pastSaves, setPastSaves] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_past_saves") || "[]"); } catch { return []; } });
   const [mapsData, setMapsData] = useState(() => M.loadMaps());
+  const [quiz, setQuiz] = useState(() => Q.loadQuiz());
+  const [showQuiz, setShowQuiz] = useState(false);
   const mapsIdx = useMemo(() => M.buildIndex(mapsData), [mapsData]);
   const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
   const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
@@ -730,6 +734,22 @@ export default function App() {
   const removeMaps = () => { putModel(forgetMapsLearning(modelRef.current), true); setMapsData(null); M.saveMaps(null); toast("Google Maps lists removed"); };
   const mapsMatches = mapsData ? visible.filter((e) => e.savedPlace).length : 0;
 
+  // ── Onboarding quiz: first open on a phone that has learned little, and any time from Me
+  useEffect(() => {
+    if (!ready || quiz) return;
+    if ((modelRef.current.strong || 0) < 5 && !sessionStorage.getItem("gp_quiz_later")) setShowQuiz(true);
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  const finishQuiz = (ans, prof) => {
+    const weights = {}; let price = 0, far = 0;
+    Object.entries(ans).forEach(([id, k]) => { const o = Q.QUESTIONS.find((q) => q.id === id)?.opts[k]; if (!o) return;
+      Object.entries(o.f || {}).forEach(([f, x]) => { weights[f] = (weights[f] || 0) + x; }); price = Math.max(price, o.price || 0); far = Math.max(far, o.far || 0); });
+    putModel(L.seed(modelRef.current, weights), true);
+    const t = { ...tasteRef.current, priceSens: Math.max(tasteRef.current.priceSens || 0, price), farSens: Math.max(tasteRef.current.farSens || 0, far) };
+    tasteRef.current = t; saveTaste(t);
+    const qz = { answers: ans, profile: prof, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
+    setShowQuiz(false); toast("Nice to meet you, " + prof.name.replace(/^The /, ""));
+  };
+
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
   const actions = {
@@ -762,7 +782,7 @@ export default function App() {
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
+        {tab === "me" && <Me quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
           who={who} setWho={setWho} people={PEOPLE} prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
@@ -773,6 +793,7 @@ export default function App() {
 
       <TabBar tab={tab} setTab={(t) => { setTab(t); window.scrollTo(0, 0); }} plansCount={plansCount} />
 
+      {showQuiz && <Quiz initial={quiz?.answers || {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
       {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}

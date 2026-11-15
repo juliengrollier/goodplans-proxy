@@ -20,7 +20,7 @@ export default function Me(p) {
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
-    locSt, onRetryGPS, resetTaste, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
+    locSt, onRetryGPS, resetTaste, quiz, onRetakeQuiz, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
   const [fine, setFine] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
   const cats = Object.keys(CATS).filter((c) => c !== "Other");
@@ -32,6 +32,12 @@ export default function Me(p) {
       <div style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 14px" }}><h1 className="disp" style={{ margin: 0, fontSize: 34 }}>Me</h1></div>
 
       <Card title="What Good Plans has learned" right={learned.strong >= 5 && <button className="chip" onClick={onCardRefresh} disabled={cardBusy}>{cardBusy ? "Writing…" : "Refresh"}</button>}>
+        {quiz?.profile && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div className="disp" style={{ fontSize: 19 }}>{quiz.profile.name}</div>
+            {!learned.card?.lines?.length && quiz.profile.lines.map((l) => <div key={l} style={{ fontSize: 15, lineHeight: 1.4 }}>{l}</div>)}
+          </div>
+        )}
         {learned.card?.lines?.length ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {learned.card.lines.map((l, i) => (
@@ -54,7 +60,10 @@ export default function Me(p) {
         <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>Each phone learns its owner. "Together" on Today blends both tastes once the other phone has shared its own.</div>
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="muted" style={{ fontSize: 12.5 }}>{learned.count || 0} signals learned{learned.muted ? " · " + learned.muted + " switched off" : ""}</span>
-          <button className="chip" onClick={() => { if (confirm("Forget everything learned from your activity? Thumbs, saves and boosts stay.")) onResetLearning(); }}>Reset learning</button>
+          <span className="row" style={{ gap: 6 }}>
+            <button className="chip" onClick={onRetakeQuiz}>{quiz ? "Retake quiz" : "Take the quiz"}</button>
+            <button className="chip" onClick={() => { if (confirm("Forget everything learned from your activity? Thumbs, saves and boosts stay.")) onResetLearning(); }}>Reset learning</button>
+          </span>
         </div>
       </Card>
 

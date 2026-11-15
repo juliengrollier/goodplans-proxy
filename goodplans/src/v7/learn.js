@@ -270,3 +270,17 @@ export function similarEvents(ev, list, today = new Date(), n = 5) {
 // Feature names for things learned outside events (Google Maps list themes)
 export const catFeature = (name) => "cat:" + slug(name);
 export const dimFeature = (dim, v) => "dim:" + slug(dim + "=" + v);
+
+// Onboarding quiz: set first-guess weights directly (weak evidence, so real behaviour soon outweighs them).
+// Recorded as one block, so retaking the quiz replaces the previous answers' effect.
+export function seed(m0, weights, now = Date.now()) {
+  let m = unlearn(m0, "quiz", "seed");
+  m = { ...m, w: { ...m.w }, n: { ...m.n }, t: { ...m.t }, c: { ...m.c } };
+  const d = { _n: 0 };
+  Object.entries(weights).forEach(([f, x]) => {
+    const before = decayed(m, f, now), after = Math.max(-WMAX, Math.min(WMAX, before + x));
+    m.w[f] = after; m.t[f] = now; m.n[f] = (m.n[f] || 0) + 0.5; d[f] = after - before;
+  });
+  m.c["quiz:seed"] = d;
+  return m;
+}
