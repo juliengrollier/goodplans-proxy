@@ -204,17 +204,20 @@ export const fmtClock = (mins) => {
 };
 export const isoDay = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 export function whenLabel(ev, today) {
+  // Always the day (Today / Tomorrow / weekday + date) and the time when known; runs add "until <date>"
   const tom = new Date(today); tom.setDate(today.getDate() + 1);
   const multi = ev.X && ev.X !== ev.E;
   const time = hasKnownTime(ev) ? ev.time.replace(":00", "") : "";
+  const t = time ? " " + time : "";
   if (multi) {
-    const end = mkDate(ev.X);
-    if (evCovers(ev, today)) return "Until " + MONTHS[end.getMonth()] + " " + end.getDate();
+    const end = mkDate(ev.X), until = " · until " + MONTHS[end.getMonth()] + " " + end.getDate();
+    if (evCovers(ev, today)) return "Today" + t + until;
+    if (evCovers(ev, tom) && mkDate(ev.E) <= tom) return "Tomorrow" + t + until;
     const s = mkDate(ev.E);
-    return MONTHS[s.getMonth()] + " " + s.getDate() + "–" + (s.getMonth() === end.getMonth() ? "" : MONTHS[end.getMonth()] + " ") + end.getDate();
+    return DAYS[s.getDay()] + " " + MONTHS[s.getMonth()] + " " + s.getDate() + t + until;
   }
-  if (evCovers(ev, today)) { const sm = startMinutes(ev); return time ? (sm != null && sm >= 17 * 60 ? "Tonight " : "Today ") + time : "Today"; }
-  if (evCovers(ev, tom)) return "Tomorrow" + (time ? " " + time : "");
+  if (evCovers(ev, today)) return "Today" + t;
+  if (evCovers(ev, tom)) return "Tomorrow" + t;
   const s = mkDate(ev.E);
   return DAYS[s.getDay()] + " " + MONTHS[s.getMonth()] + " " + s.getDate() + (time ? " · " + time : "");
 }

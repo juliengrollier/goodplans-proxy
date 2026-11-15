@@ -47,7 +47,7 @@ export const QUESTIONS = [
     { l: "Move", i: Activity, f: { "fam:move": 0.6, "dim:body=active": 0.6 } },
     { l: "Watch", i: Clapperboard, f: { "fam:watch": 0.5, "dim:mode=watch": 0.5, "dim:body=seated": 0.3 } },
     { l: "Dance", i: PartyPopper, f: { "fam:party": 0.7, "dim:body=on-your-feet": 0.5 } },
-    { l: "Meet people", i: Users, f: { "dim:mode=mingle": 0.6, "dim:social=group": 0.3 } },
+    { l: "Meet new people", i: Users, f: { "dim:mode=mingle": 0.9, "dim:social=group": 0.3, "dim:social=solo-friendly": 0.3 } },
   ] },
   { id: "outing", multi: true, q: "Your usual outing is…", opts: [
     { l: "Solo, and happy about it", i: User, f: { "dim:social=solo-friendly": 0.7 } },
@@ -76,6 +76,8 @@ export const QUESTIONS = [
   ] },
 ];
 export const QUIZ_VERSION = 2;
+// Meeting new people as a goal: picked as a way to spend a night, or switched on at the end / in Me
+export const meetFrom = (ans) => picked(ans.mode).some((i) => QUESTIONS.find((q) => q.id === "mode")?.opts[i]?.l === "Meet new people");
 // Answers are lists of option numbers (older saves held a single number)
 export const picked = (a) => (Array.isArray(a) ? a : a == null ? [] : [a]);
 // Feature weights from the answers: a picked card counts at 1/sqrt(n) of its strength
