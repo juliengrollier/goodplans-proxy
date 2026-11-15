@@ -56,13 +56,21 @@ async function highlights({ taste, weather, picks }) {
   return text;
 }
 
-async function moodTitle({ moment, mood, events }) {
+async function moodTitle({ scope, moment, mood, events }) {
   const list = (events || []).slice(0, 4).map((e) => ({ title: clip(e.title, 100), venue: clip(e.venue, 50), when: clip(e.when, 30), cat: clip(e.cat, 30) }));
-  const system = `You write the headline of one section in Good Plans, a personal NYC events app for a couple on the Lower East Side. The section groups events that fit the mood of this exact moment. Write a title and a subtitle.
-Title: at most 40 characters. Witty, playful and enticing, like a clever friend or a great magazine headline: wordplay, a wink, a nudge to go out. It must clearly connect to the moment (the reason given) and fit the events. Avoid generic phrases ("the holiday season starts", "things to do"), clichés, exclamation marks and emojis.
-Subtitle: at most 80 characters, one line that makes the plan concrete (a vivid hint at what's on, or why now), using only the facts given.
+  const you = scope === "you";
+  const system = you
+    ? `You write one section header in Good Plans, a personal NYC events app for a couple on the Lower East Side. This section is about THEM: a guess at how they probably feel right now, as if you read their mind. Write a title and a subtitle.
+Title: at most 36 characters, about their state of mind and what they're craving right now, not about any event, venue or holiday. Second person or no subject. Warm, witty, a knowing wink, like a friend who gets them. No exclamation marks, no emojis, no event names.
+Subtitle: at most 80 characters. Say the read in plain words (why you think so: the time, the weather, their day) and what that calls for. Use only the facts given.
+Reply with JSON only: {"title": "...", "sub": "..."}`
+    : `You write one section header in Good Plans, a personal NYC events app for a couple on the Lower East Side. This section is about what the CITY is doing right now: a holiday, a season, an annual ritual, unusual weather or a neighbourhood buzzing. Write a title and a subtitle.
+Title: at most 40 characters. Witty, playful and enticing, with wordplay or a wink, clearly about the city's moment. Avoid generic phrases ("the holiday season starts", "things to do"), exclamation marks and emojis.
+Subtitle: at most 80 characters, one concrete line on what's happening around town, using only the facts given.
 Reply with JSON only: {"title": "...", "sub": "..."}`;
-  const user = `Moment: ${clip(moment, 200)}\nWhy this mood: ${clip(mood?.facts, 200)}\nTone examples (do not copy): ${(mood?.titles || []).map((t) => clip(t, 60)).join(" | ")}\nEvents: ${JSON.stringify(list)}`;
+  const user = you
+    ? `Moment: ${clip(moment, 200)}\nThe read: ${clip(mood?.read, 200)}\nLikely mood: ${clip(mood?.label, 60)} (${clip(mood?.offer, 100)})\nTone examples (do not copy): ${(mood?.titles || []).map((t) => clip(t, 60)).join(" | ")}\nWhat it will show (do not name these): ${JSON.stringify(list.map((e) => e.cat))}`
+    : `Moment: ${clip(moment, 200)}\nThe city's moment: ${clip(mood?.facts, 200)}\nTone examples (do not copy): ${(mood?.titles || []).map((t) => clip(t, 60)).join(" | ")}\nEvents: ${JSON.stringify(list)}`;
   const t = await claude(system, user, 1500);
   const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
   if (!j.title) throw new Error("Claude returned no title");
