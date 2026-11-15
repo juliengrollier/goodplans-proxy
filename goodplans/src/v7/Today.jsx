@@ -118,7 +118,9 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
 function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
   // One navy panel holds the headline and its events, so they read as a single block
   return (
-    <div style={{ margin: "26px 16px 0", padding: "18px 8px 8px", borderRadius: 28, background: dark ? "#2A2F5C" : "var(--navy)", display: "flex", flexDirection: "column", gap: 10 }}>
+    <>
+    <div className="sec-sep" style={{ marginTop: 18, height: 22 }} aria-hidden="true" />
+    <div style={{ margin: "8px 16px 0", padding: "18px 8px 8px", borderRadius: 28, background: dark ? "#2A2F5C" : "var(--navy)", display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ padding: "0 10px 4px", color: "#FBF7EF", display: "flex", flexDirection: "column", gap: 6 }}>
         <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", opacity: 0.75 }}><Icon name="pin" size={14} /> City pulse</span>
         <div className="row" style={{ gap: 12, alignItems: "center" }}>
@@ -132,6 +134,7 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
         : <div style={{ fontSize: 14, padding: "0 10px 8px", color: "#FBF7EF", opacity: 0.75 }}>Nothing in your feed is truly about this yet.</div>}
       {other && <button onClick={onSwitch} className="row" style={{ alignSelf: "flex-start", margin: "2px 6px 6px", gap: 6, height: 32, padding: "0 12px", borderRadius: 16, border: "1.5px solid rgba(251,247,239,.35)", background: "transparent", color: "#FBF7EF", fontWeight: 700, fontSize: 13, maxWidth: "100%" }}><span style={{ opacity: 0.7 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
     </div>
+    </>
   );
 }
 
@@ -209,6 +212,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </div>
       )}
 
+      {!empty && <div className="sec-sep" style={{ height: 22, marginTop: 4 }} aria-hidden="true" />}
       {!empty && (
         <div className="card" style={{ margin: "0 16px", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="row" style={{ padding: "0 4px", justifyContent: "space-between" }}>
