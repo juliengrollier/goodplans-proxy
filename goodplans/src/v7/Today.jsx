@@ -323,10 +323,10 @@ function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
 }
 
 const NY_TINT = [["#7C2D12", "Season"], ["#1E3A8A", "Neighbourhood"], ["#0F766E", "Weather"]];
-function NYCard({ c, tint, onTile }) {
+function NYCard({ c, tint, label, onTile }) {
   const [r, g, bl] = [parseInt(tint.slice(1, 3), 16), parseInt(tint.slice(3, 5), 16), parseInt(tint.slice(5, 7), 16)];
   return (
-    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.sub })}
+    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.facts || c.sub, verb: label })}
       style={{ flex: "0 0 100%", scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
       <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={150} /></div>
       <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(${r},${g},${bl},.10) 0%, rgba(${r},${g},${bl},.35) 35%, rgba(8,10,26,.9) 100%)` }} />
@@ -359,7 +359,7 @@ function NYRow({ row, ri, onTile }) {
       </div>
       <div onScroll={(e) => { const w = e.currentTarget.clientWidth; setI(Math.max(0, Math.min(items.length - 1, Math.round(e.currentTarget.scrollLeft / (w + 12))))); }}
         style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none", borderRadius: 20 }}>
-        {items.map((c) => <NYCard key={c.id} c={c} tint={tint} onTile={onTile} />)}
+        {items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={row.label || label} onTile={onTile} />)}
       </div>
     </div>
   );

@@ -469,7 +469,7 @@ export default function App() {
       }).catch((e) => { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
     });
   }, [ready, mKey("you", youA), mKey("you", youB), cityHol.map((m) => mKey("city", m)).join(), cityWx.map((m) => mKey("city", m)).join()]); // eslint-disable-line react-hooks/exhaustive-deps
-  const view = (scope, m, fallbackSub) => m && { id: m.id, icon: PULSE_ICON[m.id] || null, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, writing: !moodTxt[mKey(scope, m)] };
+  const view = (scope, m, fallbackSub) => m && { id: m.id, icon: PULSE_ICON[m.id] || null, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, facts: m.facts, writing: !moodTxt[mKey(scope, m)] };
   const moodProps = {
     you: view("you", youA, youR.readLine ? "Reading the room: " + youR.readLine : youA?.offer), youOther: view("you", youB, youB?.offer),
     city: view("city", cityA, cityA?.facts), cityOther: view("city", cityB, cityB?.facts),
