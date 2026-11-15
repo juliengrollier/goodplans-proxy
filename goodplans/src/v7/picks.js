@@ -2,6 +2,28 @@
 // Each recipe names the features it stands for (to score how much it suits you) and which events belong in it.
 import { weightOf, catFeature, dimFeature } from "./learn.js";
 import { isFree, todOf } from "./engine.js";
+import { Mic, Sparkles, MessageCircle, Volume2, TreePine, Heart, Activity, Hand, Utensils, Lightbulb, Smile, Layers, Landmark, Zap, PartyPopper, Tag, Bookmark } from "lucide-react";
+
+// What drives each list, in a line (shown under the title on Home)
+const ABOUT = {
+  smallrooms: [Mic, "Intimate rooms for live music and shows, the kind you lean in for."],
+  weird: [Sparkles, "Odd, offbeat and only-in-NYC, ranked by how far from usual."],
+  talk: [MessageCircle, "Low-volume places where you can actually hear each other."],
+  lateloud: [Volume2, "Loud, energetic and after dark, for a night that runs long."],
+  freeout: [TreePine, "Free and outdoors: costs nothing but time."],
+  date: [Heart, "Evening plans with a romantic, two-person feel."],
+  move: [Activity, "Active things: you'll break a sweat, or at least a stride."],
+  handson: [Hand, "You make something or take part instead of watching."],
+  food: [Utensils, "Where the food is the main event."],
+  think: [Lightbulb, "Talks, shows and ideas that leave you thinking."],
+  laugh: [Smile, "Comedy, and anything built to get a laugh."],
+  underground: [Layers, "Scene-driven, DIY and under the radar."],
+  classic: [Landmark, "Polished New York classics that never get old."],
+  quick: [Zap, "Short, within 15 minutes, easy to fit in."],
+  bignight: [PartyPopper, "Big crowds, high energy."],
+  cheap: [Tag, "Free or under $20, with real energy."],
+  saved: [Bookmark, "Events at places you saved in Google Maps."],
+};
 
 const d = (ev, k, ...v) => v.includes(ev.dims?.[k]);
 const late = (ev) => todOf(ev) === "late" || todOf(ev) === "evening";
@@ -30,7 +52,7 @@ export function buildPicks(m, events, max = 5) {
   const scored = RECIPES.map((r) => {
     const list = events.filter(r.is).sort((a, b) => b.sc - a.sc);
     const fit = r.always ? 2 : r.f.reduce((a, f) => a + weightOf(m, f), 0);
-    return { ...r, list, fit };
+    return { ...r, list, fit, icon: ABOUT[r.id]?.[0], teaser: ABOUT[r.id]?.[1] };
   }).filter((r) => r.list.length >= 3 && (r.always || r.fit > 0.05)).sort((a, b) => b.fit - a.fit);
   const out = [];
   for (const r of scored) {

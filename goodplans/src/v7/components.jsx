@@ -64,7 +64,7 @@ export function WeatherTag({ ev, compact }) {
 }
 
 // Thumbs up / down / save on every card. Clicks don't open the card.
-export function CardActions({ ev, size = 34, onNfm }) {
+export function CardActions({ ev, size = 34, onNfm, noSave }) {
   const a = useContext(ActionsCtx);
   const t = a.thumbOf(ev.id), saved = a.isSaved(ev.id);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
@@ -77,8 +77,27 @@ export function CardActions({ ev, size = 34, onNfm }) {
     <div className="row" style={{ gap: 6 }}>
       <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1, true)} onClick={stop(() => { if (t === 1) a.onReact(ev, "undo"); else { a.onReact(ev, "up", null, true); a.askWhy(ev, "up"); } })}><Icon name="up" size={is} /></button>
       <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1, true)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
-      <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={{ ...btn(saved), width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, border: saved ? "none" : "2px solid var(--ink)", background: saved ? "var(--navy)" : "transparent" }} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is + 2} fill={saved ? "currentColor" : "none"} /></button>
+      {!noSave && <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={{ ...btn(saved), width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, border: saved ? "none" : "2px solid var(--ink)", background: saved ? "var(--navy)" : "transparent" }} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is + 2} fill={saved ? "currentColor" : "none"} /></button>}
     </div>
+  );
+}
+
+// Save button and price sit on the picture itself
+export function PicOverlay({ ev, size = 36 }) {
+  const a = useContext(ActionsCtx);
+  const saved = a.isSaved(ev.id);
+  const free = isFree(ev);
+  const p = (ev.price || "").split("/")[0].trim();
+  const real = free || /\$\s?\d|\d\s?(usd|\$)/i.test(p);
+  return (
+    <>
+      <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} onClick={(e) => { e.stopPropagation(); a.onSave(ev); }}
+        style={{ position: "absolute", top: 8, right: 8, width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: saved ? "var(--navy)" : "rgba(255,255,255,.92)", color: saved ? "var(--onnavy)" : "#1B1F3B", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }}>
+        <Icon name="save" size={Math.round(size * 0.52)} fill={saved ? "currentColor" : "none"} />
+      </button>
+      {real && <span className={"tag " + (free ? "tag-free" : "tag-white")} style={{ position: "absolute", left: 8, bottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.2)" }}>{free ? "Free" : (p.length > 14 ? p.slice(0, 13) + "…" : p)}</span>}
+      {ev.busy && <span className="tag tag-warn" style={{ position: "absolute", left: 8, top: 8 }}>Clash</span>}
+    </>
   );
 }
 
@@ -114,6 +133,12 @@ export function Flags({ ev }) {
   );
 }
 
+// "Until Dec 3" is context, not the headline: regular weight; days and times stay semi-bold
+export function When({ text }) {
+  const until = /^until\b/i.test(text || "");
+  return <span style={{ fontWeight: until ? 400 : 700, color: until ? "var(--ink3)" : "inherit" }}>{text}</span>;
+}
+
 // Category · sub-type, shown next to the icon on cards
 export const catLabel = (ev) => (ev.ncat ? ev.ncat + (ev.nsub ? " · " + ev.nsub : "") : ev.cat || "");
 // Venue, after time and travel on the meta line (truncates first)
@@ -147,6 +172,7 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
     <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Media ev={ev} dark={dark} height={190} big />
+        <PicOverlay ev={ev} size={40} />
         {label && <span className="tag tag-white" style={{ position: "absolute", top: 10, left: 10 }}>{label}</span>}
       </div>
       <div style={{ padding: "0 6px 4px", display: "flex", flexDirection: "column", gap: 7, width: "100%" }}>
@@ -156,13 +182,9 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
         </div>
         <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
         <Snippet ev={ev} />
-        <div className="row" style={{ gap: 10, fontSize: 14, fontWeight: 800 }}>
-          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} />
-          <span style={{ marginLeft: "auto", flexShrink: 0 }}><PriceTag ev={ev} /></span>
-        </div>
-        <div className="row" style={{ gap: 8, justifyContent: "space-between" }}>
-          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}><Flags ev={ev} /></div>
-          <CardActions ev={ev} />
+        <div className="row" style={{ gap: 10, fontSize: 14, minWidth: 0 }}>
+          <When text={whenLabel(ev, today)} /><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} size={14} /></span>
+          <span style={{ marginLeft: "auto", flexShrink: 0 }}><CardActions ev={ev} noSave /></span>
         </div>
       </div>
     </div>
@@ -173,18 +195,15 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   const seenRef = useSeen(ev);
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
-      <div style={{ width: 84, flexShrink: 0 }}><Media ev={ev} dark={dark} height={104} radius={16} hideTitle /></div>
+      <div style={{ width: 96, flexShrink: 0, position: "relative" }}><Media ev={ev} dark={dark} height={112} radius={16} hideTitle /><PicOverlay ev={ev} size={28} /></div>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet ev={ev} size={16} dark={dark} />{catLabel(ev)}</span>}
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
         <Snippet ev={ev} lines={2} size={12.5} />
-        <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, minWidth: 0 }}>
-          <span style={{ whiteSpace: "nowrap" }}>{when || whenLabel(ev, today)}{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><Travel tt={ev.tt} />
+        <span className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}>
+          <span style={{ whiteSpace: "nowrap" }}><When text={when || whenLabel(ev, today)} />{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} /></span>
         </span>
-        <div className="row" style={{ gap: 6, justifyContent: "space-between", marginTop: 2, minWidth: 0 }}>
-          <div className="row" style={{ gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} compact />}</div>
-          <CardActions ev={ev} size={30} />
-        </div>
+        <div className="row" style={{ justifyContent: "flex-end", marginTop: 2 }}><CardActions ev={ev} size={28} noSave /></div>
       </div>
     </div>
   );
@@ -195,15 +214,12 @@ export function PosterCard({ ev, dark, today, onOpen }) {
   const seenRef = useSeen(ev);
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 186, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
-      <Media ev={ev} dark={dark} height={190} radius={22} hideTitle />
+      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={190} radius={22} hideTitle /><PicOverlay ev={ev} /></div>
       <div className="row" style={{ gap: 6 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{ev.ncat || ev.cat}</span></div>
       <div className="disp clamp2" style={{ fontSize: 16.5, lineHeight: 1.12 }}>{ev.title}</div>
       <Snippet ev={ev} lines={2} size={12.5} />
-      <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 800, minWidth: 0 }}><span className="ell">{whenLabel(ev, today)}</span><Travel tt={ev.tt} muted /></div>
-      <div className="row" style={{ gap: 6, justifyContent: "space-between", minHeight: 38 }}>
-        <span className="row" style={{ gap: 6 }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} compact />}</span>
-        <CardActions ev={ev} size={30} />
-      </div>
+      <div className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}><span className="ell"><When text={whenLabel(ev, today)} /></span><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} muted /></span></div>
+      <div className="row" style={{ justifyContent: "flex-end" }}><CardActions ev={ev} size={28} noSave /></div>
     </div>
   );
 }
@@ -271,8 +287,8 @@ function loadLeaflet() {
   return leafletPromise;
 }
 
-export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14 }) {
-  const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null);
+export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded }) {
+  const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef(false);
   const [err, setErr] = useState(null);
   useEffect(() => {
     let alive = true;
@@ -296,6 +312,11 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap", className: dark ? "gp-tiles-dark" : "gp-tiles-light" }).addTo(m);
     layerRef.current.clearLayers();
     L.marker(home, { icon: L.divIcon({ className: "", html: '<div class="gp-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(layerRef.current);
+    if (fit && events.length && !fitted.current) {
+      const pts = [home, ...events.map((e) => e.coord)];
+      m.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 15 });
+      fitted.current = true;
+    }
     events.forEach((ev) => {
       const c = evColor(ev, dark), sel = ev.id === selectedId, sz = sel ? 44 : 34;
       const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${lIconString(evNode(ev), sel ? 20 : 16)}</div>`;
@@ -305,11 +326,38 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
     });
   };
   useEffect(() => { draw(); }); // redraw on every render (cheap: few dozen markers)
-  useEffect(() => { if (mapRef.current) mapRef.current.setView(home, mapRef.current.getZoom()); }, [home[0], home[1]]);
+  useEffect(() => { if (mapRef.current && !fit) mapRef.current.setView(home, mapRef.current.getZoom()); }, [home[0], home[1]]);
   return (
-    <div style={{ position: "relative", height, borderRadius: interactive ? 0 : 20, overflow: "hidden", background: "var(--mapbg)" }}>
+    <div style={{ position: "relative", isolation: "isolate", height, borderRadius: rounded ? 22 : interactive ? 0 : 20, overflow: "hidden", background: "var(--mapbg)" }}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} />
       {err && <div className="muted" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{err}</div>}
     </div>
+  );
+}
+
+
+// Quick tile: small rectangle for Tonight, Tomorrow, This weekend, This week
+export function QuickTile({ t }) {
+  return (
+    <button onClick={t.open} style={{ border: "none", borderRadius: 16, padding: "8px 11px", height: 62, background: t.color, color: "#fff", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 2, minWidth: 0 }}>
+      <span className="disp" style={{ fontSize: 14.5, lineHeight: 1.05 }}>{t.title}</span>
+      <span style={{ fontSize: 12, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
+    </button>
+  );
+}
+
+// Mood / Pick tile: colour, icon, title, a teaser saying what drives the list, and a count
+export function MoodTile({ t, big, wide, compact }) {
+  return (
+    <button onClick={t.open} style={{ gridColumn: big || wide ? "1 / -1" : undefined, width: compact ? 168 : undefined, flexShrink: compact ? 0 : undefined, border: "none", borderRadius: 20, padding: "14px 14px 12px", background: t.color, color: "#fff", textAlign: "left", minHeight: big ? 128 : wide ? 104 : 124, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden" }}>
+      <span style={{ position: "absolute", right: -6, top: -6, opacity: 0.22 }} aria-hidden="true">
+        {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
+      </span>
+      <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span className="disp" style={{ fontSize: big ? 22 : 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
+        {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
+      </span>
+      <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
+    </button>
   );
 }

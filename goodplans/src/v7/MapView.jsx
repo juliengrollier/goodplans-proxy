@@ -6,15 +6,15 @@ import { whenLabel } from "./engine.js";
 import { isImprecise } from "../lib/core.js";
 
 // Large preview card for a tapped pin. Swipe up (or tap) opens the full profile; swipe down dismisses.
-function Peek({ ev, dark, today, onOpen, onClose }) {
+export function Peek({ ev, dark, today, onOpen, onClose, inline }) {
   const y0 = useRef(null);
   const [dy, setDy] = useState(0);
   const start = (e) => { y0.current = e.touches[0].clientY; };
   const move = (e) => { if (y0.current != null) setDy(Math.max(-140, Math.min(160, e.touches[0].clientY - y0.current))); };
   const end = () => { if (dy < -50) onOpen(ev); else if (dy > 60) onClose(); setDy(0); y0.current = null; };
   return (
-    <div onTouchStart={start} onTouchMove={move} onTouchEnd={end}
-      style={{ position: "absolute", left: 10, right: 10, bottom: "calc(74px + env(safe-area-inset-bottom))", zIndex: 30, transform: `translateY(${dy}px)`, transition: y0.current == null ? "transform .2s" : "none" }}>
+    <div {...(inline ? {} : { onTouchStart: start, onTouchMove: move, onTouchEnd: end })}
+      style={inline ? { position: "relative" } : { position: "absolute", left: 10, right: 10, bottom: "calc(74px + env(safe-area-inset-bottom))", zIndex: 30, transform: `translateY(${dy}px)`, transition: y0.current == null ? "transform .2s" : "none" }}>
       <div className="card" role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "relative", padding: 10, display: "flex", flexDirection: "column", gap: 8, cursor: "pointer", boxShadow: "0 12px 34px rgba(27,31,59,.28)" }}>
         <button aria-label="Close preview" onClick={(e) => { e.stopPropagation(); onClose(); }}
           style={{ position: "absolute", top: 20, right: 20, zIndex: 2, width: 36, height: 36, borderRadius: 18, border: "none", background: "#fff", color: "#1B1F3B", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 3px 10px rgba(27,31,59,.2)" }}><Icon name="close" size={18} width={2.6} /></button>
@@ -24,10 +24,9 @@ function Peek({ ev, dark, today, onOpen, onClose }) {
           <div className="row" style={{ gap: 8 }}><CatBullet ev={ev} size={22} dark={dark} /><span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
           <div className="disp clamp2" style={{ fontSize: 20, lineHeight: 1.1 }}>{ev.title}</div>
           <Snippet ev={ev} lines={2} />
-          <Keywords ev={ev} max={4} />
-          <div className="row" style={{ gap: 10, fontSize: 14, fontWeight: 800, flexWrap: "wrap" }}><span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} /><WeatherTag ev={ev} /></div>
+          <div className="row" style={{ gap: 10, fontSize: 14, fontWeight: 800, flexWrap: "wrap" }}><span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} /></div>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>Swipe up for details</span>
+            <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{inline ? "Tap for details" : "Swipe up for details"}</span>
             <CardActions ev={ev} size={34} />
           </div>
         </div>

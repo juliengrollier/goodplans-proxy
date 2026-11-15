@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
+import { buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
 import Today from "./Today.jsx";
 import Explore from "./Explore.jsx";
@@ -430,6 +431,7 @@ export default function App() {
   const youR = useMemo(() => rankYou(moodCtx, visible, youStore, new Date()), [moodCtx, visible, unit]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickOf = (r, id) => (id && r.all.find((x) => x.id === id)) || r.first;
   const cityA = pickOf(cityR, cityPick), cityB = cityA && cityR.first && cityA.id !== cityR.first.id ? cityR.first : cityR.second;
+  const cityC = cityR.all.find((x) => x.id !== cityA?.id && x.id !== cityB?.id && x.list.length >= 2) || null;
   const youA = pickOf(youR, youPick), youB = youA && youR.first && youA.id !== youR.first.id ? youR.first : youR.second;
   const mKey = (scope, m) => m && scope + ":" + unit + ":" + m.id + "|" + moodCtx.iso + "|" + moodCtx.part + "|v3|" + m.list.slice(0, 4).map((e) => e.id).join(",");
   useEffect(() => {
@@ -440,7 +442,7 @@ export default function App() {
   // Claude writes each title + subtitle (cached per mood, day part and events); title banks fill in meanwhile
   useEffect(() => {
     if (!ready || aiOff.current) return;
-    const jobs = [["you", youA], ["you", youB], ["city", cityA], ["city", cityB]].filter(([, m]) => m);
+    const jobs = [["you", youA], ["you", youB], ["city", cityA], ["city", cityB], ["city", cityC]].filter(([, m]) => m);
     jobs.forEach(([scope, m]) => {
       const k = mKey(scope, m);
       if (moodTxt[k]) return;
@@ -457,11 +459,12 @@ export default function App() {
         });
       }).catch((e) => { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
     });
-  }, [ready, mKey("you", youA), mKey("you", youB), mKey("city", cityA), mKey("city", cityB)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, mKey("you", youA), mKey("you", youB), mKey("city", cityA), mKey("city", cityB), mKey("city", cityC)]); // eslint-disable-line react-hooks/exhaustive-deps
   const view = (scope, m, fallbackSub) => m && { id: m.id, icon: PULSE_ICON[m.id] || null, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, writing: !moodTxt[mKey(scope, m)] };
   const moodProps = {
     you: view("you", youA, youR.readLine ? "Reading the room: " + youR.readLine : youA?.offer), youOther: view("you", youB, youB?.offer),
     city: view("city", cityA, cityA?.facts), cityOther: view("city", cityB, cityB?.facts),
+    cities: [view("city", cityA, cityA?.facts), view("city", cityB, cityB?.facts), view("city", cityC, cityC?.facts)].filter((c) => c && c.list?.length),
     onYouSwitch: () => { if (!youB) return; let st = learnYou(youStore, youR.slot, youB.id, 1); if (youA) st = learnYou(st, youR.slot, youA.id, -0.5); saveYou(st); setYouPick(youB.id); },
     onYouFeedback: (good) => {
       if (!youA) return;
@@ -742,13 +745,11 @@ export default function App() {
     if ((modelRef.current.strong || 0) < 5 && !sessionStorage.getItem("gp_quiz_later")) setShowQuiz(true);
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
   const finishQuiz = (ans, prof) => {
-    const weights = {}; let price = 0, far = 0;
-    Object.entries(ans).forEach(([id, k]) => { const o = Q.QUESTIONS.find((q) => q.id === id)?.opts[k]; if (!o) return;
-      Object.entries(o.f || {}).forEach(([f, x]) => { weights[f] = (weights[f] || 0) + x; }); price = Math.max(price, o.price || 0); far = Math.max(far, o.far || 0); });
+    const W = Q.weightsFrom(ans); const weights = W.weights, price = W.price, far = W.far;
     putModel(L.seed(modelRef.current, weights), true);
     const t = { ...tasteRef.current, priceSens: Math.max(tasteRef.current.priceSens || 0, price), farSens: Math.max(tasteRef.current.farSens || 0, far) };
     tasteRef.current = t; saveTaste(t);
-    const qz = { answers: ans, profile: prof, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
+    const qz = { answers: ans, profile: prof, v: Q.QUIZ_VERSION, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
     setShowQuiz(false); toast("Nice to meet you, " + prof.name.replace(/^The /, ""));
   };
 
@@ -757,6 +758,16 @@ export default function App() {
     const wk = new Date(today); wk.setDate(today.getDate() + 7);
     return buildPicks(modelRef.current, visible.filter((e) => evStart(e) <= wk));
   }, [visible, modelVer, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Home tiles (quick time tiles + moods/picks); reused as "More ideas" in Explore
+  const tileSet = useMemo(() => buildTiles({ visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, book: sections.book || [], dark }),
+    [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, sections, dark]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openTile = (t) => {
+    const base = { ...filters, fam: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
+    setFilters(t.list ? { ...base, ids: t.list.map((e) => e.id), when: "any" } : { ...base, ...t.patch });
+    setTab("explore"); window.scrollTo(0, 0);
+  };
+  // Map-only "Around you right now": open the full Map tab on the same pins
+  const openFullMap = (ids, title) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids, list: title, price: "any", when: "any", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
   // ── Taste chart in Me: each dimension as an axis; a nudge moves it a notch
   const axes = useMemo(() => ({
     axes: L.AXES.map(([dim, loL, lo, hiL, hi]) => ({ dim, loL, lo, hiL, hi, v: L.axisScore(modelRef.current, dim, lo, hi) })),
@@ -770,6 +781,34 @@ export default function App() {
     m = L.nudge(m, L.dimFeature(dim, dir > 0 ? lo : hi), -0.2);
     putModel(m, true);
   };
+
+    // ── Phone "back" gesture: each open layer (a tab other than Today, the event page, a dialog, the quiz) is one history entry,
+  // so back closes the top layer first and only leaves the app from Today with nothing open.
+  const layers = [];
+  if (tab !== "today") layers.push(() => { setTab("today"); window.scrollTo(0, 0); });
+  if (showFree) layers.push(() => setShowFree(false));
+  if (surprise) layers.push(() => setSurprise(null));
+  if (openEv) layers.push(() => setOpenEv(null));
+  if (whyAsk) layers.push(() => setWhyAsk(null));
+  if (showQuiz) layers.push(() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); });
+  const layersRef = useRef(layers); layersRef.current = layers;
+  const histDepth = useRef(0), skipPop = useRef(0);
+  useEffect(() => {
+    const depth = layers.length;
+    if (depth > histDepth.current) {
+      while (histDepth.current < depth) { window.history.pushState({ gp: histDepth.current + 1 }, ""); histDepth.current++; }
+    } else if (depth < histDepth.current) {
+      const n = histDepth.current - depth; histDepth.current = depth; skipPop.current++; window.history.go(-n); // closed from the screen: drop the extra entries
+    }
+  }, [layers.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onPop = () => {
+      if (skipPop.current > 0) { skipPop.current--; return; }
+      if (histDepth.current > 0) { histDepth.current--; const l = layersRef.current; l[l.length - 1]?.(); }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
@@ -796,11 +835,11 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
+        {tab === "today" && <Today tiles={tileSet} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
+        {tab === "explore" && <Explore tiles={tileSet} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
@@ -814,7 +853,7 @@ export default function App() {
 
       <TabBar tab={tab} setTab={(t) => { setTab(t); window.scrollTo(0, 0); }} plansCount={plansCount} />
 
-      {showQuiz && <Quiz initial={quiz?.answers || {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
+      {showQuiz && <Quiz initial={quiz?.v === Q.QUIZ_VERSION ? quiz.answers || {} : {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
       {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
