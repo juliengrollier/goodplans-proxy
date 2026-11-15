@@ -135,6 +135,29 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
   );
 }
 
+// Tonight / This weekend / This week as tabs over one carousel; More opens Explore on the active tab
+function WhenTabs({ tabs, dark, today, onOpen, onMore }) {
+  const avail = tabs.filter(([, , list]) => list.length);
+  const [cur, setCur] = React.useState(null);
+  if (!avail.length) return null;
+  const active = avail.find(([k]) => k === cur) || avail[0];
+  const [, label, list, patch] = active;
+  return (
+    <>
+      <div className="sec-h" style={{ gap: 6 }}>
+        <div className="row" role="tablist" aria-label="When" style={{ gap: 6, overflowX: "auto", flex: 1, minWidth: 0 }}>
+          {avail.map(([k, l]) => (
+            <button key={k} role="tab" aria-selected={k === active[0]} onClick={() => setCur(k)}
+              style={{ border: "none", background: "none", padding: "4px 6px", fontFamily: "'Fredoka',sans-serif", fontWeight: 600, fontSize: 20, color: k === active[0] ? "var(--ink)" : "var(--ink3)", whiteSpace: "nowrap", borderBottom: k === active[0] ? "3px solid var(--ink)" : "3px solid transparent" }}>{l}</button>
+          ))}
+        </div>
+        <button className="chip" onClick={() => onMore(patch)} style={{ height: 32, flexShrink: 0 }} aria-label={"See all: " + label}>More <Icon name="chev" size={14} /></button>
+      </div>
+      <div className="hscroll" key={active[0]}>{list.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+    </>
+  );
+}
+
 function renderHighlights(text, ids, data, onOpen) {
   text = text.replace(/\[\[[^\]]*$/, "").trim();
   const out = []; let last = 0, k = 0; const re = /\[\[(\d+)\|([^\]]+)\]\]/g; let m;
@@ -231,13 +254,13 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
 
       {!empty && city && <CityPulse m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
 
+      {!empty && <WhenTabs tabs={[
+        ["tonight", freeUntil != null ? "While you're free" : "Tonight", tonight, { when: "tonight" }],
+        ["weekend", "This weekend", weekend, { when: "weekend" }],
+        ["week", "This week", weekPicks, { when: "week" }],
+      ]} dark={dark} today={today} onOpen={onOpen} onMore={onMore} />}
 
-      {tonight.length > 0 && (
-        <>
-          <SectionHead title={freeUntil != null ? "While you're free" : "Tonight"} color={catColor("Music", dark)} onMore={() => onMore({ when: "tonight" })} />
-          <div className="hscroll">{tonight.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
-        </>
-      )}
+
 
       {(() => {
         if (!weather?.byDate) return null;
@@ -262,22 +285,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         return null;
       })()}
 
-      {weekend.length > 0 && (
-        <>
-          <SectionHead title="This weekend" color={catColor("Outdoors", dark)} onMore={() => onMore({ when: "weekend" })} />
-          <div className="hscroll">{weekend.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
-        </>
-      )}
 
-      {weekPicks.length > 0 && (
-        <>
-          <SectionHead title="This week" color={catColor("Art & Culture", dark)} onMore={() => onMore({ when: "week" })} />
-          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-            <HeroCard ev={weekPicks[0]} dark={dark} today={today} onOpen={onOpen} label={null} />
-            {weekPicks.slice(1).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
-          </div>
-        </>
-      )}
 
       {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} onMore={onMore} />}
 
