@@ -79,3 +79,12 @@ export function lIconString(node, size, color = "#fff", stroke = 2.4) {
   const inner = node.map(([tag, attrs]) => `<${tag} ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(" ")}/>`).join("");
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 }
+
+// A category chip: tap the label to show only it, tap × to hide it (tap again to bring it back)
+export function CatChip({ c, n, on, off, dark, onPick, onHide }) {
+  const col = dark ? FAM[c.fam].dark : FAM[c.fam].light;
+  return React.createElement("span", { className: "chip", style: { height: 32, flexShrink: 0, gap: 0, padding: 0, overflow: "hidden", background: on ? col : undefined, color: on ? "#fff" : undefined, borderColor: on ? col : undefined, opacity: off ? 0.5 : 1 } },
+    React.createElement("button", { onClick: onPick, "aria-pressed": on, disabled: off, style: { display: "inline-flex", alignItems: "center", gap: 6, height: "100%", padding: "0 6px 0 12px", border: "none", background: "none", color: "inherit", font: "inherit", textDecoration: off ? "line-through" : "none" } },
+      React.createElement(LIcon, { node: c.icon, size: 14, color: on ? "#fff" : col }), c.id, React.createElement("span", { style: { opacity: 0.7, fontWeight: 700 } }, n)),
+    React.createElement("button", { onClick: onHide, "aria-label": (off ? "Show " : "Hide ") + c.id, style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: "100%", border: "none", borderLeft: "1px solid " + (on ? "rgba(255,255,255,.35)" : "var(--line)"), background: "none", color: "inherit", font: "inherit", fontSize: 15, fontWeight: 700 } }, off ? "↺" : "×"));
+}
