@@ -249,3 +249,20 @@ export function pendingGoAsk(m, past, today) {
 }
 export const markAsked = (m, id, ans) => ({ ...m, asked: { ...m.asked, [id]: ans } });
 
+
+// "You may also like": events that share the most of what this one is (category, sub-type, keywords, how it feels),
+// blended with how well each scores for you. Same series and the event itself are left out.
+export function similarEvents(ev, list, today = new Date(), n = 5) {
+  const core = (e) => features(e, today).filter((f) => /^(cat|sub|kw|dim|price|hood|len):/.test(f));
+  const a = new Set(core(ev)), key = (e) => (e.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const out = [];
+  for (const e of list) {
+    if (e.id === ev.id || e.hidden || key(e) === key(ev)) continue;
+    const b = core(e); if (!b.length) continue;
+    const inter = b.filter((f) => a.has(f)).length;
+    const sim = inter / (a.size + b.length - inter);
+    if (sim < 0.15) continue;
+    out.push({ e, r: sim * 0.7 + (e.sc || 0) / 100 * 0.3 });
+  }
+  return out.sort((x, y) => y.r - x.r).slice(0, n).map((x) => x.e);
+}

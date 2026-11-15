@@ -336,7 +336,8 @@ export default function App() {
     if (JSON.stringify(n) !== JSON.stringify(rec)) { setRec(n); ss(REC_KEY, n); }
   }, [ready, events, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const merged = useMemo(() => mergeDuplicates(events), [events]);
-  const allEvents = useMemo(() => withRegulars(merged, rec, today), [merged, rec, today]);
+  // Regulars added from memory can repeat a listing from the feed: merge again after adding them
+  const allEvents = useMemo(() => mergeDuplicates(withRegulars(merged, rec, today)), [merged, rec, today]);
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
@@ -726,7 +727,8 @@ export default function App() {
 
       <TabBar tab={tab} setTab={(t) => { setTab(t); window.scrollTo(0, 0); }} plansCount={plansCount} />
 
-      {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onSignal={signal} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
+      {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
+        similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
       {showFree && <FreeUntilDialog freeUntil={effFree} autoFree={autoFree} onClose={() => setShowFree(false)}
         onPick={(m) => { setFreeUntil(m); setShowFree(false); }} />}

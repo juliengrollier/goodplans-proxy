@@ -5,7 +5,7 @@ import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS, daysUntil } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
-import { Travel } from "./components.jsx";
+import { Travel, catLabel } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
 import { User, Users } from "lucide";
 
@@ -271,6 +271,7 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
             <button key={ev.id} onClick={() => onOpen(ev)} className="row" style={{ gap: 10, padding: "0 4px", border: "none", background: "none", textAlign: "left" }}>
               <CatBullet ev={ev} size={30} dark={dark} />
               <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                <span className="ell" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink3)" }}>{catLabel(ev)}</span>
                 <span className="ell" style={{ fontSize: 15, fontWeight: 800 }}>{ev.title}</span>
                 <span className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 700 }}>
                   <span style={{ color: soonLabel(ev).startsWith("On now") ? "var(--free-ink)" : "var(--soon-ink)" }}>{soonLabel(ev)}</span>

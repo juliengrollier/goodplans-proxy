@@ -1,14 +1,14 @@
 import { FAM, CAT } from "./taxonomy.js";
 import React, { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
-import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel } from "./components.jsx";
+import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel, CompactCard } from "./components.jsx";
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge, fmtT } from "./engine.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
-export default function EventSheet({ ev, dark, today, onSignal = () => {}, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
+export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], onOpen, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
   const [nfm, setNfm] = useState(false);
   const thumb = taste.thumbs[ev.id] || 0;
   const followed = !!taste.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()];
@@ -115,12 +115,19 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onClo
       <div style={{ padding: "18px 20px 0", display: "flex", flexDirection: "column", gap: 10 }}>
         <div className="disp" style={{ fontSize: 20 }}>Teach Good Plans</div>
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          <button className={"chip" + (thumb === 1 ? " on" : "")} onClick={() => onReact(ev, thumb === 1 ? "undo" : "up")}><Icon name="up" size={16} /> More like this</button>
-          <button className={"chip" + (thumb === -1 ? " on" : "")} onClick={() => onReact(ev, thumb === -1 ? "undo" : "down")}><Icon name="down" size={16} /> Less like this</button>
+          <button className={"chip" + (thumb === 1 ? " on" : "")} onClick={() => { if (thumb === 1) onReact(ev, "undo"); else { onReact(ev, "up", null, true); onAskWhy(ev, "up"); } }}><Icon name="up" size={16} /> More like this</button>
+          <button className={"chip" + (thumb === -1 ? " on" : "")} onClick={() => { if (thumb === -1) onReact(ev, "undo"); else { onReact(ev, "down", null, true); onAskWhy(ev, "down"); } }}><Icon name="down" size={16} /> Less like this</button>
           <button className="chip" onClick={() => setNfm(true)}><Icon name="hide" size={16} /> Not for me…</button>
           {ev.venue && <button className={"chip" + (followed ? " on" : "")} onClick={() => onFollow(ev)}><Icon name={followed ? "check" : "plus"} size={16} /> {followed ? "Following" : "Follow"} {venueLabel(ev).slice(0, 22)}</button>}
         </div>
       </div>
+
+      {similar.length > 0 && (
+        <div style={{ padding: "26px 16px 0", display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="disp" style={{ fontSize: 20, padding: "0 4px" }}>You may also like</div>
+          {similar.map((s) => <CompactCard key={s.id} ev={s} dark={dark} today={today} onOpen={onOpen} />)}
+        </div>
+      )}
 
       <div style={{ height: 110 }} />
 
