@@ -1,9 +1,9 @@
 import React from "react";
-import { Logo, Icon } from "./icons.jsx";
+import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet } from "./components.jsx";
-import { catColor } from "./theme.js";
+import { catColor, catIcon } from "./theme.js";
 import { startMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
-import { DAYS, MONTHS, evCovers } from "../lib/core.js";
+import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
 
 function greeting(d) {
@@ -56,6 +56,38 @@ function Forecast({ weather, today }) {
   );
 }
 
+// Top picks for one topic: tap a category icon to switch. Defaults to the category you rate highest.
+function TopPicks({ data, dark, today, onOpen, eprof }) {
+  const counts = data.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {});
+  const cats = Object.keys(CATS).filter((c) => counts[c] >= 2).sort((a, b) => (eprof?.categories?.[b] ?? 30) - (eprof?.categories?.[a] ?? 30));
+  const [cat, setCat] = React.useState(null);
+  const cur = cat && cats.includes(cat) ? cat : cats[0];
+  if (!cur) return null;
+  const list = data.filter((e) => e.cat === cur).sort((a, b) => b.sc - a.sc).slice(0, 5);
+  return (
+    <>
+      <SectionHead title="Top picks" n={cur} color={catColor(cur, dark)} />
+      <div className="hscroll" style={{ gap: 8, padding: "0 16px 12px" }} role="tablist" aria-label="Topic">
+        {cats.map((c) => {
+          const on = c === cur, col = catColor(c, dark);
+          return (
+            <button key={c} role="tab" aria-selected={on} aria-label={c} onClick={() => setCat(c)}
+              style={{ flexShrink: 0, border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 50, opacity: on ? 1 : 0.45 }}>
+              <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
+                <Glyph name={catIcon(c)} size={21} color={col} />
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap", maxWidth: 54, overflow: "hidden", textOverflow: "ellipsis" }}>{c.split(" ")[0]}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+      </div>
+    </>
+  );
+}
+
 function renderHighlights(text, ids, data, onOpen) {
   text = text.replace(/\[\[[^\]]*$/, "").trim();
   const out = []; let last = 0, k = 0; const re = /\[\[(\d+)\|([^\]]+)\]\]/g; let m;
@@ -71,7 +103,7 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [] }) {
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof }) {
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
@@ -100,7 +132,6 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
       </div>
       <div className="hscroll" style={{ padding: "8px 16px 16px" }}>
         <button className={"chip" + (freeUntil != null ? " on" : "")} onClick={openFree}><Icon name="clock" size={15} /> {freeText}</button>
-        <button className="chip" onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
         {w?.rainy && <span className="chip" style={{ cursor: "default" }}><Icon name="rain" size={15} /> Indoor first tonight</span>}
       </div>
 
@@ -138,12 +169,12 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         </div>
       )}
 
-      {weekPicks.length > 0 && (
+      {!empty && (
         <>
-          <SectionHead title="Don't miss this week" n={weekPicks.length + " pick" + (weekPicks.length > 1 ? "s" : "")} color={catColor("Art & Culture", dark)} />
-          <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
-            <HeroCard ev={weekPicks[0]} dark={dark} today={today} onOpen={onOpen} label={null} />
-            {weekPicks.slice(1).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+          <SectionHead title="Something different" icon="spark" />
+          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {wildcard && <CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" />}
+            <button className="pill pill-line" onClick={onSurprise}><Icon name="spark" size={18} /> Surprise me</button>
           </div>
         </>
       )}
@@ -151,10 +182,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
       {tonight.length > 0 && (
         <>
           <SectionHead title={freeUntil != null ? "While you're free" : "Tonight"} n={tonight.length + " pick" + (tonight.length > 1 ? "s" : "")} color={catColor("Music", dark)} />
-          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-            <HeroCard ev={tonight[0]} dark={dark} today={today} onOpen={onOpen} label={tonight[0].why?.includes("One night only") ? "One night only" : null} />
-            {tonight.slice(1).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
-          </div>
+          <div className="hscroll">{tonight.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </>
       )}
 
@@ -181,19 +209,24 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         return null;
       })()}
 
-      {wildcard && (
-        <>
-          <SectionHead title="Something different" color={catColor(wildcard.cat, dark)} />
-          <div style={{ padding: "0 16px" }}><CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" /></div>
-        </>
-      )}
-
       {weekend.length > 0 && (
         <>
           <SectionHead title="This weekend" n={weekend.length + " picks"} color={catColor("Outdoors", dark)} />
           <div className="hscroll">{weekend.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
         </>
       )}
+
+      {weekPicks.length > 0 && (
+        <>
+          <SectionHead title="Don't miss" n={"This week · " + weekPicks.length} color={catColor("Art & Culture", dark)} />
+          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <HeroCard ev={weekPicks[0]} dark={dark} today={today} onOpen={onOpen} label={null} />
+            {weekPicks.slice(1).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+          </div>
+        </>
+      )}
+
+      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} />}
 
       {book.length > 0 && (
         <>

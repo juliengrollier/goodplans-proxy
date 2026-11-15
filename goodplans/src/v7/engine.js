@@ -28,6 +28,23 @@ export function applyReaction(taste, prof, ev, kind, reason) {
   if (kind === "up") { t.thumbs[ev.id] = 1; bump(5, 8); }
   if (kind === "down") { t.thumbs[ev.id] = -1; bump(-5, -8); }
   if (kind === "undo") { delete t.thumbs[ev.id]; delete t.notForMe[ev.id]; delete t.hiddenSeries[seriesKey(ev)]; }
+  // Reason picked after a thumb on a card
+  if (kind === "why") {
+    const [dir, r] = String(reason || "").split(":");
+    if (dir === "up") {
+      if (r === "type") bump(5, 8);
+      if (r === "venue" && ev.venue) { t.follows = { ...t.follows, [venueKey(ev)]: venueLabel(ev) }; }
+      if (r === "price") t.priceSens = clamp((t.priceSens || 0) + 1, 0, 3);
+      if (r === "near") t.farSens = clamp((t.farSens || 0) + 1, 0, 3);
+    } else {
+      if (r === "notus") bump(-10, -15);
+      if (r === "far") t.farSens = clamp((t.farSens || 0) + 1, 0, 3);
+      if (r === "price") t.priceSens = clamp((t.priceSens || 0) + 1, 0, 3);
+      if (r === "seen") t.hiddenSeries[seriesKey(ev)] = ev.title;
+      if (r === "venue" && ev.venue) t.mutedVenues = { ...(t.mutedVenues || {}), [venueKey(ev)]: venueLabel(ev) };
+    }
+    t.reasons = { ...(t.reasons || {}), [dir + ":" + r]: ((t.reasons || {})[dir + ":" + r] || 0) + 1 };
+  }
   if (kind === "nfm") {
     t.notForMe[ev.id] = reason;
     if (reason === "far") t.farSens = clamp(t.farSens + 1, 0, 3);
@@ -147,6 +164,7 @@ export function scoreEvent(ev, ctx) {
   const followed = !!taste.follows[venueKey(ev)];
   if (followed) { s += 12; why.push("You follow " + venueLabel(ev)); }
   if (taste.thumbs[ev.id] === 1) s += 6;
+  if (taste.mutedVenues?.[venueKey(ev)]) s -= 15;
   const p = priceNum(ev);
   if (!isFree(ev) && p != null && p >= 15 && taste.priceSens) s -= taste.priceSens * 4;
   if (bd.tt?.mins > 20 && taste.farSens) s -= taste.farSens * 4;
@@ -194,10 +212,10 @@ export function fitsFree(ev, freeUntil, today) {
 // ── Sections for Today
 const dedupe = (arr) => { const seen = new Set(); return arr.filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
-export function buildToday(scored, { today, freeUntil, eprof, pinned = [] }) {
+export function buildToday(scored, { today, freeUntil, eprof }) {
   const live = scored.filter((e) => !e.hidden);
   const now = nowMinutes();
-  const used = new Set(pinned);
+  const used = new Set();
   const take = (arr, n) => { const out = []; for (const e of arr) { if (used.has(e.id)) continue; out.push(e); used.add(e.id); if (out.length === n) break; } return out; };
 
   const nowSoon = dedupe(live.filter((e) => {
@@ -212,7 +230,7 @@ export function buildToday(scored, { today, freeUntil, eprof, pinned = [] }) {
     const evening = sm != null ? sm >= Math.max(now - 30, 16 * 60) : eHour(e.time, e.cat) >= 17 && now < 21 * 60;
     return evening && fitsFree(e, freeUntil, today);
   })).sort((a, b) => b.sc - a.sc);
-  const tonight = take(tonightPool, 3);
+  const tonight = take(tonightPool, 8);
 
   const dow = today.getDay();
   const fri = new Date(today); fri.setDate(today.getDate() + (dow === 0 ? -2 : dow === 6 ? -1 : 5 - dow));

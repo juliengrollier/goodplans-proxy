@@ -3,7 +3,6 @@ import { Glyph, Icon, glyphSvgString } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
 import { whenLabel, isFree, weatherBadge } from "./engine.js";
 import { useEventImage, dropImage } from "./images.js";
-import { LINE_COLOR } from "../lib/core.js";
 
 export const ActionsCtx = createContext({ onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0 });
 
@@ -30,26 +29,32 @@ export function Travel({ tt, size = 13, muted }) {
     <span className="row" style={{ gap: 4, whiteSpace: "nowrap", color: muted ? "var(--ink3)" : "inherit" }}>
       <Icon name={walk ? "walk" : "train"} size={size + 3} width={2.2} />
       {tt.mins} min
-      {!walk && tt.line && <span style={{ width: size + 5, height: size + 5, borderRadius: "50%", background: LINE_COLOR[tt.line] || "#808183", color: /[NQRW]/.test(tt.line) ? "#1B1F3B" : "#fff", fontSize: size - 3, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{tt.line}</span>}
     </span>
   );
 }
 
 // What to expect: Claude keywords when available, else the sub-category
-export function Keywords({ ev, max = 3, size = "sm" }) {
+export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
   const k = (ev.kw && ev.kw.length ? ev.kw : ev.sub ? [ev.sub.toLowerCase()] : []).slice(0, max);
   if (!k.length) return null;
   return (
-    <div className="row" style={{ gap: 5, flexWrap: "wrap" }}>
+    <div className="row" style={oneLine ? { gap: 4, flexWrap: "nowrap", overflow: "hidden", minWidth: 0, flex: 1, maskImage: "linear-gradient(90deg,#000 85%,transparent)", WebkitMaskImage: "linear-gradient(90deg,#000 85%,transparent)" } : { gap: 5, flexWrap: "wrap" }}>
       {k.map((w) => <span key={w} className="kw" style={size === "lg" ? { height: 28, fontSize: 13, padding: "0 11px" } : null}>{w}</span>)}
     </div>
   );
 }
 
-export function WeatherTag({ ev }) {
+// First words of the description, so a card says what the event is
+export function Snippet({ ev, lines = 2, size = 13.5 }) {
+  const d = (ev.desc || "").replace(/\s+/g, " ").trim();
+  if (!d || d.toLowerCase() === (ev.title || "").toLowerCase()) return null;
+  return <div style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink2)", display: "-webkit-box", WebkitLineClamp: lines, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{d}</div>;
+}
+
+export function WeatherTag({ ev, compact }) {
   const b = weatherBadge(ev);
   if (!b) return null;
-  return <span className={"tag tag-" + b.tone} style={{ gap: 4 }}><Icon name={b.icon} size={13} width={2.4} />{b.text}</span>;
+  return <span className={"tag tag-" + b.tone} style={{ gap: 4, flexShrink: 0 }} title={b.text}><Icon name={b.icon} size={13} width={2.4} />{compact ? b.text.split(" · ")[0] : b.text}</span>;
 }
 
 // Thumbs up / down / save on every card. Clicks don't open the card.
@@ -61,8 +66,8 @@ export function CardActions({ ev, size = 34, onNfm }) {
   const is = Math.round(size * 0.5);
   return (
     <div className="row" style={{ gap: 6 }}>
-      <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1)} onClick={stop(() => a.onReact(ev, t === 1 ? "undo" : "up"))}><Icon name="up" size={is} /></button>
-      <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1)} onClick={stop(() => (onNfm ? onNfm(ev) : a.onReact(ev, t === -1 ? "undo" : "down")))}><Icon name="down" size={is} /></button>
+      <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1)} onClick={stop(() => { if (t === 1) a.onReact(ev, "undo"); else { a.onReact(ev, "up", null, true); a.askWhy(ev, "up"); } })}><Icon name="up" size={is} /></button>
+      <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
       <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={btn(saved)} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is} fill={saved ? "currentColor" : "none"} /></button>
     </div>
   );
@@ -94,6 +99,7 @@ export function Flags({ ev }) {
   return (
     <>
       {ev.busy && <span className="tag tag-warn">Clashes with your calendar</span>}
+      {ev.recurring && <span className="tag tag-plain">Weekly</span>}
       <WeatherTag ev={ev} />
     </>
   );
@@ -114,13 +120,13 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
           <span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{(ev.venue || "").split(",")[0]}</span>
         </div>
         <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
-        <Keywords ev={ev} max={4} />
-        <div className="row" style={{ gap: 10, flexWrap: "wrap", fontSize: 14, fontWeight: 800 }}>
+        <Snippet ev={ev} />
+        <div className="row" style={{ gap: 10, fontSize: 14, fontWeight: 800 }}>
           <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} size={14} />
-          <span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span>
+          <Keywords ev={ev} max={4} oneLine />
+          <span style={{ marginLeft: "auto", flexShrink: 0 }}><PriceTag ev={ev} /></span>
         </div>
-        {ev.why?.length > 0 && <div className="muted" style={{ fontSize: 13 }}>{ev.why.slice(0, 3).join(" · ")}</div>}
-        <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "space-between" }}>
+        <div className="row" style={{ gap: 8, justifyContent: "space-between" }}>
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}><Flags ev={ev} /></div>
           <CardActions ev={ev} />
         </div>
@@ -136,12 +142,12 @@ export function CompactCard({ ev, dark, today, onOpen, label }) {
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet cat={ev.cat} size={16} dark={dark} />{(ev.venue || "").split(",")[0]}</span>}
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
-        <Keywords ev={ev} max={3} />
-        <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, flexWrap: "wrap" }}>
-          <span>{whenLabel(ev, today)}</span><Travel tt={ev.tt} />
+        <Snippet ev={ev} lines={2} size={12.5} />
+        <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, minWidth: 0 }}>
+          <span style={{ whiteSpace: "nowrap" }}>{whenLabel(ev, today)}</span><Travel tt={ev.tt} />
         </span>
-        <div className="row" style={{ gap: 6, justifyContent: "space-between", marginTop: 2 }}>
-          <div className="row" style={{ gap: 6, minWidth: 0, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} />}</div>
+        <div className="row" style={{ gap: 6, justifyContent: "space-between", marginTop: 2, minWidth: 0 }}>
+          <div className="row" style={{ gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} compact />}<Keywords ev={ev} max={3} oneLine /></div>
           <CardActions ev={ev} size={30} />
         </div>
       </div>
@@ -155,9 +161,9 @@ export function PosterCard({ ev, dark, today, onOpen }) {
       <Media ev={ev} dark={dark} height={200} radius={24} hideTitle />
       <div className="row" style={{ gap: 6 }}><CatBullet cat={ev.cat} size={18} dark={dark} /><span className="ell muted" style={{ fontSize: 12, fontWeight: 700 }}>{(ev.venue || "").split(",")[0]}</span></div>
       <div className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.12 }}>{ev.title}</div>
-      <Keywords ev={ev} max={2} />
-      <div style={{ fontSize: 13, fontWeight: 800 }}>{whenLabel(ev, today)}</div>
-      <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700 }}><Travel tt={ev.tt} muted /><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
+      <Snippet ev={ev} lines={2} size={12.5} />
+      <div className="row" style={{ gap: 8, fontSize: 13, fontWeight: 800 }}><span className="ell">{whenLabel(ev, today)}</span><Travel tt={ev.tt} muted /></div>
+      <div className="row" style={{ gap: 6, minWidth: 0 }}><PriceTag ev={ev} /><Keywords ev={ev} max={2} oneLine /></div>
       <WeatherTag ev={ev} />
       <CardActions ev={ev} size={30} />
     </div>

@@ -3,7 +3,6 @@
  * Finds a picture for an event card, in this order:
  *   1. the event page's share image (og:image / twitter:image), usually the poster or flyer
  *   2. a Google Places photo of the venue (needs GOOGLE_MAPS_KEY in Vercel env)
- *   3. a Wikipedia/Wikimedia image of the venue
  * GET ?u=<event url>&v=<venue>&lat=<lat>&lon=<lon>
  * Returns { src, kind: "event"|"venue"|"none", credit? }
  */
@@ -75,24 +74,12 @@ async function fromGoogle(venue, lat, lon) {
   return { src: photoUri, kind: "venue", credit: a?.displayName ? "Photo: " + a.displayName + " / Google" : "Photo: Google" };
 }
 
-async function fromWikipedia(venue) {
-  if (!venue) return null;
-  const q = encodeURIComponent(venue + " New York");
-  const r = await withTimeout(fetch(`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${q}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=1000&format=json&origin=*`, { headers: { "User-Agent": "GoodPlans/1.0 (personal events app)" } }), 5000);
-  if (!r.ok) return null;
-  const pages = (await r.json()).query?.pages || {};
-  const p = Object.values(pages)[0];
-  const src = p?.thumbnail?.source;
-  if (!src || BAD_IMG.test(src) || /\.svg/i.test(src)) return null;
-  return { src, kind: "venue", credit: "Photo: Wikipedia" };
-}
-
 export default async function handler(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
   const { u = "", v = "", lat = "", lon = "" } = req.query;
   const venue = String(v).split(",")[0].trim().slice(0, 120);
-  const steps = [() => (u ? fromEventPage(String(u)) : null), () => fromGoogle(venue, lat, lon), () => fromWikipedia(venue)];
+  const steps = [() => (u ? fromEventPage(String(u)) : null), () => fromGoogle(venue, lat, lon)];
   for (const step of steps) {
     try { const hit = await step(); if (hit) { res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=604800"); return res.status(200).json(hit); } }
     catch { /* try the next source */ }

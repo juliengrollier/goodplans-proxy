@@ -104,3 +104,31 @@ export default function FilterBar({ f, setF, dark, counts, floating, showSearch 
     </div>
   );
 }
+
+export const SORTS = [["best", "Best match"], ["soonest", "Soonest"], ["closest", "Closest"]];
+
+// Identical header for Explore and Map: search, sort, then the filter bar
+export function FilterHeader({ filters, setFilters, sort, setSort, dark, counts, style }) {
+  return (
+    <div style={{ background: "var(--bg)", padding: "calc(12px + env(safe-area-inset-top)) 0 10px", borderBottom: "1px solid var(--line)", ...style }}>
+      <div className="row" style={{ padding: "0 12px 10px", gap: 8 }}>
+        <label className="row" style={{ flex: 1, gap: 8, height: 40, padding: "0 12px", borderRadius: 20, background: "var(--chip)", minWidth: 0 }}>
+          <Icon name="search" size={17} />
+          <input value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} type="search" placeholder="Search jazz, Brooklyn, free…" aria-label="Search events" style={{ border: "none", outline: "none", flex: 1, fontSize: 15, background: "transparent", color: "var(--ink)", fontFamily: "inherit", minWidth: 0 }} />
+          {filters.q && <button onClick={() => setFilters({ ...filters, q: "" })} aria-label="Clear search" style={{ border: "none", background: "none", padding: 0 }}><Icon name="close" size={15} /></button>}
+        </label>
+        <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" className="chip" style={{ height: 32, appearance: "none", paddingRight: 14 }}>
+          {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+      </div>
+      <FilterBar f={filters} setF={setFilters} dark={dark} counts={counts} />
+    </div>
+  );
+}
+
+export function sortEvents(r, sort) {
+  if (sort === "best") r.sort((a, b) => b.sc - a.sc);
+  if (sort === "soonest") r.sort((a, b) => (evStart(a) - evStart(b)) || ((startMinutes(a) ?? 720) - (startMinutes(b) ?? 720)));
+  if (sort === "closest") r.sort((a, b) => (a.tt?.mins ?? 99) - (b.tt?.mins ?? 99));
+  return r;
+}
