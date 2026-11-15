@@ -1,4 +1,4 @@
-// What you'll be doing (8 colour families) and what it is (34 categories, one icon each).
+// What you'll be doing (9 colour families) and what it is (34 categories, one icon each).
 // Families give the colour; categories give the icon and are what you filter by.
 // The scoring engine still uses the older 13 categories (ev.cat) internally; this layer is ev.ncat / ev.fam.
 import React from "react";
@@ -13,6 +13,7 @@ export const FAMILIES = [
   { id: "watch", label: "Watch", light: "#E53935", dark: "#F26260", icon: Popcorn },
   { id: "listen", label: "Listen", light: "#7B4BD6", dark: "#9B70F0", icon: Headphones },
   { id: "eat", label: "Eat & Drink", short: "Eat", light: "#F2611D", dark: "#FF7A3D", icon: UtensilsCrossed },
+  { id: "party", label: "Party", light: "#4338CA", dark: "#6A62F0", icon: PartyPopper },
   { id: "play", label: "Play", light: "#C98A00", dark: "#E6A91A", icon: Gamepad2 },
   { id: "make", label: "Make", light: "#C026D3", dark: "#DA5BE8", icon: Scissors },
   { id: "move", label: "Move", light: "#1E9E5A", dark: "#34C47A", icon: Activity },
@@ -27,14 +28,14 @@ export const CATEGORIES = [
   { id: "Cooking & Cocktails", fam: "make", icon: ChefHat, re: /cooking class|baking class|pie[- ]making|cocktail class|mixology|pasta[- ]making|dumpling[- ]making|cook-?along|knife skills/ },
   { id: "Arts & Crafts", fam: "make", icon: Palette, re: /workshop|pottery|ceramic|wheel throwing|painting class|paint (and|&) sip|sip (and|&) paint|drawing|life drawing|craft|knit|crochet|sew|embroider|printmaking|screen ?print|collage|jewel|candle[- ]making|terrarium|calligraphy|zine|open studio/ },
   { id: "Yoga & Wellness", fam: "move", icon: Flower2, re: /yoga|meditat|sound bath|breathwork|wellness|pilates|tai chi|qigong|sauna|bathhouse/ },
-  { id: "Dance Socials", fam: "move", icon: Footprints, re: /salsa|swing danc|lindy|tango|bachata|kizomba|contra danc|square danc|line danc|ballroom|dance social|dance class|silent disco/ },
-  { id: "Karaoke", fam: "play", icon: MicVocal, re: /karaoke/ },
+  { id: "Dance Socials", fam: "party", icon: Footprints, re: /salsa|swing danc|lindy|tango|bachata|kizomba|contra danc|square danc|line danc|ballroom|dance social|dance class|silent disco/ },
+  { id: "Karaoke", fam: "party", icon: MicVocal, re: /karaoke/ },
   { id: "Trivia & Quizzes", fam: "play", icon: Brain, re: /trivia|quiz|bingo|game show|spelling bee|jeopardy|name that tune/ },
   { id: "Escape Rooms & Puzzles", fam: "play", icon: KeyRound, re: /escape (room|game|the room)|puzzle hunt|scavenger hunt|murder mystery|treasure hunt|puzzle night/ },
   { id: "Arcades & VR", fam: "play", icon: Joystick, re: /arcade|pinball|virtual reality|\bvr\b|video game|gaming|retro games?|esports|simulator/ },
   { id: "Board & Card Games", fam: "play", icon: Dices, re: /board game|game night|tabletop|chess|backgammon|mahjong|poker|card game|dungeons|d&d|catan|scrabble/ },
   { id: "Bar Games & Bowling", fam: "play", icon: Target, re: /bowling|ping ?pong|table tennis|mini ?golf|shuffleboard|darts|billiards|\bpool\b(?! party)|axe throwing|bocce|skee-?ball|cornhole|curling/ },
-  { id: "Clubs & DJs", fam: "listen", icon: Disc3, re: /\bdj\b|djs|club night|rave|techno|house music|disco|dance party|nightclub|afterparty|after-party|boiler room/ },
+  { id: "Clubs & DJs", fam: "party", icon: Disc3, re: /\bdj\b|djs|club night|rave|techno|house music|disco|dance party|nightclub|afterparty|after-party|boiler room/ },
   { id: "Dance & Opera", fam: "watch", icon: Sparkles, re: /opera|ballet|dance (performance|company|theater|show)|modern dance|choreograph|nutcracker/ },
   { id: "Theater", fam: "watch", icon: Drama, re: /theat|broadway|musical|\bplay\b|cabaret|drag|burlesque|magic show|puppet|circus|shakespeare|one-?(wo)?man show/ },
   { id: "Film", fam: "watch", icon: Clapperboard, re: /film|screening|cinema|movie|documentary|double feature/ },
