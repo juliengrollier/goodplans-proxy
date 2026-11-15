@@ -30,6 +30,12 @@ const DIMS = {
   polish: ["diy", "casual", "polished", "upscale"],
   mode: ["watch", "take-part", "mingle", "browse"],
   audience: ["kids", "all-ages", "adults", "21+"],
+  tone: ["fun", "moving", "thoughtful", "romantic", "nostalgic"],
+  scene: ["mainstream", "indie", "underground"],
+  body: ["seated", "on-your-feet", "active"],
+  noise: ["quiet", "moderate", "loud"],
+  length: ["quick", "evening", "half-day+"],
+  food: ["none", "drinks", "food"],
 };
 const CATS = ["Music", "Comedy", "Art & Culture", "Film", "Food & Drink", "Outdoors", "Sports", "Family", "Talk & Learn", "Get Creative", "Nightlife", "Shopping", "Other"];
 
@@ -60,8 +66,8 @@ async function tags(events) {
 And "cat2": the single best fit from this second list, judged by what the person will actually be doing there: ${CATS2.join(", ")}.
 And "sub2": if cat2 is one of these, the single best sub-type from its list, else null: ${Object.entries(SUBS2).map(([c, l]) => c + ": " + l.join(" / ")).join("; ")}.
 And "d": how the event will feel, one value per dimension, judged from the title and description (pick the likeliest; use "any"/"mixed"/"all-ages" when unclear): ${Object.entries(DIMS).map(([d, l]) => d + ": " + l.join(" / ")).join("; ")}.
-Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "...", "cat2": "...", "sub2": "...", "d": {"energy": "...", "crowd": "...", "setting": "...", "novelty": "...", "social": "...", "polish": "...", "mode": "...", "audience": "..."}}}`;
-  const text = await claude(system, JSON.stringify(list), 6000);
+Reply with JSON only, no prose: {"<id>": {"k": ["..."], "cat": "...", "cat2": "...", "sub2": "...", "d": {"<dimension>": "<value>", ...}}}`;
+  const text = await claude(system, JSON.stringify(list), 9000);
   const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   const out = {};
   for (const [id, v] of Object.entries(json)) {

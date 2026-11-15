@@ -151,7 +151,12 @@ const TRAIT = {
   "dim:polish=upscale": ["A bit fancy", "Too fancy"], "dim:polish=diy": ["DIY spirit", "Too rough around the edges"],
   "dim:mode=take-part": ["Getting hands-on", "Too much participation"], "dim:mode=mingle": ["Meeting people", "Too much mingling"],
   "dim:mode=watch": [null, "Too passive"], "dim:setting=outdoor": ["Being outdoors", "Outdoors, not now"],
-  "dim:audience=kids": [null, "Too kid-focused"], "dist:near": ["Close by", null], "dist:far": [null, "Too far"],
+  "dim:audience=kids": [null, "Too kid-focused"],
+  "dim:tone=moving": ["Something moving", "Too heavy"], "dim:tone=thoughtful": ["Food for thought", "Too cerebral"], "dim:tone=romantic": ["Romantic", null],
+  "dim:tone=nostalgic": ["Nostalgic", null], "dim:scene=underground": ["Underground feel", "Too underground"], "dim:scene=mainstream": [null, "Too mainstream"],
+  "dim:scene=indie": ["Indie spirit", null], "dim:body=active": ["Moving my body", "Too physical"], "dim:body=on-your-feet": [null, "Standing all night"],
+  "dim:noise=quiet": ["Quiet enough to talk", null], "dim:noise=loud": ["Loud and live", "Too loud"], "dim:length=half-day+": ["A proper outing", "Too long"],
+  "dim:length=quick": ["Quick and easy", "Too short to bother"], "dim:food=food": ["Food involved", null], "dim:food=drinks": ["Drinks on hand", null], "dist:near": ["Close by", null], "dist:far": [null, "Too far"],
 };
 const DAYNAME = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
 export function smartReasons(m, ev, dir, today = new Date(), now = Date.now(), max = 3) {

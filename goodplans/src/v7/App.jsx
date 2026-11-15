@@ -36,7 +36,7 @@ const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
 const FILTERS_KEY = "gp_filters_v1";
-const TAGS_KEY = "gp_tags_v11"; // v11: d (taste dimensions: energy, crowd, novelty…)
+const TAGS_KEY = "gp_tags_v12"; // v12: d = 14 taste dimensions (energy, crowd, tone, scene, noise…)
 const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
@@ -518,7 +518,10 @@ export default function App() {
       const secs = (Date.now() - t0) / 1000;
       const ev = scoredRef.current.find((e) => e.id === id);
       if (!ev || document.hidden) return;
-      if (secs > 15) signal(ev, "dwell"); else if (secs < 3) signal(ev, "bounce");
+      // A real read is relative to how much there is to read (about 4 words a second), with a 5 s floor
+      const words = ((ev.desc || "") + " " + (ev.title || "")).split(/\s+/).filter(Boolean).length;
+      const enough = Math.max(5, Math.min(12, words / 4 * 0.6));
+      if (secs >= enough) signal(ev, "dwell"); else if (secs < 2) signal(ev, "bounce");
     };
   }, [openEv]); // eslint-disable-line react-hooks/exhaustive-deps
   const sheetEv = openEv ? (scored.find((e) => e.id === openEv) || regulars.find((x) => x.ev.id === openEv)?.ev || annual.find((e) => e.id === openEv) || (favs[openEv] && scoreOne(favs[openEv]))) : null;
