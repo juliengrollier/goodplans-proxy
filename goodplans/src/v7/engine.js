@@ -153,23 +153,30 @@ export function travelLabel(tt) {
 // ── Weather (Open-Meteo, no key)
 export async function fetchWeather(coord) {
   const [la, lo] = coord || LES;
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${la.toFixed(3)}&longitude=${lo.toFixed(3)}&hourly=precipitation_probability,precipitation,temperature_2m&daily=sunset,temperature_2m_max,precipitation_probability_max&current=temperature_2m,precipitation&timezone=America%2FNew_York&forecast_days=7&temperature_unit=fahrenheit`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${la.toFixed(3)}&longitude=${lo.toFixed(3)}` +
+    `&hourly=precipitation_probability,precipitation,temperature_2m,apparent_temperature,weather_code,wind_speed_10m,snowfall` +
+    `&daily=sunset,temperature_2m_max,temperature_2m_min,precipitation_probability_max,snowfall_sum` +
+    `&current=temperature_2m,apparent_temperature,precipitation,snowfall,weather_code,wind_speed_10m` +
+    `&timezone=America%2FNew_York&forecast_days=7&past_days=1&temperature_unit=fahrenheit&wind_speed_unit=mph`;
   const r = await fetch(url);
   if (!r.ok) throw new Error("weather " + r.status);
   const d = await r.json();
   const byDate = {};
   (d.daily?.time || []).forEach((day, i) => {
     const ss = d.daily.sunset?.[i] ? new Date(d.daily.sunset[i]) : null;
-    byDate[day] = { sunset: ss ? ss.getHours() * 60 + ss.getMinutes() : 17 * 60, hi: Math.round(d.daily.temperature_2m_max?.[i] ?? 0), pmax: d.daily.precipitation_probability_max?.[i] ?? 0, evening: 0 };
+    byDate[day] = { sunset: ss ? ss.getHours() * 60 + ss.getMinutes() : 17 * 60, hi: Math.round(d.daily.temperature_2m_max?.[i] ?? 0), lo: Math.round(d.daily.temperature_2m_min?.[i] ?? 0), pmax: d.daily.precipitation_probability_max?.[i] ?? 0, snow: d.daily.snowfall_sum?.[i] ?? 0, evening: 0, eveTemp: null };
   });
   (d.hourly?.time || []).forEach((t, i) => {
     const day = t.slice(0, 10), h = parseInt(t.slice(11, 13));
     if (byDate[day] && h >= 16 && h <= 23) byDate[day].evening = Math.max(byDate[day].evening, d.hourly.precipitation_probability[i] ?? 0);
+    if (byDate[day] && h === 19) byDate[day].eveTemp = Math.round(d.hourly.temperature_2m?.[i] ?? 0);
   });
   Object.values(byDate).forEach((v) => { v.rainy = v.evening >= 50; });
-  // Hourly list kept for the forecast strip: [{t:"YYYY-MM-DDTHH:00", temp, pp}]
-  const hours = (d.hourly?.time || []).map((t, i) => ({ t, temp: Math.round(d.hourly.temperature_2m?.[i] ?? 0), pp: d.hourly.precipitation_probability?.[i] ?? 0 }));
-  return { byDate, hours, now: { temp: Math.round(d.current?.temperature_2m ?? 0), rainingNow: (d.current?.precipitation ?? 0) > 0.1 }, at: Date.now() };
+  // Hourly list [{t:"YYYY-MM-DDTHH:00", temp, feels, pp, code, wind, snow}]
+  const H = d.hourly || {};
+  const hours = (H.time || []).map((t, i) => ({ t, temp: Math.round(H.temperature_2m?.[i] ?? 0), feels: Math.round(H.apparent_temperature?.[i] ?? 0), pp: H.precipitation_probability?.[i] ?? 0, code: H.weather_code?.[i] ?? 0, wind: Math.round(H.wind_speed_10m?.[i] ?? 0), snow: H.snowfall?.[i] ?? 0 }));
+  const c = d.current || {};
+  return { byDate, hours, now: { temp: Math.round(c.temperature_2m ?? 0), feels: Math.round(c.apparent_temperature ?? c.temperature_2m ?? 0), rainingNow: (c.precipitation ?? 0) > 0.1, snowingNow: (c.snowfall ?? 0) > 0 || [71, 73, 75, 77, 85, 86].includes(c.weather_code), code: c.weather_code ?? 0, wind: Math.round(c.wind_speed_10m ?? 0) }, at: Date.now() };
 }
 
 // ── Scoring wrapper: core score + follows, sensitivities, weather, hidden
