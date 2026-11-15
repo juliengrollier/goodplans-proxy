@@ -3,7 +3,7 @@
 // 1) buildContext() reads the moment: NYC calendar, weather now and in the next hours, time of week,
 //    the user's own signals (calendar load, last save, streaks, away from home) and what the feed holds.
 // 2) Every mood in MOODS says how well it fits that context (0–1), how rare it is, and which events match.
-// 3) scoreMoods() ranks them: fit, rarity, supply of good events, novelty (rotation) and learned affinity.
+// 3) scoreMoods() ranks them by the context (rarity of the moment and fit); events only need to exist. Learned affinity nudges.
 // The top mood is shown with a Claude-written title (title bank as fallback); the runner-up is offered as a chip.
 import { isOutdoor, startMinutes, endMinutes, isoDay, isFree } from "./engine.js";
 import { evCovers, matchV, kmdist } from "../lib/core.js";
@@ -107,6 +107,8 @@ const any = (...fs) => (e, c) => fs.some((f) => f(e, c));
 const all = (...fs) => (e, c) => fs.every((f) => f(e, c));
 const tn = (e, c) => tonightish(c)(e);
 const COZY = "film|screening|cinema|museum|exhibit|gallery|jazz|piano|reading|book|tea|cocoa|hot chocolate|ramen|soup|wine|candle|acoustic|library|talk|comedy|theat|cabaret|board game|trivia|fondue|whisk";
+const XMAS = T("christmas|xmas|holiday|tree lighting|tree arrives|\\btree\\b|santa|winter village|rink|skat|nutcracker|carol|festive|ornament|advent|gl[oö]gg|gingerbread|wreath");
+const TG = T("thanksgiving|friendsgiving|turkey");
 const fmtSun = (m) => `${Math.floor(m / 60) - 12}:${String(m % 60).padStart(2, "0")} PM`;
 
 export const MOODS = [
@@ -120,8 +122,8 @@ export const MOODS = [
   { id: "thanksgiving-week", rarity: 85, fit: (c) => (c.cal.tgWeek && !c.cal.tgDay ? 0.9 : 0), days: 5, match: T("thanksgiving|friendsgiving|turkey|parade|balloon|harvest|pie|feast|potluck|gratitude"), titles: ["Stretchy-pants week", "Friendsgiving energy"], facts: () => "Thanksgiving week" },
   { id: "black-friday", rarity: 85, fit: (c) => (c.cal.blackFriday ? 1 : 0), days: 1, match: any(T("market|vintage|flea|maker|craft|museum|walk|hike|film"), outdoorish), titles: ["Skip the mall, do this instead", "Black Friday, no lines"], facts: () => "Black Friday" },
   { id: "tree-lighting", rarity: 92, fit: (c) => (same(c.today, c.cal.treeLighting) ? 1 : 0), days: 1, match: T("tree|lighting|rockefeller|christmas|holiday|lights|rink|skat"), titles: ["The big tree goes on tonight", "Lights, crowds, cocoa"], facts: () => "Rockefeller tree lighting night" },
-  { id: "season-opens", rarity: 55, fit: (c) => (within(c.today, D(c.y, 10, 8), addD(c.cal.tg, -4)) ? (c.dow === 0 || c.dow === 6 ? 0.65 : 0.55) : 0), days: 7, match: T("christmas|holiday|tree|lights|santa|winter village|market|rink|skat|nutcracker|carol|festive|ornament|gift"), titles: ["Tinsel o'clock: the season's open", "Cocoa-in-hand season starts now"], facts: (c) => "Holiday season opening: markets, rinks and trees arriving; Thanksgiving in " + Math.round((c.cal.tg - c.today) / 86400000) + " days" },
-  { id: "holiday-lights", rarity: 58, fit: (c) => (within(c.today, addD(c.cal.tg, 4), D(c.y, 11, 17)) ? (c.hour >= 16 ? 0.75 : 0.6) : 0), days: 7, match: T("christmas|holiday|tree|lights|santa|winter village|market|rink|skat|nutcracker|carol|festive|menorah|hanukkah|dyker|window"), titles: ["Sparkle hunting season", "Peak twinkle"], facts: () => "Holiday lights and markets season" },
+    { id: "season-opens", theme: "the Christmas season opening in New York", rarity: 60, fit: (c) => (within(c.today, D(c.y, 10, 8), addD(c.cal.tg, -4)) ? (c.dow === 0 || c.dow === 6 ? 0.7 : 0.6) : 0), days: 7, match: (e) => XMAS(e) && !TG(e), titles: ["Tinsel o'clock: the season's open", "Cocoa-in-hand season starts now"], facts: () => "The Christmas season is opening: the tree, rinks and holiday markets are arriving" },
+    { id: "holiday-lights", theme: "peak Christmas lights and markets season", rarity: 62, fit: (c) => (within(c.today, addD(c.cal.tg, 4), D(c.y, 11, 17)) ? (c.hour >= 16 ? 0.8 : 0.65) : 0), days: 7, match: (e) => XMAS(e) || T("lights|dyker|window")(e), titles: ["Sparkle hunting season", "Peak twinkle"], facts: () => "Peak holiday lights and markets season" },
   { id: "hanukkah", rarity: 85, fit: (c) => (within(c.today, addD(c.cal.hanukkah, -1), addD(c.cal.hanukkah, 7)) ? 0.95 : 0), days: 3, match: T("hanukkah|chanukah|menorah|latke|jewish|klezmer|sufganiy"), titles: ["Latkes & lights", "Eight nights, good plans"], facts: () => "Hanukkah" },
   { id: "santacon", rarity: 80, fit: (c) => (same(c.today, c.cal.santacon) ? 0.8 : 0), days: 1, match: all(indoor, T(COZY)), titles: ["Santa-free zones", "Dodge the Santas"], facts: () => "SantaCon day; bars full of drunk Santas, these avoid it" },
   { id: "xmas-week", rarity: 88, fit: (c) => (c.m === 11 && c.dom >= 18 && c.dom <= 25 ? 1 : 0), days: 4, match: T("christmas|holiday|carol|nutcracker|santa|lights|market|rink|skat|movie|film"), titles: ["Jingle all the way out", "Last-minute magic"], facts: (c) => (c.dom === 25 ? "Christmas Day" : "Christmas week") },
@@ -155,9 +157,6 @@ export const MOODS = [
   { id: "long-weekend", rarity: 65, fit: (c) => (c.longWeekend ? 0.8 : 0), days: 4, match: (e) => e.tier === 1 || matchV(e, "big"), titles: ["Long weekend, big plans", "Three days. Use them all."], facts: () => "Long weekend" },
 
 
-  // Feed clusters
-  { id: "hood-night", rarity: 45, fit: (c) => (c.feed.topHood && c.feed.topHoodN >= 4 && c.hour >= 15 ? Math.min(0.85, 0.35 + c.feed.topHoodN / 12) : 0), days: 1, match: (e, c) => e.hood === c.feed.topHood && tonightish(c)(e), titles: ["{hood} is having a night", "Make it a {hood} crawl"], facts: (c) => `${c.feed.topHoodN} good things in ${c.feed.topHood} tonight` },
-  { id: "spike", rarity: 50, fit: (c) => (c.feed.spike ? 0.55 : 0), days: 7, match: (e, c) => e.cat === c.feed.spike, titles: ["{cat} is everywhere this week", "A big week for {cat}"], facts: (c) => `Unusually many ${c.feed.spike} events this week` },
 ];
 
 // ── 3. Scoring
@@ -181,14 +180,13 @@ export function scoreMoods(ctx, events, store = {}) {
     const fit = m.fit(ctx);
     if (!fit) return;
     const list = pool(m.days, m.match);
-    if (list.length < 2) return;
+    if (list.length < (m.rarity >= 85 ? 1 : 2)) return;
     const top = list.slice(0, 4);
     const supply = Math.min(1, list.length / 5) * (top.reduce((a, e) => a + e.sc, 0) / top.length / 100) * (m.days > 1 ? 0.85 : 1);
-    const since = shown[m.id] ? (Date.now() - shown[m.id]) / 3600000 : 999;
-    const novelty = since < 3 ? 1 : since < 24 ? 0.8 : since < 72 ? 0.92 : 1; // keep it during a session, rotate across the day
     const affinity = Math.max(0.7, Math.min(1.3, 1 + 0.08 * (aff[m.id] || 0)));
-    const score = (0.42 * (m.rarity / 100) + 0.33 * fit + 0.25 * supply) * novelty * affinity;
-    out.push({ id: m.id, score, list, titles: m.titles.map(fill), facts: m.facts(ctx), fallback: fill(m.titles[Math.floor(ctx.today.getTime() / 86400000) % m.titles.length]) });
+    // Context first: the moment decides; events only need to exist (supply is a small tie-breaker)
+    const score = (0.55 * (m.rarity / 100) + 0.4 * fit + 0.05 * supply) * affinity;
+    out.push({ id: m.id, theme: m.theme || m.facts(ctx), score, list, titles: m.titles.map(fill), facts: m.facts(ctx), fallback: fill(m.titles[Math.floor(ctx.today.getTime() / 86400000) % m.titles.length]) });
   });
   out.sort((a, b) => b.score - a.score);
   const first = out[0] || null;
