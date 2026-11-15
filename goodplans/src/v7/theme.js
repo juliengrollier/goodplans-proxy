@@ -77,6 +77,7 @@ a{color:inherit}
 .sec-h::before,.sec-sep::before{content:"";position:absolute;top:26px;left:20px;right:20px;height:1px;background:var(--line)}
 .sec-sep{position:relative;height:52px}
 /* Event cards: flat, no background, so long lists feel lighter */
+.onpic button{color:#fff!important;opacity:.85!important}.onpic button[aria-pressed=true]{opacity:1!important;background:rgba(255,255,255,.3)!important}
 .ev-flat{background:none!important;box-shadow:none!important;border:none!important;border-radius:0!important}
 .sec-h h2{margin:0;font-family:'Fredoka',sans-serif;font-weight:600;font-size:25px}
 .sec-h .n{margin-left:auto;font-size:14px;font-weight:700;color:var(--ink3)}

@@ -297,13 +297,13 @@ function Glance({ highlights, data, onOpen }) {
 }
 
 // Around you right now: a live map of what is on or starting nearby; tap a pin for a preview, or go full size
-function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
+export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320 }) {
   const [sel, setSel] = React.useState(null);
   const ev = evs.find((e) => e.id === sel) || null;
   return (
     <div style={{ padding: "0 16px" }}>
       <div style={{ position: "relative" }}>
-        <LeafletMap events={evs} home={home} dark={dark} height={320} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} />
+        <LeafletMap events={evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} />
         <button onClick={onFull} aria-label="Open the full map" style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
         {ev && (
           <div role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 4, background: "var(--card)", borderRadius: 20, padding: 8, display: "flex", gap: 10, boxShadow: "0 8px 24px rgba(20,24,51,.35)", cursor: "pointer" }}>
