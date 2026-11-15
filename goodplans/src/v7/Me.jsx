@@ -17,7 +17,7 @@ function Card({ title, children, right }) {
 }
 
 export default function Me(p) {
-  const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, onUnfollow, onUndo,
+  const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
     locSt, onRetryGPS, resetTaste } = p;
@@ -91,6 +91,16 @@ export default function Me(p) {
         {pushInfo && <span className="muted" style={{ fontSize: 13 }}>{pushInfo}</span>}
         <button className="pill pill-dark" onClick={onEnablePush}><Icon name="bell" size={18} /> Turn on / repair notifications</button>
       </Card>
+
+      {(Object.keys(stars.cats || {}).length + Object.keys(stars.subs || {}).length) > 0 && (
+        <Card title="Boosted">
+          <div className="muted" style={{ fontSize: 13, marginTop: -4 }}>Starred in filters. They rank higher everywhere. Tap to remove a boost.</div>
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            {Object.keys(stars.cats || {}).map((c) => <button key={"c" + c} className="chip" style={{ height: 32 }} onClick={() => onUnstar("cats", c)}>★ {c}</button>)}
+            {Object.keys(stars.subs || {}).map((c) => <button key={"s" + c} className="chip" style={{ height: 32 }} onClick={() => onUnstar("subs", c)}>★ {c}</button>)}
+          </div>
+        </Card>
+      )}
 
       {hiddenCats.length > 0 && (
         <Card title="Hidden categories">

@@ -14,7 +14,7 @@ import { PULSE_ICON } from "./pulseIcons.js";
 import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
-import { classify, CAT } from "./taxonomy.js";
+import { classify, classifySub, CAT } from "./taxonomy.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
@@ -34,7 +34,7 @@ const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
 const FILTERS_KEY = "gp_filters_v1";
-const TAGS_KEY = "gp_tags_v9"; // v9: adds cat2 (new categories)
+const TAGS_KEY = "gp_tags_v10"; // v10: cat2 (new categories) + sub2 (sub-types)
 const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
@@ -273,6 +273,12 @@ export default function App() {
     nx.filter((c) => !px.includes(c)).forEach((c) => { bump(c, -8, -24, 12); changed = true; });
     px.filter((c) => !nx.includes(c)).forEach((c) => { bump(c, 8, -24, 12); changed = true; });
     (next.cats || []).filter((c) => !(prev.cats || []).includes(c)).forEach((c) => { bump(c, 2, -24, 12); changed = true; });
+    t.nsubAdj = { ...(t.nsubAdj || {}) };
+    const sb = (c, d) => { t.nsubAdj[c] = Math.max(-24, Math.min(12, (t.nsubAdj[c] || 0) + d)); changed = true; };
+    const pxs = prev.xsubs || [], nxs = next.xsubs || [];
+    nxs.filter((c) => !pxs.includes(c)).forEach((c) => sb(c, -8));
+    pxs.filter((c) => !nxs.includes(c)).forEach((c) => sb(c, 8));
+    (next.subs || []).filter((c) => !(prev.subs || []).includes(c)).forEach((c) => sb(c, 2));
     if (next.price !== prev.price && (next.price === "free" || next.price === "u20")) { t.priceSens = Math.max(t.priceSens || 0, 1); changed = true; }
     if (next.dist !== prev.dist && (next.dist === "10" || next.dist === "20")) { t.farSens = Math.max(t.farSens || 0, 1); changed = true; }
     if (changed) { tasteRef.current = t; saveTaste(t); }
@@ -306,14 +312,14 @@ export default function App() {
     return allEvents.map((e0) => {
       const t = tags[e0.id];
       const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
-      e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam;
+      e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam; e.nsub = classifySub(e, e.ncat, t?.sub2);
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
   }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
   const scoreOne = useCallback((e0) => {
-    const e = { ...e0, ncat: e0.ncat || classify(e0) }; e.fam = CAT[e.ncat].fam;
+    const e = { ...e0, ncat: e0.ncat && CAT[e0.ncat] ? e0.ncat : classify(e0) }; e.fam = CAT[e.ncat].fam; e.nsub = e0.nsub || classifySub(e, e.ncat);
     const s = scoreEvent({ ...e, coord: safeCoord(e) }, { eprof, beh, today, home, taste, weather, busySlots });
     s.calChecked = calStatus === "ok"; return s;
   }, [eprof, beh, today, home, taste, weather, busySlots, calStatus]);
@@ -523,6 +529,15 @@ export default function App() {
     askWhy: (ev, dir) => setWhyAsk({ ev, dir }),
     onSave: (ev) => toggleSave(ev),
     isSaved: (id) => !!favs[id],
+    // ★ boosts a category or sub-type in the taste model (kind: "cats" | "subs")
+    isStar: (kind, id) => !!taste.stars?.[kind]?.[id],
+    toggleStar: (kind, id) => {
+      const st = { cats: { ...(taste.stars?.cats || {}) }, subs: { ...(taste.stars?.subs || {}) } };
+      if (st[kind][id]) delete st[kind][id]; else st[kind][id] = true;
+      const t = { ...tasteRef.current, stars: st };
+      tasteRef.current = t; saveTaste(t);
+      toast(st[kind][id] ? "Boosted " + id + ": you'll see more of it" : "Boost removed");
+    },
     thumbOf: (id) => taste.thumbs[id] || 0,
   };
 
@@ -537,7 +552,7 @@ export default function App() {
         {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={filters.xcats || []} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c) })}
+        {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           pushState={pushState} pushInfo={pushInfo} onEnablePush={enablePush}
