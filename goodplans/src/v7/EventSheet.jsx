@@ -3,7 +3,6 @@ import { Icon } from "./icons.jsx";
 import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel } from "./components.jsx";
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge } from "./engine.js";
-import { DOW_LONG } from "./recurring.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
@@ -55,7 +54,7 @@ export default function EventSheet({ ev, dark, today, onClose, saved, onSave, ta
         <div style={{ marginTop: 4 }}><Keywords ev={ev} max={5} size="lg" /></div>
         {ev.recurring && (
           <div className="row" style={{ gap: 6, fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>
-            <Icon name="refresh" size={15} /> Every {DOW_LONG[ev.recDow].slice(0, -1)}{ev.recurring === "synthetic" ? " · not in the latest feed, check before going" : ""}
+            <Icon name="refresh" size={15} /> {ev.recLabel || "Recurring"}{ev.recurring === "synthetic" ? " · not in the latest feed, check before going" : ""}
           </div>
         )}
         {ev.desc && <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--ink2)" }}>{ev.desc}</p>}

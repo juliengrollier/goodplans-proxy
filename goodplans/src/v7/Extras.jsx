@@ -1,7 +1,7 @@
 import React from "react";
 import { Dialog, Media, CatBullet, PriceTag } from "./components.jsx";
 import { Icon } from "./icons.jsx";
-import { nowMinutes, fmtClock, whenLabel, travelLabel, venueLabel } from "./engine.js";
+import { nowMinutes, fmtClock, whenLabel, travelLabel, venueLabel, isoDay, todOf } from "./engine.js";
 
 // "I'm free until…" picker. Values are minutes since midnight.
 export function FreeUntilDialog({ freeUntil, autoFree, onPick, onClose }) {
@@ -65,24 +65,47 @@ export function Surprise({ ev, dark, today, weather, onOpen, onAnother, onClose,
   );
 }
 
-// Asked right after a thumb on a card: what made it a yes or a no. Optional; closing keeps the thumb.
-const WHY = {
-  up: [["type", "Love this kind of event"], ["venue", "Great venue", "Follows the venue"], ["price", "Good price", "Paid nights get pushed down a little"], ["near", "Close by", "Far trips get pushed down a little"], ["timing", "Good timing"], ["unique", "One of a kind"]],
-  down: [["notus", "Not our thing", "Less of this kind of event"], ["far", "Too far"], ["price", "Too pricey"], ["seen", "Seen it / not again", "Hides this series"], ["venue", "Not this venue", "Pushes this venue down"], ["timing", "Bad timing"]],
-};
-export function WhyDialog({ ev, dir, onPick, onClose }) {
+// Asked right after a thumb on a card: what made it a yes or a no, built from this event's own traits.
+// Several can be picked. Closing keeps the thumb.
+const DOWP = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+const TODL = { morning: "Mornings", afternoon: "Afternoons", evening: "Evenings", late: "Late nights" };
+function whyOptions(ev, dir, today) {
+  const up = dir === "up", o = [];
+  const kws = (ev.kw || []).slice(0, 3);
+  kws.forEach((k) => o.push(["kw:" + k.toLowerCase(), up ? "Into " + k : "Not into " + k]));
+  const kind = (ev.sub || ev.cat || "").toLowerCase();
+  if (kind && !kws.some((k) => k.toLowerCase() === kind)) o.push([up ? "type" : "notus", up ? "More " + kind : "No more " + kind]);
+  if (ev.venue) o.push(["venue", up ? venueLabel(ev) + " is great" : "Not " + venueLabel(ev)]);
+  const free = /free|pwyw|pay what/i.test(ev.price || "");
+  if (up && free) o.push(["price", "It's free"]);
+  else if (!up && !free && ev.price) o.push(["price", "Too pricey · " + ev.price.split("/")[0].trim()]);
+  else if (up && ev.price) o.push(["price", "Good price · " + ev.price.split("/")[0].trim()]);
+  if (ev.tt) { if (up && ev.tt.mins <= 15) o.push(["near", "Close by · " + ev.tt.mins + " min"]); if (!up && ev.tt.mins > 15) o.push(["far", "Too far · " + ev.tt.mins + " min"]); }
+  const day = ev.E && new Date((ev.E <= isoDay(today) ? isoDay(today) : ev.E) + "T12:00:00").getDay();
+  if (day != null && day !== false) o.push(["dow:" + day, up ? DOWP[day] + " work for us" : "Bad day · " + DOWP[day].slice(0, -1)]);
+  const td = todOf(ev);
+  if (td) o.push(["tod:" + td, up ? TODL[td] + " suit us" : TODL[td] + " don't suit us"]);
+  if (ev.outdoor) o.push(["outdoor", up ? "Love it outdoors" : "Not outdoors"]);
+  if (up && ev.why?.includes("One night only")) o.push(["unique", "One night only"]);
+  if (!up) o.push(["seen", "Seen it / not again"]);
+  return o;
+}
+export function WhyDialog({ ev, dir, today, onPick, onClose }) {
+  const [sel, setSel] = React.useState([]);
+  const opts = whyOptions(ev, dir, today);
+  const tog = (k) => setSel(sel.includes(k) ? sel.filter((x) => x !== k) : [...sel, k]);
   return (
-    <Dialog title={dir === "up" ? "What do you like about it?" : "What's wrong with it?"} onClose={onClose}>
-      <div className="muted ell" style={{ fontSize: 14, marginTop: -6, marginBottom: 12 }}>{ev.title}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {WHY[dir].map(([k, l, d]) => (
-          <button key={k} className="card-sm" style={{ border: "none", textAlign: "left", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 2 }} onClick={() => onPick(k)}>
-            <span style={{ fontSize: 15, fontWeight: 800 }}>{l}</span>
-            {d && <span className="muted" style={{ fontSize: 12 }}>{d}</span>}
-          </button>
+    <Dialog title={dir === "up" ? "What do you like about it?" : "What's not right?"} onClose={onClose}>
+      <div className="muted ell" style={{ fontSize: 14, marginTop: -6, marginBottom: 12 }}>{ev.title} · pick any</div>
+      <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+        {opts.map(([k, l]) => (
+          <button key={k} className={"chip" + (sel.includes(k) ? " on" : "")} aria-pressed={sel.includes(k)} style={{ height: 38, fontSize: 14 }} onClick={() => tog(k)}>{l}</button>
         ))}
       </div>
-      <button className="pill pill-line" style={{ width: "100%", marginTop: 12 }} onClick={onClose}>Skip</button>
+      <div className="row" style={{ gap: 8, marginTop: 16 }}>
+        <button className="pill pill-line" style={{ flex: 1 }} onClick={onClose}>Skip</button>
+        <button className="pill pill-dark" style={{ flex: 1 }} disabled={!sel.length} onClick={() => onPick(sel)}>Done</button>
+      </div>
     </Dialog>
   );
 }

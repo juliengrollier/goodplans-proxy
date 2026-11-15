@@ -6,10 +6,10 @@ import { catColor, catIcon } from "./theme.js";
 import { isFree, priceNum, startMinutes, nowMinutes } from "./engine.js";
 import { CATS, matchV, evCovers, evStart, evEnd, eHour } from "../lib/core.js";
 
-export const EMPTY_FILTERS = { cats: [], when: "any", price: "any", dist: "any", mood: null, noClash: false, q: "" };
+export const EMPTY_FILTERS = { cats: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "" };
 
 const OPTS = {
-  when: [["any", "Any time"], ["now", "Now & soon"], ["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "Next 7 days"]],
+  when: [["today", "Today"], ["now", "Now & soon"], ["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "Next 7 days"], ["any", "Any time"]],
   price: [["any", "Any price"], ["free", "Free"], ["u20", "Under $20"], ["u40", "Under $40"]],
   dist: [["any", "Any distance"], ["10", "10 min"], ["20", "20 min"], ["30", "30 min"]],
   mood: [[null, "Any mood"], ["date", "Date night"], ["weird", "Something weird"], ["sunday", "Sunday reset"], ["nyc", "Only in NYC"], ["chill", "Chill"], ["move", "Get moving"], ["late", "After dark"], ["solo", "Solo"], ["kids", "With kids"]],
@@ -17,7 +17,7 @@ const OPTS = {
 const NAMES = { when: "When", price: "Price", dist: "Distance", mood: "Mood" };
 const labelOf = (k, v) => (OPTS[k].find(([x]) => x === v) || [])[1];
 
-export const activeCount = (f) => f.cats.length + (f.when !== "any") + (f.price !== "any") + (f.dist !== "any") + !!f.mood + !!f.noClash + !!f.q.trim();
+export const activeCount = (f) => f.cats.length + (f.when !== EMPTY_FILTERS.when) + (f.price !== "any") + (f.dist !== "any") + !!f.mood + !!f.noClash + !!f.q.trim();
 
 export function applyFilters(list, f, today) {
   const tom = new Date(today); tom.setDate(today.getDate() + 1);
@@ -29,6 +29,7 @@ export function applyFilters(list, f, today) {
   const ql = f.q.trim().toLowerCase();
   return list.filter((e) => {
     if (f.cats.length && !f.cats.includes(e.cat)) return false;
+    if (f.when === "today" && !evCovers(e, today)) return false;
     if (f.when === "now") { const sm = startMinutes(e); if (!(evCovers(e, today) && sm != null && sm >= now - 90 && sm <= now + 150)) return false; }
     if (f.when === "tonight" && !(evCovers(e, today) && (startMinutes(e) ?? eHour(e.time, e.cat) * 60) >= 16 * 60)) return false;
     if (f.when === "tomorrow" && !evCovers(e, tom)) return false;
@@ -64,7 +65,7 @@ export default function FilterBar({ f, setF, dark, counts, floating, showSearch 
       )}
 
       {/* Row 1: categories. None selected = all shown; selected ones light up, the rest dim */}
-      <div className="hscroll" style={{ gap: 8, padding: "0 12px" }} role="group" aria-label="Categories">
+      <div className="hscroll" style={{ gap: 8, padding: "0 12px", scrollPaddingInline: 12 }} role="group" aria-label="Categories">
         {cats.map((c) => {
           const on = f.cats.includes(c), col = catColor(c, dark), dim = f.cats.length && !on;
           return (
@@ -80,13 +81,14 @@ export default function FilterBar({ f, setF, dark, counts, floating, showSearch 
       </div>
 
       {/* Row 2: compact chips; each opens its choices below */}
-      <div className="hscroll" style={{ gap: 6, padding: "0 12px" }}>
+      <div className="hscroll" style={{ gap: 6, padding: "0 12px", scrollPaddingInline: 12 }}>
         {n > 0 && <button className="chip" style={{ height: 32 }} onClick={() => { setF({ ...EMPTY_FILTERS, q: f.q }); setOpen(null); }}><Icon name="close" size={13} /> Clear</button>}
         {["when", "price", "dist", "mood"].map((k) => {
-          const isOn = k === "mood" ? !!f.mood : f[k] !== "any";
+          const isOn = k === "mood" ? !!f.mood : f[k] !== (EMPTY_FILTERS[k]);
+          const shown = k === "when" || isOn;
           return (
             <button key={k} className={"chip" + (isOn ? " on" : "")} style={{ height: 32, outline: open === k ? "2px solid var(--ink)" : "none" }} onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k}>
-              {isOn ? labelOf(k, f[k]) : NAMES[k]} <Icon name="down2" size={13} />
+              {shown ? labelOf(k, f[k]) : NAMES[k]} <Icon name="down2" size={13} />
             </button>
           );
         })}
@@ -94,7 +96,7 @@ export default function FilterBar({ f, setF, dark, counts, floating, showSearch 
       </div>
 
       {open && (
-        <div className="hscroll" style={{ gap: 6, padding: "0 12px" }}>
+        <div className="hscroll" style={{ gap: 6, padding: "0 12px", scrollPaddingInline: 12 }}>
           {OPTS[open].map(([v, l]) => (
             <button key={String(v)} className={"chip" + (f[open] === v ? " on" : "")} style={{ height: 32, background: f[open] === v ? undefined : "var(--chip)", border: "none" }}
               onClick={() => { setF({ ...f, [open]: v }); setOpen(null); }}>{l}</button>

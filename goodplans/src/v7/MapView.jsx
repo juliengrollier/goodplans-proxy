@@ -45,7 +45,7 @@ export default function MapView({ scored, home, dark, today, onOpen, filters, se
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30 }}>
         <FilterHeader filters={filters} setFilters={(f) => { setFilters(f); setSel(null); }} sort={sort} setSort={setSort} dark={dark} counts={counts} />
         <div className="muted" style={{ margin: "6px 0 0 12px", fontSize: 12, fontWeight: 800, background: "var(--card)", display: "inline-block", padding: "4px 10px", borderRadius: 12, boxShadow: "0 2px 8px rgba(27,31,59,.12)" }}>
-          {pins.length} on the map{filters.when === "any" ? " · tip: pick a time in When" : ""}
+          {pins.length} on the map
         </div>
       </div>
       {selEv && <Peek key={selEv.id} ev={selEv} dark={dark} today={today} onOpen={onOpen} onClose={() => setSel(null)} />}
