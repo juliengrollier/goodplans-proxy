@@ -5,6 +5,7 @@ import { catColor, catIcon } from "./theme.js";
 import { startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
+import { pickMood } from "./mood.js";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -110,11 +111,11 @@ function renderHighlights(text, ids, data, onOpen) {
 
 export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
+  const mood = React.useMemo(() => pickMood({ events: data, weather }), [data, weather, today]);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
   const empty = !data.length;
-  const freeText = freeUntil != null ? "Free until " + fmtClock(freeUntil) : autoFree != null ? "Free until " + fmtClock(autoFree) + " · calendar" : "I'm free until…";
 
   return (
     <div>
@@ -135,10 +136,6 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
         ) : String(highlights?.status || "").startsWith("error") ? (
           <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>Weekly highlights unavailable: {String(highlights.status).slice(7)}</p>
         ) : null}
-      </div>
-      <div className="hscroll" style={{ padding: "8px 16px 16px" }}>
-        <button className={"chip" + (freeUntil != null ? " on" : "")} onClick={openFree}><Icon name="clock" size={15} /> {freeText}</button>
-        {w?.rainy && <span className="chip" style={{ cursor: "default" }}><Icon name="rain" size={15} /> Indoor first tonight</span>}
       </div>
 
       {empty && (
@@ -178,9 +175,11 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
 
       {!empty && (
         <>
-          <SectionHead title="Something different" icon="spark" />
+          <SectionHead title={mood ? mood.title : "Something different"} icon={mood ? mood.icon : "spark"} />
+          {mood && <div className="muted" style={{ padding: "0 20px 10px", fontSize: 14, marginTop: -6 }}>{mood.sub}</div>}
           <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-            {wildcard && <CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" />}
+            {mood ? mood.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
+              : wildcard && <CompactCard ev={wildcard} dark={dark} today={today} onOpen={onOpen} label="Wildcard" />}
             <button className="pill pill-line" onClick={onSurprise}><Icon name="spark" size={18} /> Surprise me</button>
           </div>
         </>
