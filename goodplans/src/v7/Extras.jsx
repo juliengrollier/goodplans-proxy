@@ -88,7 +88,10 @@ function whyOptions(ev, dir, today, counts = {}) {
 }
 export function WhyDialog({ ev, dir, today, counts, onPick, onClose }) {
   const [sel, setSel] = React.useState([]);
+  const [other, setOther] = React.useState(null); // null = closed, string = open text field
   const opts = whyOptions(ev, dir, today, counts);
+  const note = (other || "").trim();
+  const done = () => onPick([...sel, ...(note ? ["other:" + note] : [])]);
   const tog = (k) => setSel(sel.includes(k) ? sel.filter((y) => y !== k) : [...sel, k]);
   return (
     <Dialog title={dir === "up" ? "What do you like about it?" : "What's not right?"} onClose={onClose}>
@@ -104,10 +107,20 @@ export function WhyDialog({ ev, dir, today, counts, onPick, onClose }) {
             </span>
           </button>
         ))}
+        <button className="card-sm" aria-pressed={other !== null} onClick={() => setOther(other === null ? "" : null)}
+          style={{ border: other !== null ? "2px solid var(--ink)" : "2px solid transparent", textAlign: "left", padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, background: other !== null ? "var(--chip)" : undefined }}>
+          <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, border: "2px solid var(--ink)", background: other !== null ? "var(--ink)" : "transparent", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800 }}>{other !== null ? "✓" : ""}</span>
+          <span style={{ fontSize: 15.5, fontWeight: 800 }}>Other</span>
+        </button>
+        {other !== null && (
+          <textarea autoFocus rows={2} maxLength={200} value={other} onChange={(e) => setOther(e.target.value)}
+            placeholder={dir === "up" ? "What made it a yes?" : "What put you off?"}
+            style={{ width: "100%", boxSizing: "border-box", borderRadius: 14, padding: "10px 12px", font: "inherit", fontSize: 15.5, border: "2px solid var(--line, rgba(255,255,255,.2))", background: "transparent", color: "inherit", resize: "none" }} />
+        )}
       </div>
       <div className="row" style={{ gap: 8, marginTop: 16 }}>
         <button className="pill pill-line" style={{ flex: 1 }} onClick={onClose}>Skip</button>
-        <button className="pill pill-dark" style={{ flex: 1 }} disabled={!sel.length} onClick={() => onPick(sel)}>Done</button>
+        <button className="pill pill-dark" style={{ flex: 1 }} disabled={!sel.length && !note} onClick={done}>Done</button>
       </div>
     </Dialog>
   );

@@ -52,6 +52,13 @@ export function applyReaction(taste, prof, ev, kind, reason) {
     if (r === "vibe") { kws.forEach((k) => adj("kwAdj", k, 4, -24, 18)); }
     if (r === "value") { t.priceSens = clamp((t.priceSens || 0) + 1, 0, 3); }
     if (r === "scene") { if (ev.ncat) adj("ncatAdj", ev.ncat, -6, -24, 12); if (ev.nsub) adj("nsubAdj", ev.nsub, -8, -24, 12); kws.forEach((k) => adj("kwAdj", k, -4, -24, 18)); }
+    if (r === "other" && arg) {
+      // Free-text reason: kept as a note, and any of its words that describe this event become a mild taste signal
+      t.notes = [...(t.notes || []).slice(-49), { id: ev.id, title: ev.title, dir, text: arg.slice(0, 200), at: Date.now() }];
+      const evText = [ev.title, ev.desc, ev.sub, ev.ncat, ev.nsub, ...(ev.kw || [])].join(" ").toLowerCase();
+      [...new Set(arg.toLowerCase().split(/[^a-z0-9&'-]+/))].filter((w) => w.length > 3 && evText.includes(w)).slice(0, 4)
+        .forEach((w) => adj("kwAdj", w, 3 * sgn, -24, 18));
+    }
     if (r === "pricey") { t.priceSens = clamp((t.priceSens || 0) + 1, 0, 3); const p = priceNum(ev); if (p) t.priceCeil = Math.min(t.priceCeil || 999, Math.max(10, Math.round(p * 0.8))); }
     if (dir === "up") {
       if (r === "type") bump(5, 8);
