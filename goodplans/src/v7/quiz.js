@@ -1,36 +1,30 @@
 // Onboarding v3: three screens instead of nine.
-// 1. Activities: 24 concrete things spread across the whole taste map. Tap once = love, twice = not for me.
+// 1. Activities: 24 concrete things spread across the whole taste map, each marked Love or Meh (neutral by default).
 //    One tap teaches an activity, its category and its family at once, and "not for me" teaches what to keep away.
 // 2. Closer in: neighbours of what you loved, pulled from the taste map (embed.js), to sharpen within your interests.
-// 3. Your going-out profile on one page: when, who with, which rooms, budget, distance.
+// 3. Three one-tap questions: when, who with, budget. Rooms and distance are learned from behaviour instead.
 // Answers seed the taste model at "first guess" strength; real behaviour overrides them within days.
 import { ACT } from "./activities.js";
 
-export const QUIZ_VERSION = 3;
+export const QUIZ_VERSION = 4;
 // Chosen to cover the map: every family, quiet and loud, seated and active, cheap and dressy
 export const START = ["standup", "improv", "jazz", "indie", "classical", "techno", "salsa", "karaoke", "trivia", "board-games", "bowling", "pickleball",
   "run-club", "climbing", "yoga", "pottery", "cooking-class", "wine", "beer-garden", "market-food", "museum", "walking-tour", "repertory", "book-talks"];
 
 export const PROFILE = [
-  { id: "tod", q: "When do you usually go out?", multi: true, opts: [
-    { l: "Mornings", f: { "tod:morning": 0.6 } }, { l: "Afternoons", f: { "tod:afternoon": 0.6 } },
-    { l: "Evenings", f: { "tod:evening": 0.6 } }, { l: "Late nights", f: { "tod:late": 0.7, "dim:audience=21+": 0.2 } },
+  { id: "tod", q: "When do you usually go out?", opts: [
+    { l: "Daytime", f: { "tod:morning": 0.4, "tod:afternoon": 0.6, "tod:late": -0.3 } },
+    { l: "Evenings", f: { "tod:evening": 0.7 } },
+    { l: "Late nights", f: { "tod:late": 0.7, "tod:evening": 0.3, "dim:audience=21+": 0.2 } },
   ] },
-  { id: "who", q: "Usually with…", multi: true, opts: [
+  { id: "who", q: "Usually with…", opts: [
     { l: "Myself", f: { "dim:social=solo-friendly": 0.7 } }, { l: "A date", f: { "dim:social=date": 0.7, "dim:tone=romantic": 0.2 } },
     { l: "Friends", f: { "dim:social=group": 0.7 } }, { l: "New people", f: { "dim:mode=mingle": 0.9, "dim:social=solo-friendly": 0.2 }, meet: true },
   ] },
-  { id: "room", q: "Rooms you like", multi: true, opts: [
-    { l: "Small & intimate", f: { "dim:crowd=intimate": 0.7, "dim:crowd=big": -0.3 } }, { l: "Big & loud", f: { "dim:crowd=big": 0.6, "dim:noise=loud": 0.4, "dim:energy=wild": 0.3 } },
-    { l: "Outdoors", f: { "dim:setting=outdoor": 0.7 } }, { l: "Scrappy & DIY", f: { "dim:polish=diy": 0.6, "dim:scene=underground": 0.4 } },
-    { l: "Dressed up", f: { "dim:polish=upscale": 0.6, "dim:polish=polished": 0.3 } }, { l: "Weird & new", f: { "dim:novelty=weird": 0.7, "len:oneoff": 0.3 } },
-  ] },
-  { id: "spend", q: "Ticket budget", opts: [
-    { l: "Free", f: { "price:free": 0.7, "price:high": -0.5 }, price: 2 }, { l: "Up to $20", f: { "price:cheap": 0.5, "price:free": 0.3, "price:high": -0.3 }, price: 1 },
-    { l: "Up to $50", f: { "price:mid": 0.4 } }, { l: "If it's great", f: { "price:high": 0.3, "dim:polish=upscale": 0.2 } },
-  ] },
-  { id: "far", q: "How far will you go?", opts: [
-    { l: "Walking distance", f: { "dist:near": 0.7, "dist:far": -0.6 }, far: 2 }, { l: "20 minutes", f: { "dist:mid": 0.3, "dist:far": -0.3 }, far: 1 }, { l: "Anywhere", f: {} },
+  { id: "spend", q: "What do you like to spend on a ticket?", opts: [
+    { l: "Free if I can", f: { "price:free": 0.7, "price:high": -0.5 }, price: 2 },
+    { l: "Under $20", f: { "price:cheap": 0.5, "price:free": 0.3, "price:high": -0.3 }, price: 1 },
+    { l: "Whatever, if it's great", f: { "price:high": 0.3, "price:mid": 0.2 } },
   ] },
 ];
 
@@ -51,19 +45,20 @@ export function weightsFrom(ans) {
   return { weights: w, price, far };
 }
 
+const up = (x) => x[0].toUpperCase() + x.slice(1);
 export function profileFrom(ans) {
   const L = loves(ans).map((id) => ACT[id]).filter(Boolean);
   const pk = (id) => picked(ans[id]).map((i) => PROFILE.find((q) => q.id === id)?.opts[i]?.l).filter(Boolean);
-  const tod = pk("tod"), room = pk("room"), who = pk("who");
-  const time = tod.includes("Late nights") ? "Late-Night" : tod.includes("Mornings") ? "Early" : tod.length === 1 && tod[0] === "Afternoons" ? "Daytime" : "Evening";
+  const tod = pk("tod"), who = pk("who");
+  const time = tod.includes("Late nights") ? "Late-Night" : tod.includes("Daytime") ? "Daytime" : "Evening";
   const fams = {}; L.forEach((a) => { const f = { Comedy: "Laugher", Concerts: "Listener", "Clubs & DJs": "Dancer", "Dance Socials": "Dancer", "Arts & Crafts": "Maker", "Cooking & Cocktails": "Maker", "Pickup Sports": "Mover", Running: "Mover", "Climbing & Skating": "Mover", "Yoga & Wellness": "Mover", "Museums & Galleries": "Explorer", Tours: "Explorer", "Books & Readings": "Curious Mind", Film: "Cinephile" }[a.ncat] || (/Trivia|Board|Bar Games|Karaoke/.test(a.ncat) ? "Player" : /Tastings|Bars|Food/.test(a.ncat) ? "Taster" : "Enthusiast"); fams[f] = (fams[f] || 0) + 1; });
   const kinds = Object.entries(fams).sort((a, b) => b[1] - a[1]);
   const kind = kinds.length > 2 && kinds[0][1] < 3 ? "All-Rounder" : kinds[0]?.[0] || "Explorer";
   const lines = [];
   if (L.length) lines.push("Into " + L.slice(0, 3).map((a) => a.label).join(", ") + (L.length > 3 ? " and " + (L.length - 3) + " more" : ""));
-  const r = [...room.slice(0, 2), ...who.slice(0, 1).map((x) => (x === "Myself" ? "happy solo" : "with " + x.toLowerCase()))]; if (r.length) lines.push(r.join(" · "));
-  const sp = pk("spend")[0], fr = pk("far")[0];
-  if (sp || fr) lines.push([sp && { Free: "Free first", "Up to $20": "Cheap and cheerful", "Up to $50": "Happy to pay a bit", "If it's great": "Pays for quality" }[sp], fr && { "Walking distance": "close to home", "20 minutes": "within 20 minutes", Anywhere: "anywhere in the city" }[fr]].filter(Boolean).join(", "));
+  const r = [...tod.map((x) => x.toLowerCase()), ...who.map((x) => (x === "Myself" ? "happy solo" : "with " + x.toLowerCase()))]; if (r.length) lines.push(up(r.join(" · ")));
+  const sp = pk("spend")[0];
+  if (sp) lines.push({ "Free if I can": "Free first", "Under $20": "Cheap and cheerful", "Whatever, if it's great": "Pays for quality" }[sp]);
   return { name: "The " + time + " " + kind, lines: lines.slice(0, 3) };
 }
 

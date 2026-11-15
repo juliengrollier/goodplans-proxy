@@ -10,18 +10,22 @@ import { Icon } from "./icons.jsx";
 
 const CATI = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
-function ActGrid({ ids, val, onTap, dark }) {
+// Each card: neutral by default; Meh or Love buttons (tap the same one again to go back to neutral)
+function ActGrid({ ids, val, onSet, dark }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
       {ids.map((id) => {
         const a = ACT[id], c = CATI[a.ncat], fam = FAM[c?.fam], col = fam ? (dark ? fam.dark : fam.light) : "#475569", v = val[id] || 0;
+        const btn = (on) => ({ flex: 1, height: 32, border: "none", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, background: on ? (v > 0 ? "#fff" : "var(--ink)") : v > 0 ? "rgba(255,255,255,.2)" : "var(--chip)", color: on ? (v > 0 ? col : "var(--bg)") : v > 0 ? "#fff" : "var(--ink2)" });
         return (
-          <button key={id} onClick={() => onTap(id)} aria-pressed={v > 0} aria-label={a.label + (v > 0 ? ": love" : v < 0 ? ": not for me" : "")}
-            style={{ position: "relative", border: v < 0 ? "2px dashed var(--line)" : "none", borderRadius: 18, padding: "12px 8px 10px", minHeight: 92, background: v > 0 ? col : "var(--card)", color: v > 0 ? "#fff" : "var(--ink)", opacity: v < 0 ? 0.5 : 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 7, textAlign: "center" }}>
-            <span style={{ width: 34, height: 34, borderRadius: 17, background: v > 0 ? "rgba(255,255,255,.22)" : col, display: "flex", alignItems: "center", justifyContent: "center" }}>{c && <LIcon node={c.icon} size={17} color="#fff" />}</span>
-            <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.15, textDecoration: v < 0 ? "line-through" : "none" }}>{a.label[0].toUpperCase() + a.label.slice(1)}</span>
-            {v !== 0 && <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 10, background: v > 0 ? "rgba(255,255,255,.95)" : "var(--chip)", color: v > 0 ? col : "var(--ink3)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={v > 0 ? "heart" : "close"} size={12} fill={v > 0 ? "currentColor" : "none"} /></span>}
-          </button>
+          <div key={id} style={{ borderRadius: 18, padding: "11px 7px 7px", background: v > 0 ? col : "var(--card)", color: v > 0 ? "#fff" : "var(--ink)", opacity: v < 0 ? 0.55 : 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, textAlign: "center", transition: "background .15s, opacity .15s" }}>
+            <span style={{ width: 32, height: 32, borderRadius: 16, background: v > 0 ? "rgba(255,255,255,.22)" : col, display: "flex", alignItems: "center", justifyContent: "center" }}>{c && <LIcon node={c.icon} size={16} color="#fff" />}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.15, minHeight: 29, display: "flex", alignItems: "center" }}>{a.label[0].toUpperCase() + a.label.slice(1)}</span>
+            <span className="row" style={{ gap: 5, width: "100%" }}>
+              <button aria-label={"Meh: " + a.label} aria-pressed={v < 0} onClick={() => onSet(id, v < 0 ? 0 : -1)} style={btn(v < 0)}><Icon name="down" size={15} /></button>
+              <button aria-label={"Love: " + a.label} aria-pressed={v > 0} onClick={() => onSet(id, v > 0 ? 0 : 1)} style={btn(v > 0)}><Icon name="heart" size={15} fill={v > 0 ? "currentColor" : "none"} /></button>
+            </span>
+          </div>
         );
       })}
     </div>
@@ -32,7 +36,8 @@ export default function Quiz({ initial = {}, onDone, onClose, onImportMaps, dark
   const [step, setStep] = useState(0); // 0 activities · 1 closer in · 2 profile · 3 reveal
   const [ans, setAns] = useState({ acts: {}, more: {}, ...initial });
   const [meet, setMeet] = useState(null);
-  const cycle = (k) => (id) => { const cur = ans[k]?.[id] || 0, nx = cur === 0 ? 1 : cur === 1 ? -1 : 0; const o = { ...(ans[k] || {}) }; if (nx) o[id] = nx; else delete o[id]; setAns({ ...ans, [k]: o }); };
+  const setV = (k) => (id, nx) => { const o = { ...(ans[k] || {}) }; if (nx) o[id] = nx; else delete o[id]; setAns({ ...ans, [k]: o }); };
+  const [qi, setQi] = useState(0); // screen 3: one question at a time
   const loved = Object.entries(ans.acts || {}).filter(([, v]) => v > 0).map(([k]) => k);
   const nope = new Set(Object.entries(ans.acts || {}).filter(([, v]) => v < 0).map(([k]) => k));
   // Closer in: activities nearest to what you loved in the taste map, scored by summed similarity
@@ -42,7 +47,8 @@ export default function Quiz({ initial = {}, onDone, onClose, onImportMaps, dark
     loved.forEach((id) => neighbours(sp, "act:" + id, 8).forEach(([f, c]) => { const a = f.slice(4); if (START.includes(a) || nope.has(a) || !ACT[a]) return; s[a] = (s[a] || 0) + c; }));
     return Object.entries(s).sort((a, b) => b[1] - a[1]).slice(0, 9).map(([a]) => a);
   }, [step === 1]); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggle = (q, i) => { const cur = picked(ans[q.id]); const n = q.multi ? (cur.includes(i) ? cur.filter((x) => x !== i) : [...cur, i]) : cur[0] === i ? [] : [i]; setAns({ ...ans, [q.id]: n }); };
+  const answer = (q, i) => { setAns({ ...ans, [q.id]: [i] }); setTimeout(() => (qi + 1 < PROFILE.length ? setQi(qi + 1) : go(3)), 200); };
+  const skipQ = () => (qi + 1 < PROFILE.length ? setQi(qi + 1) : go(3));
   const prof = step === 3 ? profileFrom(ans) : null;
   const wantsMeet = meet == null ? meetFrom(ans) : meet;
   const go = (n) => { setStep(n); window.scrollTo?.(0, 0); };
@@ -58,39 +64,34 @@ export default function Quiz({ initial = {}, onDone, onClose, onImportMaps, dark
   return createPortal(
     <div style={wrap} role="dialog" aria-label="Get to know you">
       <div className="row" style={{ gap: 10, alignItems: "center" }}>
-        {step > 0 && step < 3 && <button className="roundbtn" aria-label="Back" onClick={() => go(step === 2 && !more.length ? 0 : step - 1)} style={{ width: 40, height: 40 }}><Icon name="back" size={20} /></button>}
-        <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--chip)", overflow: "hidden" }}><div style={{ width: (step / 3) * 100 + "%", height: "100%", background: "var(--navy)", transition: "width .3s" }} /></div>
+        {step > 0 && step < 3 && <button className="roundbtn" aria-label="Back" onClick={() => (step === 2 && qi > 0 ? setQi(qi - 1) : go(step === 2 && !more.length ? 0 : step - 1))} style={{ width: 40, height: 40 }}><Icon name="back" size={20} /></button>}
+        <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--chip)", overflow: "hidden" }}><div style={{ width: ((step + (step === 2 ? qi / PROFILE.length : 0)) / 3) * 100 + "%", height: "100%", background: "var(--navy)", transition: "width .3s" }} /></div>
         <button className="chip" onClick={onClose} style={{ height: 34 }}>{step === 3 ? "Close" : "Later"}</button>
       </div>
 
       {step === 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 22 }}>
-          <H k="1 of 3" t="What would you happily go to?" sub="Tap once for love, twice for not for me. Skip what you're unsure about." />
-          <ActGrid ids={START} val={ans.acts || {}} onTap={cycle("acts")} dark={dark} />
+          <H k="1 of 3" t="What would you happily go to?" sub="Love what you'd go to, Meh what you wouldn't. Leave the rest." />
+          <ActGrid ids={START} val={ans.acts || {}} onSet={setV("acts")} dark={dark} />
           <button className="pill pill-dark" disabled={!loved.length} onClick={() => go(more.length || loved.length ? 1 : 2)} style={{ height: 50, opacity: loved.length ? 1 : 0.4 }}>{loved.length ? "Next · " + loved.length + " loved" : "Love at least one"}</button>
         </div>
       )}
       {step === 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 22 }}>
-          <H k="2 of 3" t="Closer to what you like" sub="Picked from what sits near your loves on the taste map. Same taps." />
-          {more.length ? <ActGrid ids={more} val={ans.more || {}} onTap={cycle("more")} dark={dark} /> : <div className="muted">Nothing to add here.</div>}
+          <H k="2 of 3" t="Closer to what you like" sub="Picked from what sits near your loves on the taste map." />
+          {more.length ? <ActGrid ids={more} val={ans.more || {}} onSet={setV("more")} dark={dark} /> : <div className="muted">Nothing to add here.</div>}
           <button className="pill pill-dark" onClick={() => go(2)} style={{ height: 50 }}>Next</button>
         </div>
       )}
-      {step === 2 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 22 }}>
-          <H k="3 of 3" t="How you go out" sub="Pick what's usually true. Skip any row." />
-          {PROFILE.map((q) => (
-            <div key={q.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: 15, fontWeight: 800 }}>{q.q}{q.multi && <span className="muted" style={{ fontWeight: 600, fontSize: 12.5 }}> · any</span>}</div>
-              <div className="row" style={{ gap: 7, flexWrap: "wrap" }}>
-                {q.opts.map((o, i) => { const on = picked(ans[q.id]).includes(i); return <button key={o.l} className={"chip" + (on ? " on" : "")} aria-pressed={on} onClick={() => toggle(q, i)} style={{ height: 38, fontSize: 14 }}>{o.l}</button>; })}
-              </div>
-            </div>
-          ))}
-          <button className="pill pill-dark" onClick={() => go(3)} style={{ height: 50, marginTop: 4 }}>See my profile</button>
+      {step === 2 && (() => { const q = PROFILE[qi], cur = picked(ans[q.id]); return (
+        <div key={q.id} style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 22 }}>
+          <H k={"3 of 3 · " + (qi + 1) + "/" + PROFILE.length} t={q.q} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
+            {q.opts.map((o, i) => <button key={o.l} aria-pressed={cur.includes(i)} onClick={() => answer(q, i)} className="card-sm" style={{ height: 58, border: cur.includes(i) ? "2px solid var(--navy)" : "2px solid transparent", fontSize: 17, fontWeight: 800, textAlign: "left", padding: "0 18px", color: "var(--ink)", background: cur.includes(i) ? "var(--chip)" : undefined }}>{o.l}</button>)}
+          </div>
+          <button onClick={skipQ} style={{ border: "none", background: "none", color: "var(--ink3)", fontWeight: 800, fontSize: 14, alignSelf: "center", padding: 8 }}>It depends · skip</button>
         </div>
-      )}
+      ); })()}
       {step === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 30, flex: 1 }}>
           <div className="muted" style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>You are</div>
