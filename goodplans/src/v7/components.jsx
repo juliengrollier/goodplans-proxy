@@ -65,11 +65,10 @@ export function CardActions({ ev, size = 34, onNfm }) {
   const a = useContext(ActionsCtx);
   const t = a.thumbOf(ev.id), saved = a.isSaved(ev.id);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
-  // Saves are the strong signal (full navy, full opacity). Thumbs stay quiet: faded when idle, only a light tint when active
-  const btn = (on, soft) => ({ width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-    background: on ? (soft ? "color-mix(in srgb, var(--navy) 20%, var(--chip))" : "var(--navy)") : "var(--chip)",
-    color: on ? (soft ? "var(--ink)" : "var(--onnavy)") : "var(--ink)",
-    opacity: soft ? (on ? 0.7 : 0.4) : 1 });
+  // Saves are the strong signal (full navy circle). Thumbs are bare, faint icons: fainter when idle, a bit firmer when active
+  const btn = (on, soft) => soft
+    ? { width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "transparent", color: "var(--ink)", opacity: on ? 0.6 : 0.25 }
+    : { width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: on ? "var(--navy)" : "var(--chip)", color: on ? "var(--onnavy)" : "var(--ink)" };
   const is = Math.round(size * 0.5);
   return (
     <div className="row" style={{ gap: 6 }}>
