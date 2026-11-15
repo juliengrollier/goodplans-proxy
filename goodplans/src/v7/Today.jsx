@@ -116,17 +116,18 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
 
 // City pulse: what New York is up to. Navy banner card, then the related events as a list.
 function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
+  // One navy panel holds the headline and its events, so they read as a single block
   return (
-    <div style={{ margin: "26px 0 0" }}>
-      <div style={{ margin: "0 16px", padding: "18px 18px 16px", borderRadius: 26, background: dark ? "#2A2F5C" : "var(--navy)", color: "#FBF7EF", display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ margin: "26px 16px 0", padding: "18px 8px 8px", borderRadius: 28, background: dark ? "#2A2F5C" : "var(--navy)", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ padding: "0 10px 4px", color: "#FBF7EF", display: "flex", flexDirection: "column", gap: 6 }}>
         <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", opacity: 0.75 }}><Icon name="pin" size={14} /> City pulse</span>
         <span className="disp" style={{ fontSize: 26, lineHeight: 1.1, opacity: m.writing ? 0.6 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</span>
         {m.sub && <span style={{ fontSize: 14.5, lineHeight: 1.4, opacity: 0.85 }}>{m.sub}</span>}
-        {other && <button onClick={onSwitch} className="row" style={{ alignSelf: "flex-start", marginTop: 6, gap: 6, height: 32, padding: "0 12px", borderRadius: 16, border: "1.5px solid rgba(251,247,239,.35)", background: "transparent", color: "#FBF7EF", fontWeight: 700, fontSize: 13, maxWidth: "100%" }}><span style={{ opacity: 0.7 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
       </div>
-      {m.list.length ? (
-        <div style={{ padding: "12px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>{m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
-      ) : <div className="muted" style={{ fontSize: 14, padding: "12px 20px 0" }}>Nothing in your feed is truly about this yet.</div>}
+      {m.list.length
+        ? m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
+        : <div style={{ fontSize: 14, padding: "0 10px 8px", color: "#FBF7EF", opacity: 0.75 }}>Nothing in your feed is truly about this yet.</div>}
+      {other && <button onClick={onSwitch} className="row" style={{ alignSelf: "flex-start", margin: "2px 6px 6px", gap: 6, height: 32, padding: "0 12px", borderRadius: 16, border: "1.5px solid rgba(251,247,239,.35)", background: "transparent", color: "#FBF7EF", fontWeight: 700, fontSize: 13, maxWidth: "100%" }}><span style={{ opacity: 0.7 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
     </div>
   );
 }
