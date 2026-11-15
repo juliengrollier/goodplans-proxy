@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ResultRow, CompactCard } from "./components.jsx";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 
@@ -6,6 +6,9 @@ export default function Explore({ scored, dark, today, onOpen, filters, setFilte
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
+  // When filters change, jump back to the top of the results so the new list is visible
+  const first = useRef(true);
+  useEffect(() => { if (first.current) { first.current = false; return; } if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: "smooth" }); }, [filters, sort]);
 
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
   const results = useMemo(() => sortEvents(applyFilters(scored, filters, today), sort), [scored, filters, sort, today]);

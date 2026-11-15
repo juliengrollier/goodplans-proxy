@@ -143,6 +143,7 @@ export default function Me(p) {
       <div style={{ padding: "4px 20px 20px", textAlign: "center" }}>
         <a href="/?classic=1" className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Open the classic app (sync tools, enrichment, debug)</a>
       </div>
+      <div className="muted" style={{ textAlign: "center", fontSize: 12, padding: "8px 0 24px" }}>Version {typeof __BUILD__ !== "undefined" ? new Date(__BUILD__).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "dev"}</div>
     </div>
   );
 }

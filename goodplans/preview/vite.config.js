@@ -5,7 +5,7 @@ import { resolve } from "path";
 export default defineConfig({
   root: resolve(__dirname, ".."),
   base: "./",
-  define: { __PREVIEW_BUILD__: JSON.stringify(Date.now()) },
+  define: { __PREVIEW_BUILD__: JSON.stringify(Date.now()), __BUILD__: JSON.stringify(new Date().toISOString()) },
   plugins: [react()],
   build: { outDir: "/tmp/gp-preview", emptyOutDir: true, rollupOptions: { input: resolve(__dirname, "../preview.html") } },
 });
