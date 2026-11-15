@@ -99,7 +99,7 @@ export function hoodCards(visible, today, hid, hoodWeight = () => 0, seed = 0, h
     .sort((a, b) => b.fit - a.fit).slice(0, 6);
 }
 
-export function buildTiles({ clicks = {}, visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
+export function buildTiles({ clicks = {}, favs = [], visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
   const hid = { xcats: filters.xcats || [], xsubs: filters.xsubs || [] };
   const quick = QUICK.map(([key, title, color, patch]) => ({ key, title, color, patch, n: applyFilters(visible, { ...EMPTY_FILTERS, ...patch, ...hid }, today).length })).filter((t) => t.n);
   const day = Math.floor(today.getTime() / 86400000);
@@ -116,11 +116,11 @@ export function buildTiles({ clicks = {}, visible, today, filters, youR, youA, y
   // Lead with the top mood, then alternate your picks and the other moods, then the rest of the pool and Book ahead
   // Variety: round-robin over three kinds (what suits this moment, your taste picks, fresh generated lists), each already best-first
   const rest = moods.filter((m) => m !== top);
-  const genAll = conceptTiles({ visible, today, hid, clicks, hoodOf: neighbourhoodOf }).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
-  // Pattern per block of four: concept, mood, concept, pick, so the specific things (pickleball, improv, pottery) lead
+  const genAll = conceptTiles({ visible, today, hid, clicks, fb, favs, hoodOf: neighbourhoodOf }).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
+  // Pattern per block of six: four generated moods, one archetype mood, one taste pick, so the specific things (pickleball, improv, pottery) lead
   const queues = { g: genAll.slice(), m: rest.slice(), p: [...pk, ...fill] };
   const order = top ? [top] : [];
-  while (queues.g.length || queues.m.length || queues.p.length) for (const k of ["g", "m", "g", "p"]) { const q = queues[k].length ? queues[k] : queues.g.length ? queues.g : queues.m.length ? queues.m : queues.p; if (q.length) order.push(q.shift()); }
+  while (queues.g.length || queues.m.length || queues.p.length) for (const k of ["g", "g", "m", "g", "g", "p"]) { const q = queues[k].length ? queues[k] : queues.g.length ? queues.g : queues.m.length ? queues.m : queues.p; if (q.length) order.push(q.shift()); }
   order.push(...bk);
   if (meet) { const i = order.findIndex((t) => t.key === "pick-meet"); if (i > 0) order.unshift(...order.splice(i, 1)); }
   const overlap = (a, b) => { const ids = new Set(a.list.slice(0, 10).map((e) => e.id)); return b.list.slice(0, 10).filter((e) => ids.has(e.id)).length / Math.min(10, Math.max(1, ids.size)); };
@@ -128,7 +128,7 @@ export function buildTiles({ clicks = {}, visible, today, filters, youR, youA, y
   const out = [];
   for (const limit of [0.6, 0.85, 1.01]) {
     for (const t of order) {
-      if (out.includes(t) || t.list.length < 2) continue;
+      if (out.includes(t) || t.list.length < (/^gen-/.test(t.key) ? 1 : 2)) continue;
       if (out.some((o) => overlap(o, t) > limit)) continue;
       out.push(t);
     }

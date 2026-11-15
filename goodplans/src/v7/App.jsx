@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
+import { markSeen } from "./moods2.js";
 import { hoodCards, genericCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
 import Today from "./Today.jsx";
@@ -794,8 +795,10 @@ export default function App() {
   }, [visible, modelVer, today, meet]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickPool = useMemo(() => { const wk = new Date(today); wk.setDate(today.getDate() + 7); return poolPicks(visible.filter((e) => evStart(e) <= wk)); }, [visible, today]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── Home tiles (quick time tiles + moods/picks); reused as "More ideas" in Explore
-  const tileSet = useMemo(() => buildTiles({ clicks: moodClicks, visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
+  const tileSet = useMemo(() => buildTiles({ clicks: moodClicks, favs: moodFav, visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
     [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark, moodFb]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Impressions: the first generated moods on show count once a day, so ignored ones slowly give way
+  useEffect(() => { const ks = (tileSet.all || []).filter((t) => /^gen-/.test(t.key) && !moodFav.includes(t.key)).slice(0, 8).map((t) => t.key); if (ks.length) markSeen(ks, today); }, [tileSet]); // eslint-disable-line react-hooks/exhaustive-deps
   // Thumbs and hearts on mood tiles teach the taste model (picks: their features; archetype moods: the You store)
   const learnTile = (t, d) => {
     if (t.f) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.3 * d); putModel(m, true); }
