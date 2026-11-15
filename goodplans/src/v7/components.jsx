@@ -50,6 +50,14 @@ export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
 }
 
 // First words of the description, so a card says what the event is
+// Dot-separated keywords on one line, in the same soft style as the blurb they replace
+export function KeywordLine({ ev, size = 12 }) {
+  const t = (ev.title || "").toLowerCase();
+  const kw = [...new Set([...(ev.kw || []), ev.nsub].filter((k) => k && String(k).toLowerCase() !== t && String(k).toLowerCase() !== String(ev.ncat || ev.cat || "").toLowerCase()))].slice(0, 4);
+  if (!kw.length) return null;
+  return <div className="ell" style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink3)", opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kw.join(" · ")}</div>;
+}
+
 export function Snippet({ ev, lines = 2, size = 13.5 }) {
   // A punchy one-liner written by Claude when tagging; the source's description otherwise
   const d = (ev.hook || ev.desc || "").replace(/\s+/g, " ").trim();
@@ -242,9 +250,9 @@ export function PosterCard({ ev, dark, today, onOpen, hideCat }) {
   const seenRef = useSeen(ev);
   const w = whenLabel(ev, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, ""); // the end date is on the event page; the card keeps one short line
   return (
-    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", gap: 5, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
       <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} />
-        {hideCat && <span style={{ position: "absolute", right: 6, bottom: 6, padding: "0 4px", borderRadius: 16, background: "rgba(255,255,255,.88)", color: "#1b1f3b" }}><CardActions ev={ev} size={26} noSave /></span>}
+        {hideCat && <span style={{ position: "absolute", right: 6, bottom: 6, padding: "0 3px", borderRadius: 16, background: "rgba(10,12,30,.55)", color: "#fff", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}><span className="onpic"><CardActions ev={ev} size={26} noSave /></span></span>}
       </div>
       {!hideCat && (
         <div className="row" style={{ gap: 5, justifyContent: "space-between", minWidth: 0 }}>
@@ -253,7 +261,7 @@ export function PosterCard({ ev, dark, today, onOpen, hideCat }) {
         </div>
       )}
       <div className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</div>
-      <Snippet ev={ev} lines={2} size={12} />
+      <KeywordLine ev={ev} />
       <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between" }}><span className="ell" style={{ minWidth: 0 }}><When text={w} /></span><span style={{ fontWeight: 400, color: "var(--ink3)", flexShrink: 0 }}><Travel tt={ev.tt} muted size={12} /></span></div>
     </div>
   );
