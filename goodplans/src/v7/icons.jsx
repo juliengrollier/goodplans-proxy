@@ -62,6 +62,8 @@ const UI = {
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   chev: <path d="M9 6l6 6-6 6" />,
   chevdown: <path d="M6 9l6 6 6-6" />,
+  rows: <path d="M3 5h8v5H3zM13 5h8v5h-8zM3 14h8v5H3zM13 14h8v5h-8z" />,
+  list: <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />,
   hide: <><path d="M3 3l18 18" /><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a15 15 0 0 1-2.6 3.1M6.6 7.7A15 15 0 0 0 3 12s4 6 9 6a9 9 0 0 0 3.4-.7" /></>,
   bell: <><path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
   link: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,

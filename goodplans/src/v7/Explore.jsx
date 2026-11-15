@@ -9,6 +9,7 @@ import { daysUntil } from "../lib/core.js";
 export default function Explore({ tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
+  const [style, setStyle] = useState("carousel"); // carousel: one row per category; list: one long list
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
@@ -25,6 +26,11 @@ export default function Explore({ tiles, moodFav = [], onMoodFav, onClose, onTil
   const soonest = (a, b) => (Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today))) || ((startMinutes(a) ?? 9999) - (startMinutes(b) ?? 9999));
   const results = useMemo(() => { const base = applyFilters(scored, filters, today); return collapseSeries(fromTile ? [...base].sort(soonest) : sortEvents(base, sort)); }, [scored, filters, sort, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
+  const catGroups = useMemo(() => {
+    const by = new Map();
+    results.slice(0, 160).forEach((e) => { if (fromTile && act.isSaved(e.id)) return; const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
+    return [...by.entries()];
+  }, [results, fromTile, act]);
   const groups = useMemo(() => {
     if (!fromTile) return null;
     const by = new Map();
@@ -81,8 +87,24 @@ export default function Explore({ tiles, moodFav = [], onMoodFav, onClose, onTil
       <div className="row" style={{ padding: "12px 16px 8px", gap: 6 }} role="tablist">
         <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
         <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Regulars · {nReg}</button>
+        {view === "all" && (
+          <span className="row" style={{ marginLeft: "auto", gap: 4 }} role="group" aria-label="Layout">
+            <button className={"chip" + (style === "carousel" ? " on" : "")} aria-pressed={style === "carousel"} aria-label="Carousels" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("carousel")}><Icon name="rows" size={16} /></button>
+            <button className={"chip" + (style === "list" ? " on" : "")} aria-pressed={style === "list"} aria-label="List" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("list")}><Icon name="list" size={16} /></button>
+          </span>
+        )}
       </div>
-      {view === "all" ? (
+      {view === "all" && style === "carousel" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {catGroups.map(([cat, list]) => (
+            <div key={cat}>
+              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "6px 20px 8px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
+              {!collapsed[cat] && <div className="hscroll">{list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>}
+            </div>
+          ))}
+          {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
+        </div>
+      ) : view === "all" ? (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
           {groups
             ? groups.map(([cat, list]) => (

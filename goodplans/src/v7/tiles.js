@@ -40,9 +40,6 @@ function facetTiles(visible, today, hid) {
     ["early", cat, (e) => sm(e) != null && sm(e) < 12 * 60, (k) => "Early bird: " + low(k), (k) => "Before noon: " + low(k) + ", with the whole day left.", Sunrise, "cat:"],
     ["deep", (e) => e.sub, (e) => true, (k) => "Deep cut: " + low(k), (k) => "A niche you rarely see: " + low(k) + ", only a few this fortnight.", Compass, "sub:", (l) => l.length >= 3 && l.length <= 8],
     ["sub", (e) => e.sub, (e) => true, (k) => k, (k) => "Just " + low(k) + ", soonest first.", Compass, "sub:", (l) => l.length >= 9],
-    ["hoodfree", (e) => e.hood, (e) => isFree(e), (k) => "Free in " + k, (k) => "Nothing to pay, around " + k + ".", MapPin, "hood:"],
-    ["hooddark", (e) => e.hood, (e) => sm(e) != null && sm(e) >= 20 * 60, (k) => k + " after dark", (k) => "Evening plans in " + k + ", 8 PM or later.", MapPin, "hood:"],
-    ["hood", (e) => e.hood, (e) => true, (k) => "Around " + k, (k) => "What is on in " + k + " in the next two weeks.", MapPin, "hood:"],
   ];
   for (const [id, by, keep, title, teaser, icon, facet, test] of T) {
     const m = new Map();
@@ -66,6 +63,15 @@ const VERBS = [
   [/lazy|chill|sunday|cosy|cozy|warm|hideout|early|coffee|slow|rain/i, "#0D9488"],
 ];
 export const verbColor = (t) => { const hit = (txt) => VERBS.find(([re]) => re.test(txt)); const h = hit((t.title || "") + " " + (t.key || "")) || hit(t.teaser || ""); return h ? h[1] : "#0891B2"; };
+
+// New York right now, neighbourhood row: where the most good stuff is this week
+export function hoodCards(visible, today, hid) {
+  const m = new Map();
+  visible.forEach((e) => { if (!e.hood || daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; if (!m.has(e.hood)) m.set(e.hood, []); m.get(e.hood).push(e); });
+  return [...m.entries()].filter(([, l]) => l.length >= 3)
+    .map(([k, l]) => ({ id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: "Around " + k, sub: l.length + " things on this week", list: l, fit: l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 5).reduce((x, e) => x + (e.sc || 0), 0) }))
+    .sort((a, b) => b.fit - a.fit).slice(0, 3);
+}
 
 export function buildTiles({ visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
   const hid = { xcats: filters.xcats || [], xsubs: filters.xsubs || [] };

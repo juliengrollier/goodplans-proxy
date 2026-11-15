@@ -57,7 +57,7 @@ export default function Me(p) {
           <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>This phone is</span>
           {people.map((n) => <button key={n} className="chip" aria-pressed={who === n} onClick={() => setWho(n)} style={who === n ? { background: "var(--navy)", color: "var(--onnavy)", border: "none" } : undefined}>{n}'s</button>)}
         </div>
-        <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>Each phone learns its owner. "Together" on Today blends both tastes once the other phone has shared its own.</div>
+        <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>Each phone learns its owner.</div>
         <button className="card-sm" aria-pressed={!!p.meet} onClick={() => p.onMeet(!p.meet)} style={{ border: p.meet ? "2px solid var(--navy)" : "2px solid transparent", padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, textAlign: "left" }}>
           <span style={{ width: 22, height: 22, borderRadius: 7, border: p.meet ? "none" : "2px solid var(--line)", background: p.meet ? "var(--navy)" : "transparent", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{p.meet && <Icon name="check" size={15} width={3} />}</span>
           <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>I want to meet new people<span className="muted" style={{ display: "block", fontSize: 12.5, fontWeight: 500 }}>Favours classes, clubs and events built for meeting people.</span></span>

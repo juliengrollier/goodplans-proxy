@@ -322,13 +322,42 @@ function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
   );
 }
 
-export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+function NYCard({ c, n, onTile }) {
+  return (
+    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list })}
+      style={{ flex: "0 0 " + (n > 1 ? "calc(100% - 36px)" : "100%"), scrollSnapAlign: "center", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 24, overflow: "hidden", display: "block" }}>
+      <ThemePhoto id={c.id} name={c.name || c.theme || ""} height={176} />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,.05) 0%, rgba(10,12,30,.35) 45%, rgba(10,12,30,.88) 100%)" }} />
+      <div style={{ position: "absolute", left: 18, right: 18, bottom: 14, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
+        <span className="row" style={{ gap: 9, alignItems: "center" }}>
+          {c.icon && React.createElement(c.icon, { size: 22, strokeWidth: 2.2 })}
+          <span className="disp" style={{ fontSize: 23, lineHeight: 1.05, opacity: c.writing ? 0.85 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
+        </span>
+        {c.sub && <span style={{ fontSize: 14, lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.sub}</span>}
+        <span style={{ fontSize: 13, fontWeight: 800 }}>{c.list.length} {c.list.length > 1 ? "events" : "event"} ›</span>
+      </div>
+    </button>
+  );
+}
+
+export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [moreN, setMoreN] = useState(0);
-  const allT = tiles ? tiles.all.filter((t) => !moodFav.includes(t.key)) : [];
+  // My moods: pinned ones (newest first), then the lists you open most (recent opens count more); four at most
+  const pool = tiles ? (tiles.every || tiles.all) : [];
+  const byKey = (k) => pool.find((t) => t.key === k);
+  const scoreOf = ([, v]) => v.n * Math.pow(0.9, (Date.now() - v.at) / 86400000);
+  const myMoods = (() => {
+    const pinned = [...moodFav].reverse().map(byKey).filter(Boolean);
+    const used = new Set(pinned.map((t) => t.key));
+    const often = Object.entries(moodClicks).filter(([k]) => !used.has(k) && !moodHide.includes(k)).sort((a, b) => scoreOf(b) - scoreOf(a)).map(([k]) => byKey(k)).filter(Boolean);
+    return [...pinned, ...often].slice(0, 4);
+  })();
+  const myKeys = new Set(myMoods.map((t) => t.key));
+  const allT = tiles ? tiles.all.filter((t) => !myKeys.has(t.key)) : [];
   const nShow = tiles ? tiles.base + 4 * moreN : 0;
   // Endless: once every list has been shown, the sequence starts over from a shifted position
   const shownMoods = allT.length ? Array.from({ length: Math.min(nShow, allT.length) }, (_, i) => allT[(i + (nShow > allT.length ? nShow - allT.length : 0)) % allT.length]) : [];
-  const favTiles = tiles ? moodFav.map((k) => (tiles.every || tiles.all).find((t) => t.key === k)).filter(Boolean) : [];
+  const favTiles = myMoods;
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -357,10 +386,6 @@ export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMo
           <span className="disp" style={{ fontSize: 23, whiteSpace: "nowrap" }}>good plans</span>
         </div>
         <div className="row" style={{ gap: 6 }}>
-          {setTogether && (
-            <button className="chip" aria-pressed={!!together} onClick={() => setTogether(!together)} aria-label={together ? "Together: picks for you and " + partnerName + ". Tap for just you" : "Just you. Tap for picks that suit you and " + partnerName}
-              style={{ padding: "0 10px", ...(together ? { background: "var(--navy)", color: "var(--onnavy)", border: "none" } : {}) }}><LIcon node={together ? Users : User} size={16} color="currentColor" /></button>
-          )}
           <button className="chip" onClick={() => setTab("me")} aria-label="Location settings"><Icon name="pin" size={15} /> {locLabel}</button>
         </div>
       </div>
@@ -418,13 +443,15 @@ export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMo
           )}
           {favTiles.length > 0 && (
             <div style={{ margin: "4px 16px 14px", padding: "10px 0 12px", borderTop: "1px solid var(--line, rgba(128,128,128,.25))", borderBottom: "1px solid var(--line, rgba(128,128,128,.25))" }}>
-              <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 8 }}>Your moods</div>
-              <div className="hscroll" style={{ margin: "0 -16px", padding: "0 16px", gap: 8 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 8 }}>My moods</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                 {favTiles.map((t) => (
-                  <button key={"f" + t.key} onClick={() => onTile(t)} style={{ flexShrink: 0, width: "calc((100vw - 32px - 24px) / 4)", maxWidth: 110, height: 54, padding: "6px 6px", borderRadius: 14, border: "1.5px solid " + t.color, background: "transparent", color: "var(--ink)", display: "flex", alignItems: "center", gap: 6, textAlign: "left" }}>
-                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 4, background: t.color, flexShrink: 0, alignSelf: "flex-start", marginTop: 3 }} />
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: 800, lineHeight: 1.12, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.title}</span>
-                  </button>
+                  <div key={"f" + t.key} role="button" tabIndex={0} onClick={() => onTile(t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(t); }}
+                    style={{ position: "relative", height: 76, borderRadius: 16, padding: "9px 6px 6px", background: t.color, color: "#fff", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start", overflow: "hidden", cursor: "pointer", boxShadow: "inset 0 -26px 24px -18px rgba(0,0,0,.25)" }}>
+                    <span style={{ opacity: 0.95, display: "flex" }}>{t.node ? <LIcon node={t.node} size={18} color="#fff" stroke={2} /> : t.icon ? React.createElement(t.icon, { size: 18, strokeWidth: 2.2 }) : null}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", width: "100%" }}>{t.title}</span>
+                    <button aria-label={"Remove " + t.title + " from my moods"} onClick={(e) => { e.stopPropagation(); onMoodDrop(t); }} style={{ position: "absolute", top: 3, right: 3, width: 22, height: 22, border: "none", background: "transparent", color: "#fff", opacity: 0.75, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={12} /></button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -441,25 +468,15 @@ export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMo
         </>
       )}
 
-      {/* 5. New York right now: two or three things the city is doing this season */}
-      {!empty && cities.length > 0 && (
+      {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
+      {!empty && nyRows.length > 0 && (
         <>
-          <Head title="New York right now" sub="What the city is up to this season." />
-          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {cities.slice(0, 3).map((c) => (
-              <button key={c.id} onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list })}
-                style={{ width: "100%", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 24, overflow: "hidden", display: "block" }}>
-                <ThemePhoto id={c.id} name={c.theme || ""} height={176} />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,.05) 0%, rgba(10,12,30,.35) 45%, rgba(10,12,30,.88) 100%)" }} />
-                <div style={{ position: "absolute", left: 18, right: 18, bottom: 14, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
-                  <span className="row" style={{ gap: 9, alignItems: "center" }}>
-                    {c.icon && React.createElement(c.icon, { size: 22, strokeWidth: 2.2 })}
-                    <span className="disp" style={{ fontSize: 23, lineHeight: 1.05, opacity: c.writing ? 0.85 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
-                  </span>
-                  {c.sub && <span style={{ fontSize: 14, lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.sub}</span>}
-                  <span style={{ fontSize: 13, fontWeight: 800 }}>{c.list.length} {c.list.length > 1 ? "events" : "event"} ›</span>
-                </div>
-              </button>
+          <Head title="New York right now" sub="What the city is up to: swipe each row." />
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {nyRows.map((row, ri) => (
+              <div key={ri} className="hscroll" style={{ gap: 12, scrollSnapType: "x mandatory", padding: "0 16px" }}>
+                {row.slice(0, 3).map((c) => <NYCard key={c.id} c={c} n={row.length} onTile={onTile} />)}
+              </div>
             ))}
           </div>
         </>
