@@ -1,12 +1,14 @@
-// Shared filters for Explore and Map: a row of category icons + one row of compact chips.
-// Tapping a chip opens its choices inline (one at a time), so the bar never takes more than 3 short rows.
-import React, { useState } from "react";
-import { Icon, Glyph } from "./icons.jsx";
-import { catColor, catIcon } from "./theme.js";
+// Shared filters for Explore and Map, kept calm:
+// row 1 = the 8 families (colour + icon); tapping one reveals its categories as chips (only those with events, with counts);
+// row 2 = When + a Filters button (price, distance, mood, calendar in a sheet); active sheet filters show as removable pills.
+import React, { useMemo, useState } from "react";
+import { Icon } from "./icons.jsx";
+import { Dialog } from "./components.jsx";
 import { isFree, priceNum, startMinutes, nowMinutes } from "./engine.js";
-import { CATS, matchV, evCovers, evStart, evEnd, eHour } from "../lib/core.js";
+import { matchV, evCovers, evStart, evEnd, eHour } from "../lib/core.js";
+import { FAMILIES, FAM, CATEGORIES, CAT, famColor, LIcon } from "./taxonomy.js";
 
-export const EMPTY_FILTERS = { cats: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "" };
+export const EMPTY_FILTERS = { fam: null, cats: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "" };
 
 const OPTS = {
   when: [["today", "Today"], ["now", "Now & soon"], ["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "Next 7 days"], ["any", "Any time"]],
@@ -14,10 +16,10 @@ const OPTS = {
   dist: [["any", "Any distance"], ["10", "10 min"], ["20", "20 min"], ["30", "30 min"]],
   mood: [[null, "Any mood"], ["date", "Date night"], ["weird", "Something weird"], ["sunday", "Sunday reset"], ["nyc", "Only in NYC"], ["chill", "Chill"], ["move", "Get moving"], ["late", "After dark"], ["solo", "Solo"], ["kids", "With kids"]],
 };
-const NAMES = { when: "When", price: "Price", dist: "Distance", mood: "Mood" };
 const labelOf = (k, v) => (OPTS[k].find(([x]) => x === v) || [])[1];
+const sheetCount = (f) => (f.price !== "any") + (f.dist !== "any") + !!f.mood + !!f.noClash;
 
-export const activeCount = (f) => f.cats.length + (f.when !== EMPTY_FILTERS.when) + (f.price !== "any") + (f.dist !== "any") + !!f.mood + !!f.noClash + !!f.q.trim();
+export const activeCount = (f) => !!f.fam + f.cats.length + (f.when !== EMPTY_FILTERS.when) + sheetCount(f) + !!f.q.trim();
 
 export function applyFilters(list, f, today) {
   const tom = new Date(today); tom.setDate(today.getDate() + 1);
@@ -28,7 +30,8 @@ export function applyFilters(list, f, today) {
   const now = nowMinutes();
   const ql = f.q.trim().toLowerCase();
   return list.filter((e) => {
-    if (f.cats.length && !f.cats.includes(e.cat)) return false;
+    if (f.fam && e.fam !== f.fam) return false;
+    if (f.cats.length && !f.cats.includes(e.ncat)) return false;
     if (f.when === "today" && !evCovers(e, today)) return false;
     if (f.when === "now") { const sm = startMinutes(e); if (!(evCovers(e, today) && sm != null && sm >= now - 90 && sm <= now + 150)) return false; }
     if (f.when === "tonight" && !(evCovers(e, today) && (startMinutes(e) ?? eHour(e.time, e.cat) * 60) >= 16 * 60)) return false;
@@ -42,66 +45,103 @@ export function applyFilters(list, f, today) {
     if (f.dist !== "any" && !((e.tt?.mins ?? 99) <= +f.dist)) return false;
     if (f.mood && !matchV(e, f.mood)) return false;
     if (f.noClash && e.busy) return false;
-    if (ql && ![e.title, e.venue, e.desc, e.sub, e.cat, e.hood, ...(e.kw || [])].join(" ").toLowerCase().includes(ql)) return false;
+    if (ql && ![e.title, e.venue, e.desc, e.sub, e.cat, e.ncat, e.hood, ...(e.kw || [])].join(" ").toLowerCase().includes(ql)) return false;
     return true;
   });
 }
 
-export default function FilterBar({ f, setF, dark, counts, floating, showSearch }) {
-  const [open, setOpen] = useState(null);
-  const cats = Object.keys(CATS).filter((c) => !counts || counts[c] || f.cats.includes(c));
+export default function FilterBar({ f, setF, dark, items = [], today }) {
+  const [openWhen, setOpenWhen] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  // Counts follow every other filter, so the numbers match what a tap would show
+  const base = useMemo(() => (today ? applyFilters(items, { ...f, fam: null, cats: [] }, today) : items), [items, f.when, f.price, f.dist, f.mood, f.noClash, f.q, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const famN = useMemo(() => base.reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {}), [base]);
+  const catN = useMemo(() => base.reduce((m, e) => ((m[e.ncat] = (m[e.ncat] || 0) + 1), m), {}), [base]);
+  const pickFam = (id) => setF({ ...f, fam: f.fam === id ? null : id, cats: [] });
   const toggleCat = (c) => setF({ ...f, cats: f.cats.includes(c) ? f.cats.filter((x) => x !== c) : [...f.cats, c] });
-  const n = activeCount(f);
-  const bg = floating ? { background: "var(--card)", borderRadius: 22, boxShadow: "0 6px 20px rgba(27,31,59,.16)", padding: "8px 0" } : {};
+  const cats = f.fam ? CATEGORIES.filter((c) => c.fam === f.fam && (catN[c.id] || f.cats.includes(c.id))).sort((a, b) => (catN[b.id] || 0) - (catN[a.id] || 0)) : [];
+  const nSheet = sheetCount(f);
+  const pills = [
+    f.price !== "any" && ["price", labelOf("price", f.price), () => setF({ ...f, price: "any" })],
+    f.dist !== "any" && ["dist", "Within " + labelOf("dist", f.dist), () => setF({ ...f, dist: "any" })],
+    f.mood && ["mood", labelOf("mood", f.mood), () => setF({ ...f, mood: null })],
+    f.noClash && ["cal", "Free in calendar", () => setF({ ...f, noClash: false })],
+  ].filter(Boolean);
+  const chip = { height: 32, flexShrink: 0 };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, ...bg }}>
-      {showSearch && (
-        <label className="row" style={{ gap: 8, height: 40, margin: "0 12px", padding: "0 12px", borderRadius: 20, background: "var(--chip)" }}>
-          <Icon name="search" size={17} />
-          <input value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} type="search" placeholder="Search jazz, Brooklyn, free…" aria-label="Search events" style={{ border: "none", outline: "none", flex: 1, fontSize: 15, background: "transparent", color: "var(--ink)", fontFamily: "inherit", minWidth: 0 }} />
-          {f.q && <button onClick={() => setF({ ...f, q: "" })} aria-label="Clear search" style={{ border: "none", background: "none", padding: 0 }}><Icon name="close" size={15} /></button>}
-        </label>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Row 1: families */}
+      <div className="row" role="group" aria-label="What you'll do" style={{ justifyContent: "space-between", padding: "0 8px" }}>
+        {FAMILIES.map((fm) => {
+          const on = f.fam === fm.id, col = famColor(fm.id, dark), n = famN[fm.id] || 0, dim = (f.fam && !on) || (!n && !on);
+          return (
+            <button key={fm.id} onClick={() => pickFam(fm.id)} aria-pressed={on} aria-label={fm.label + " · " + n}
+              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 44, opacity: dim ? 0.38 : 1 }}>
+              <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
+                <LIcon node={fm.icon} size={19} color="#fff" />
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap" }}>{fm.short || fm.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Categories of the chosen family */}
+      {f.fam && (
+        <div className="hscroll" style={{ gap: 6, padding: "0 12px", scrollPaddingInline: 12 }} role="group" aria-label={FAM[f.fam].label + " categories"}>
+          {cats.map((c) => {
+            const on = f.cats.includes(c.id), col = famColor(c.fam, dark);
+            return (
+              <button key={c.id} className="chip" aria-pressed={on} onClick={() => toggleCat(c.id)}
+                style={{ ...chip, gap: 6, background: on ? col : undefined, color: on ? "#fff" : undefined, borderColor: on ? col : undefined }}>
+                <LIcon node={c.icon} size={14} color={on ? "#fff" : col} /> {c.id} <span style={{ opacity: 0.7, fontWeight: 700 }}>{catN[c.id] || 0}</span>
+              </button>
+            );
+          })}
+          {!cats.length && <span className="muted" style={{ fontSize: 13, padding: "6px 4px" }}>Nothing in {FAM[f.fam].label} with these filters</span>}
+        </div>
       )}
 
-      {/* Row 1: categories. None selected = all shown; selected ones light up, the rest dim */}
-      <div className="hscroll" style={{ gap: 8, padding: "0 12px", scrollPaddingInline: 12 }} role="group" aria-label="Categories">
-        {cats.map((c) => {
-          const on = f.cats.includes(c), col = catColor(c, dark), dim = f.cats.length && !on;
-          return (
-            <button key={c} onClick={() => toggleCat(c)} aria-pressed={on} aria-label={c} title={c}
-              style={{ flexShrink: 0, border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 50, opacity: dim ? 0.35 : 1 }}>
-              <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
-                <Glyph name={catIcon(c)} size={21} color={col} />
-              </span>
-              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap", maxWidth: 54, overflow: "hidden", textOverflow: "ellipsis" }}>{c.split(" ")[0]}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Row 2: compact chips; each opens its choices below */}
+      {/* Row 2: When + Filters */}
       <div className="hscroll" style={{ gap: 6, padding: "0 12px", scrollPaddingInline: 12 }}>
-        {n > 0 && <button className="chip" style={{ height: 32 }} onClick={() => { setF({ ...EMPTY_FILTERS, q: f.q }); setOpen(null); }}><Icon name="close" size={13} /> Clear</button>}
-        {["when", "price", "dist", "mood"].map((k) => {
-          const isOn = k === "mood" ? !!f.mood : f[k] !== (EMPTY_FILTERS[k]);
-          const shown = k === "when" || isOn;
-          return (
-            <button key={k} className={"chip" + (isOn ? " on" : "")} style={{ height: 32, outline: open === k ? "2px solid var(--ink)" : "none" }} onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k}>
-              {shown ? labelOf(k, f[k]) : NAMES[k]} <Icon name="down2" size={13} />
-            </button>
-          );
-        })}
-        <button className={"chip" + (f.noClash ? " on" : "")} style={{ height: 32 }} onClick={() => setF({ ...f, noClash: !f.noClash })}><Icon name="cal" size={13} /> Free in calendar</button>
+        <button className={"chip" + (f.when !== EMPTY_FILTERS.when ? " on" : "")} style={{ ...chip, outline: openWhen ? "2px solid var(--ink)" : "none" }} onClick={() => setOpenWhen(!openWhen)} aria-expanded={openWhen}>
+          <Icon name="clock" size={13} /> {labelOf("when", f.when)} <Icon name="down2" size={13} />
+        </button>
+        <button className={"chip" + (nSheet ? " on" : "")} style={chip} onClick={() => setSheet(true)}>
+          <Icon name="filter" size={13} /> Filters{nSheet ? " · " + nSheet : ""}
+        </button>
+        {pills.map(([k, l, clear]) => (
+          <button key={k} className="chip" style={{ ...chip, background: "var(--chip)", border: "none" }} onClick={clear} aria-label={"Remove " + l}>{l} <Icon name="close" size={12} /></button>
+        ))}
+        {activeCount({ ...f, q: "" }) > 0 && <button className="chip" style={{ ...chip, border: "none", background: "none", textDecoration: "underline" }} onClick={() => { setF({ ...EMPTY_FILTERS, q: f.q }); setOpenWhen(false); }}>Reset</button>}
       </div>
-
-      {open && (
+      {openWhen && (
         <div className="hscroll" style={{ gap: 6, padding: "0 12px", scrollPaddingInline: 12 }}>
-          {OPTS[open].map(([v, l]) => (
-            <button key={String(v)} className={"chip" + (f[open] === v ? " on" : "")} style={{ height: 32, background: f[open] === v ? undefined : "var(--chip)", border: "none" }}
-              onClick={() => { setF({ ...f, [open]: v }); setOpen(null); }}>{l}</button>
+          {OPTS.when.map(([v, l]) => (
+            <button key={v} className={"chip" + (f.when === v ? " on" : "")} style={{ ...chip, background: f.when === v ? undefined : "var(--chip)", border: "none" }} onClick={() => { setF({ ...f, when: v }); setOpenWhen(false); }}>{l}</button>
           ))}
         </div>
+      )}
+
+      {sheet && (
+        <Dialog title="Filters" onClose={() => setSheet(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {[["price", "Price"], ["dist", "Distance"], ["mood", "Mood"]].map(([k, t]) => (
+              <div key={k} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1 }}>{t}</span>
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  {OPTS[k].map(([v, l]) => <button key={String(v)} className={"chip" + (f[k] === v ? " on" : "")} style={{ height: 34 }} onClick={() => setF({ ...f, [k]: v })}>{l}</button>)}
+                </div>
+              </div>
+            ))}
+            <button className={"chip" + (f.noClash ? " on" : "")} style={{ height: 36, alignSelf: "flex-start" }} onClick={() => setF({ ...f, noClash: !f.noClash })}><Icon name="cal" size={14} /> Only when my calendar is free</button>
+            <div className="row" style={{ gap: 8 }}>
+              <button className="pill pill-line" style={{ flex: 1 }} onClick={() => setF({ ...f, price: "any", dist: "any", mood: null, noClash: false })}>Clear</button>
+              <button className="pill pill-dark" style={{ flex: 1 }} onClick={() => setSheet(false)}>Done</button>
+            </div>
+          </div>
+        </Dialog>
       )}
     </div>
   );
@@ -110,7 +150,7 @@ export default function FilterBar({ f, setF, dark, counts, floating, showSearch 
 export const SORTS = [["best", "Best match"], ["soonest", "Soonest"], ["closest", "Closest"]];
 
 // Identical header for Explore and Map: search, sort, then the filter bar
-export function FilterHeader({ filters, setFilters, sort, setSort, dark, counts, style }) {
+export function FilterHeader({ filters, setFilters, sort, setSort, dark, items, today, style }) {
   return (
     <div style={{ background: "var(--bg)", padding: "calc(12px + env(safe-area-inset-top)) 0 10px", borderBottom: "1px solid var(--line)", ...style }}>
       <div className="row" style={{ padding: "0 12px 10px", gap: 8 }}>
@@ -123,7 +163,7 @@ export function FilterHeader({ filters, setFilters, sort, setSort, dark, counts,
           {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
       </div>
-      <FilterBar f={filters} setF={setFilters} dark={dark} counts={counts} />
+      <FilterBar f={filters} setF={setFilters} dark={dark} items={items} today={today} />
     </div>
   );
 }

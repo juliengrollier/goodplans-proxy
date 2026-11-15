@@ -50,7 +50,7 @@ export function Surprise({ ev, dark, today, weather, onOpen, onAnother, onClose,
         ) : (
           <>
             <Media ev={ev} dark={dark} height={300} radius={26} big hideTitle />
-            <div className="row" style={{ gap: 10 }}><CatBullet cat={ev.cat} size={32} dark={dark} /><span className="muted" style={{ fontWeight: 800, fontSize: 14 }}>{ev.sub || ev.cat}</span><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
+            <div className="row" style={{ gap: 10 }}><CatBullet ev={ev} size={32} dark={dark} /><span className="muted" style={{ fontWeight: 800, fontSize: 14 }}>{ev.sub || ev.cat}</span><span style={{ marginLeft: "auto" }}><PriceTag ev={ev} /></span></div>
             <h2 className="disp" style={{ margin: 0, fontSize: 30, lineHeight: 1.1 }}>{ev.title}</h2>
             <div style={{ fontSize: 15, color: "var(--ink2)", fontWeight: 700 }}>{whenLabel(ev, today)} · {venueLabel(ev) || ev.hood}{ev.tt ? " · " + travelLabel(ev.tt) : ""}</div>
             {ev.why?.length > 0 && <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>{ev.why.slice(0, 3).map((w) => <span key={w} className="tag tag-plain">{w}</span>)}</div>}

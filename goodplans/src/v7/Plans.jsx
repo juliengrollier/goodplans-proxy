@@ -1,3 +1,4 @@
+import { evColor, evNode, LIcon } from "./taxonomy.js";
 import React, { useState } from "react";
 import { Icon, Glyph } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
@@ -22,10 +23,10 @@ export default function Plans({ favs, scoreOne, dark, today, onOpen, onRemove, b
     return (diff === 0 ? "Today · " : diff === 1 ? "Tomorrow · " : "") + DAYS[d.getDay()] + " " + MONTHS[d.getMonth()] + " " + d.getDate();
   };
   const Item = ({ ev }) => {
-    const c = catColor(ev.cat, dark), clash = isEventBusy(ev, busySlots);
+    const c = evColor(ev, dark), clash = isEventBusy(ev, busySlots);
     return (
       <div className="row" style={{ gap: 12, padding: "12px 0", borderBottom: "1px solid var(--line)", opacity: clash ? 0.5 : 1 }}>
-        <button onClick={() => onOpen(ev)} aria-label={ev.title} style={{ width: 56, height: 56, borderRadius: 16, border: "none", background: c, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Glyph name={catIcon(ev.cat)} size={26} color={c} /></button>
+        <button onClick={() => onOpen(ev)} aria-label={ev.title} style={{ width: 56, height: 56, borderRadius: 16, border: "none", background: c, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={evNode(ev)} size={26} color="#fff" /></button>
         <button onClick={() => onOpen(ev)} style={{ flex: 1, minWidth: 0, border: "none", background: "none", textAlign: "left", padding: 0, display: "flex", flexDirection: "column", gap: 3 }}>
           <span className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.15 }}>{ev.title}</span>
           <span className="muted ell" style={{ fontSize: 13 }}>{whenLabel(ev, today)} · {travelLabel(ev.tt)}</span>

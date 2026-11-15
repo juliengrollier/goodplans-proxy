@@ -38,7 +38,7 @@ export default function Explore({ scored, dark, today, onOpen, filters, setFilte
 
   return (
     <div>
-      <FilterHeader filters={filters} setFilters={(f) => { setFilters(f); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} counts={counts} style={{ position: "sticky", top: 0, zIndex: 20 }} />
+      <FilterHeader filters={filters} setFilters={(f) => { setFilters(f); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />
       <div className="row" style={{ padding: "12px 16px 8px", gap: 6 }} role="tablist">
         <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
         <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Regulars · {nReg}</button>

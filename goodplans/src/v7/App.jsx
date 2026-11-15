@@ -14,6 +14,7 @@ import { PULSE_ICON } from "./pulseIcons.js";
 import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
 import { annualItems } from "./nyc.js";
+import { classify, CAT } from "./taxonomy.js";
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
@@ -32,7 +33,7 @@ const ENV_URL = import.meta.env.VITE_GP_URL || LEGACY_URL;
 const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
-const TAGS_KEY = "gp_tags_v8";
+const TAGS_KEY = "gp_tags_v9"; // v9: adds cat2 (new categories)
 const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
@@ -278,13 +279,15 @@ export default function App() {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
     return allEvents.map((e0) => {
       const t = tags[e0.id];
-      const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : e0;
+      const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
+      e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
   }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus]);
-  const scoreOne = useCallback((e) => {
+  const scoreOne = useCallback((e0) => {
+    const e = { ...e0, ncat: e0.ncat || classify(e0) }; e.fam = CAT[e.ncat].fam;
     const s = scoreEvent({ ...e, coord: safeCoord(e) }, { eprof, beh, today, home, taste, weather, busySlots });
     s.calChecked = calStatus === "ok"; return s;
   }, [eprof, beh, today, home, taste, weather, busySlots, calStatus]);

@@ -5,6 +5,7 @@ import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
+import { FAMILIES, FAM, famColor, LIcon } from "./taxonomy.js";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -56,37 +57,40 @@ function Forecast({ weather, today }) {
   );
 }
 
-// Top picks for one topic: tap a category icon to switch. Defaults to the category you rate highest.
+// Top picks for one family (Watch, Listen, …): tap an icon to switch. Order fixed per session, favourite families first.
 function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
-  const counts = data.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {});
-  // Order is fixed once per session (favourite first), so icons don't jump around while taste updates
+  const counts = data.reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {});
   const order = React.useRef(null);
-  const avail = Object.keys(CATS).filter((c) => counts[c] >= 2);
-  if (!order.current && avail.length) order.current = [...avail].sort((a, b) => (eprof?.categories?.[b] ?? 30) - (eprof?.categories?.[a] ?? 30));
-  const cats = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
-  const [cat, setCat] = React.useState(() => { try { return sessionStorage.getItem("gp_toppick") || null; } catch { return null; } });
-  const pick = (c) => { setCat(c); try { sessionStorage.setItem("gp_toppick", c); } catch { /* private mode */ } };
-  const cur = cat && cats.includes(cat) ? cat : cats[0];
+  const avail = FAMILIES.map((f) => f.id).filter((id) => counts[id] >= 2);
+  // Rank families by how much their events score for you on average
+  if (!order.current && avail.length) {
+    const avg = (id) => { const l = data.filter((e) => e.fam === id).slice(0, 8); return l.reduce((a, e) => a + e.sc, 0) / Math.max(1, l.length); };
+    order.current = [...avail].sort((a, b) => avg(b) - avg(a));
+  }
+  const fams = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
+  const [fam, setFam] = React.useState(() => { try { return sessionStorage.getItem("gp_topfam") || null; } catch { return null; } });
+  const pick = (c) => { setFam(c); try { sessionStorage.setItem("gp_topfam", c); } catch { /* private mode */ } };
+  const cur = fam && fams.includes(fam) ? fam : fams[0];
   if (!cur) return null;
-  const list = data.filter((e) => e.cat === cur).sort((a, b) => b.sc - a.sc).slice(0, 5);
+  const list = data.filter((e) => e.fam === cur).sort((a, b) => b.sc - a.sc).slice(0, 5);
   return (
     <>
-      <SectionHead title={"Top picks · " + cur} color={catColor(cur, dark)} onMore={() => onMore({ cats: [cur], when: "week" })} />
-      <div className="hscroll" style={{ gap: 8, padding: "0 20px 12px" }} role="tablist" aria-label="Topic">
-        {cats.map((c) => {
-          const on = c === cur, col = catColor(c, dark);
+      <SectionHead title={"Top picks · " + FAM[cur].label} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, when: "week" })} />
+      <div className="row" style={{ justifyContent: "space-between", padding: "0 12px 14px" }} role="tablist" aria-label="Topic">
+        {FAMILIES.filter((f) => fams.includes(f.id)).map((f) => {
+          const on = f.id === cur, col = famColor(f.id, dark);
           return (
-            <button key={c} role="tab" aria-selected={on} aria-label={c} onClick={() => pick(c)}
-              style={{ flexShrink: 0, border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 50, opacity: on ? 1 : 0.45 }}>
+            <button key={f.id} role="tab" aria-selected={on} aria-label={f.label} onClick={() => pick(f.id)}
+              style={{ border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 44, opacity: on ? 1 : 0.45 }}>
               <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
-                <Glyph name={catIcon(c)} size={21} color={col} />
+                <LIcon node={f.icon} size={19} color="#fff" />
               </span>
-              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap", maxWidth: 54, overflow: "hidden", textOverflow: "ellipsis" }}>{c.split(" ")[0]}</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink2)", whiteSpace: "nowrap" }}>{f.short || f.label}</span>
             </button>
           );
         })}
       </div>
-      <div key={cur} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10, minHeight: 300 }}>
+      <div key={cur} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18, minHeight: 300 }}>
         {list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
       </div>
     </>
@@ -222,7 +226,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           </button>
           {nowSoon.slice(0, showAllNow ? 12 : 4).map((ev) => (
             <button key={ev.id} onClick={() => onOpen(ev)} className="row" style={{ gap: 10, padding: "0 4px", border: "none", background: "none", textAlign: "left" }}>
-              <CatBullet cat={ev.cat} size={30} dark={dark} />
+              <CatBullet ev={ev} size={30} dark={dark} />
               <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
                 <span className="ell" style={{ fontSize: 15, fontWeight: 800 }}>{ev.title}</span>
                 <span className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 700 }}>
