@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, ActionsCtx } from "./components.jsx";
+import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, CatBullet, ActionsCtx } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { LIcon } from "./taxonomy.js";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
@@ -113,8 +113,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 8 }}>
           {catGroups.map(([cat, list]) => (
             <div key={cat}>
-              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "2px 20px 6px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
-              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
+              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "2px 20px 6px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><CatBullet ev={list[0]} size={24} dark={dark} /><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
+              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard hideCat key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
             </div>
           ))}
           {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
