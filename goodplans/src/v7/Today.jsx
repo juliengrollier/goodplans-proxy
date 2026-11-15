@@ -5,7 +5,7 @@ import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
-import { FAMILIES, FAM, famColor, LIcon } from "./taxonomy.js";
+import { FAMILIES, FAM, CATEGORIES, famColor, LIcon } from "./taxonomy.js";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
@@ -69,13 +69,18 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
   }
   const fams = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
   const [fam, setFam] = React.useState(() => { try { return sessionStorage.getItem("gp_topfam") || null; } catch { return null; } });
-  const pick = (c) => { setFam(c); try { sessionStorage.setItem("gp_topfam", c); } catch { /* private mode */ } };
+  const pick = (c) => { setFam(c); setCat(null); try { sessionStorage.setItem("gp_topfam", c); } catch { /* private mode */ } };
   const cur = fam && fams.includes(fam) ? fam : fams[0];
+  const [cat, setCat] = React.useState(null); // optional category inside the family
   if (!cur) return null;
-  const list = data.filter((e) => e.fam === cur).sort((a, b) => b.sc - a.sc).slice(0, 5);
+  const inFam = data.filter((e) => e.fam === cur);
+  const catN = inFam.reduce((m, e) => ((m[e.ncat] = (m[e.ncat] || 0) + 1), m), {});
+  const cats = CATEGORIES.filter((c) => c.fam === cur && catN[c.id]).sort((a, b) => catN[b.id] - catN[a.id]);
+  const curCat = cat && catN[cat] ? cat : null;
+  const list = inFam.filter((e) => !curCat || e.ncat === curCat).sort((a, b) => b.sc - a.sc).slice(0, 5);
   return (
     <>
-      <SectionHead title={"Top picks · " + FAM[cur].label} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, when: "week" })} />
+      <SectionHead title={"Top picks · " + (curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], when: "week" })} />
       <div className="row" style={{ justifyContent: "space-between", padding: "0 12px 14px" }} role="tablist" aria-label="Topic">
         {FAMILIES.filter((f) => fams.includes(f.id)).map((f) => {
           const on = f.id === cur, col = famColor(f.id, dark);
@@ -90,7 +95,20 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
           );
         })}
       </div>
-      <div key={cur} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18, minHeight: 300 }}>
+      {cats.length > 1 && (
+        <div className="hscroll" style={{ gap: 6, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="group" aria-label={FAM[cur].label + " categories"}>
+          {cats.map((c) => {
+            const on = curCat === c.id, col = famColor(c.fam, dark);
+            return (
+              <button key={c.id} className="chip" aria-pressed={on} onClick={() => setCat(on ? null : c.id)}
+                style={{ height: 32, flexShrink: 0, gap: 6, background: on ? col : undefined, color: on ? "#fff" : undefined, borderColor: on ? col : undefined }}>
+                <LIcon node={c.icon} size={14} color={on ? "#fff" : col} /> {c.id} <span style={{ opacity: 0.7, fontWeight: 700 }}>{catN[c.id]}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div key={cur + (curCat || "")} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18, minHeight: 300 }}>
         {list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
       </div>
     </>
