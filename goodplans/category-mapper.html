@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Good Plans · Category mapper</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <style>
   :root { --bg:#FBF7EF; --card:#fff; --ink:#1B1F3B; --ink2:#3A3E58; --ink3:#6A6E88; --line:#E7E1D4; --chip:#F1ECE1; --navy:#1B1F3B; }
   * { box-sizing: border-box; }
@@ -25,7 +26,7 @@
   .famhead { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
   .dot { width:14px; height:14px; border-radius:7px; flex-shrink:0; }
   .famhead h2 { font-size:20px; flex:1; }
-  .cat { background:var(--card); border-radius:18px; padding:12px 14px; margin-bottom:8px; border-left:6px solid; display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; border-top:none; border-right:none; border-bottom:none; box-shadow:0 1px 0 var(--line); }
+  .cat { cursor:default; background:var(--card); border-radius:18px; padding:12px 14px; margin-bottom:8px; border-left:6px solid; display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; border-top:none; border-right:none; border-bottom:none; box-shadow:0 1px 0 var(--line); }
   .cat .row1 { display:flex; align-items:baseline; gap:8px; }
   .cat .name { font-family:"Fredoka",system-ui,sans-serif; font-weight:600; font-size:17px; flex:1; }
   .cat .rank { font-size:12px; font-weight:800; color:var(--ink3); }
@@ -54,6 +55,15 @@
   .result { background:var(--card); border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:6px; }
   .big { font-family:"Fredoka",system-ui,sans-serif; font-size:22px; font-weight:600; }
   .log li { margin-bottom:6px; line-height:1.4; }
+  .handle { cursor:grab; color:var(--ink3); font-size:18px; line-height:1; padding:2px 4px; touch-action:none; user-select:none; }
+  .edit { border:none; background:var(--chip); border-radius:999px; height:30px; padding:0 12px; font-weight:800; font-size:12.5px; }
+  .drop { min-height:30px; border-radius:12px; }
+  .chips.drop { padding:4px; margin:-4px; }
+  .sortable-ghost { opacity:.35; }
+  .sortable-chosen { box-shadow:0 6px 18px rgba(27,31,59,.25); }
+  .toggle { border:none; background:none; padding:0; font-weight:800; font-size:12.5px; color:var(--ink3); text-align:left; }
+  .chip[data-term], .chip[data-sub] { cursor:grab; user-select:none; -webkit-user-select:none; }
+  .famsort { display:flex; flex-wrap:wrap; gap:6px; }
   .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--navy); color:#fff; padding:10px 16px; border-radius:14px; font-weight:800; z-index:30; display:none; }
   .confirm { display:none; gap:8px; align-items:center; }
   .confirm.on { display:flex; }
@@ -115,30 +125,95 @@ function render() {
   if (tab === "test") v.innerHTML = testView();
   if (tab === "changes") v.innerHTML = changesView();
   renderSheet();
+  initDrag();
 }
 
+const expanded = new Set();
+function termChips(terms, attrs) {
+  return terms.map((t) => `<span class="chip" data-term="${esc(t)}"><span class="kw">${esc(t)}</span></span>`).join("");
+}
 function mapView() {
   let h = `<div class="card"><div class="disp" style="font-size:18px">Checked first, on titles only</div>
-    <div class="muted" style="font-size:13px">Strong title words that win before anything else.</div>`;
+    <div class="muted" style="font-size:13px">Strong title words that win before anything else. Drag words in or out of these.</div>`;
   S.early.forEach((e, i) => {
-    h += `<div><label class="f">${esc(e.cat)}</label><div class="chips">${e.terms.map((t, j) => `<span class="chip"><span class="kw">${esc(t)}</span><button class="x" aria-label="Remove ${esc(t)}" data-act="early-del" data-i="${i}" data-j="${j}">×</button></span>`).join("")}
-      <button class="chip" data-act="early-add" data-i="${i}">+ word</button></div></div>`;
+    h += `<div><label class="f">${esc(e.cat)}</label><div class="chips drop" data-list="terms" data-early="${i}">${termChips(e.terms)}</div>
+      <button class="chip" style="margin-top:6px" data-act="early-add" data-i="${i}">+ word</button></div>`;
   });
   h += `</div>`;
+  h += `<div class="card"><div class="disp" style="font-size:18px">Family order</div><div class="muted" style="font-size:13px">Drag to reorder the colour families in the app's filter bar.</div>
+    <div class="famsort drop" data-list="fams">${S.families.map((f) => `<span class="famchip" data-fam="${f.id}" style="background:${f.color};cursor:grab">${esc(f.label)}</span>`).join("")}</div></div>`;
+  h += `<p class="muted" style="font-size:13px;margin:14px 2px 0">Drag a category by ⠿ to reorder it or move it to another family. Drag sub-types and words (hold, then move) between categories. ✎ edits names, merges and deletes.</p>`;
   const order = S.categories.map((c) => c.id);
   S.families.forEach((f) => {
     const cats = S.categories.filter((c) => c.fam === f.id);
-    h += `<div class="fam"><div class="famhead"><span class="dot" style="background:${f.color}"></span><h2>${esc(f.label)}</h2><span class="muted" style="font-weight:800;font-size:13px">${cats.length}</span></div>`;
+    h += `<div class="fam"><div class="famhead"><span class="dot" style="background:${f.color}"></span><h2>${esc(f.label)}</h2><span class="muted" style="font-weight:800;font-size:13px">${cats.length}</span></div>
+      <div class="drop" data-list="cats" data-fam="${f.id}">`;
     cats.forEach((c) => {
-      h += `<button class="cat" style="border-left-color:${f.color}" data-act="open-cat" data-id="${esc(c.id)}">
-        <span class="row1"><span class="name">${esc(c.id)}</span><span class="rank">checked #${order.indexOf(c.id) + 1}</span></span>
-        ${c.subs.length ? `<span class="chips">${c.subs.map((s) => `<span class="chip sub">${esc(s.name)}</span>`).join("")}</span>` : ""}
-        <span class="muted" style="font-size:12.5px">${c.terms.length} words: <span class="kw">${esc(c.terms.slice(0, 6).join(", "))}${c.terms.length > 6 ? "…" : ""}</span></span>
-      </button>`;
+      const ex = expanded.has(c.id);
+      h += `<div class="cat" data-cat="${esc(c.id)}" style="border-left-color:${f.color}">
+        <span class="row1"><span class="handle" aria-label="Drag ${esc(c.id)}">⠿</span><span class="name">${esc(c.id)}</span><span class="rank">#${order.indexOf(c.id) + 1}</span><button class="edit" data-act="open-cat" data-id="${esc(c.id)}">✎ Edit</button></span>
+        <span class="muted" style="font-size:11.5px;font-weight:800">SUB-TYPES</span>
+        <span class="chips drop" data-list="subs" data-cat="${esc(c.id)}">${c.subs.map((s) => `<span class="chip sub" data-sub="${esc(s.name)}">${esc(s.name)}</span>`).join("")}</span>
+        <button class="toggle" data-act="toggle-terms" data-id="${esc(c.id)}">${ex ? "▾" : "▸"} ${c.terms.length} words${ex ? "" : ": <span class='kw'>" + esc(c.terms.slice(0, 5).join(", ")) + (c.terms.length > 5 ? "…" : "") + "</span>"}</button>
+        ${ex ? `<span class="chips drop" data-list="terms" data-cat="${esc(c.id)}">${termChips(c.terms)}</span>` : ""}
+      </div>`;
     });
-    h += `<button class="add" data-act="add-cat" data-fam="${f.id}">+ Category in ${esc(f.label)}</button></div>`;
+    h += `</div><button class="add" data-act="add-cat" data-fam="${f.id}">+ Category in ${esc(f.label)}</button></div>`;
   });
   return h;
+}
+
+// Drag and drop at every level (touch friendly: hold briefly, then drag)
+let sortables = [];
+function initDrag() {
+  sortables.forEach((x) => x.destroy()); sortables = [];
+  if (!window.Sortable || tab !== "map") return;
+  const base = { animation: 150, delay: 180, delayOnTouchOnly: true, forceFallback: true, fallbackTolerance: 4, scroll: true, bubbleScroll: true, ghostClass: "sortable-ghost", chosenClass: "sortable-chosen" };
+  const after = () => setTimeout(() => { save(); render(); }, 0);
+  const fl = document.querySelector('[data-list="fams"]');
+  if (fl) sortables.push(Sortable.create(fl, { ...base, onEnd: () => {
+    const ids = [...fl.children].map((n) => n.dataset.fam), before = S.families.map((f) => f.id).join();
+    S.families = ids.map((id) => S.families.find((f) => f.id === id));
+    if (before !== ids.join()) note("Family order: " + S.families.map((f) => f.label).join(", "));
+    after();
+  } }));
+  document.querySelectorAll('[data-list="cats"]').forEach((el) => sortables.push(Sortable.create(el, { ...base, group: "cats", handle: ".handle", delay: 0, onEnd: (ev) => {
+    const id = ev.item.dataset.cat, c = cat(id), toFam = ev.to.dataset.fam, fromFam = ev.from.dataset.fam;
+    if (toFam !== fromFam) { c.fam = toFam; note(`Moved "${id}" from ${fam(fromFam).label} to ${fam(toFam).label}`); }
+    // Reorder within the destination family, keeping the priority slots that family holds overall
+    const ids = [...ev.to.children].map((n) => n.dataset.cat).filter(Boolean);
+    const slots = S.categories.map((x, i) => (ids.includes(x.id) ? i : -1)).filter((i) => i >= 0);
+    const oldRank = S.categories.indexOf(c);
+    const items = ids.map((x) => cat(x)); slots.forEach((slot, k) => { S.categories[slot] = items[k]; });
+    const newRank = S.categories.indexOf(c);
+    if (newRank !== oldRank) note(`Priority: "${id}" now checked #${newRank + 1} (was #${oldRank + 1})`);
+    after();
+  } })));
+  document.querySelectorAll('[data-list="subs"]').forEach((el) => sortables.push(Sortable.create(el, { ...base, group: "subs", onEnd: (ev) => {
+    const name = ev.item.dataset.sub, from = cat(ev.from.dataset.cat), to = cat(ev.to.dataset.cat);
+    const sub = from.subs.find((x) => x.name === name); if (!sub) return after();
+    if (from !== to) { if (to.subs.some((x) => x.name === name)) { toast(to.id + " already has " + name); return after(); }
+      from.subs.splice(from.subs.indexOf(sub), 1); note(`Moved sub-type "${name}" from "${from.id}" to "${to.id}"`); }
+    const names = [...ev.to.children].map((n) => n.dataset.sub);
+    const all = from === to ? to.subs : [...to.subs, sub];
+    const before = to.subs.map((x) => x.name).join();
+    to.subs = names.map((n) => all.find((x) => x.name === n)).filter(Boolean);
+    if (from === to && before !== names.join()) note(`Sub-type order in "${to.id}": ${names.join(", ")} (first match wins)`);
+    after();
+  } })));
+  const termList = (el) => (el.dataset.early != null ? S.early[+el.dataset.early] : cat(el.dataset.cat));
+  const termName = (el) => (el.dataset.early != null ? "early rule for \"" + S.early[+el.dataset.early].cat + "\"" : "\"" + el.dataset.cat + "\"");
+  document.querySelectorAll('[data-list="terms"]').forEach((el) => sortables.push(Sortable.create(el, { ...base, group: "terms", onEnd: (ev) => {
+    const t = ev.item.dataset.term, from = termList(ev.from), to = termList(ev.to);
+    if (from !== to) {
+      from.terms = from.terms.filter((x) => x !== t);
+      if (!to.terms.includes(t)) to.terms.push(t);
+      note(`Word "${t}" moved from ${termName(ev.from)} to ${termName(ev.to)}`);
+    }
+    const ordered = [...ev.to.children].map((n) => n.dataset.term).filter((x) => to.terms.includes(x));
+    to.terms = [...new Set([...ordered, ...to.terms])];
+    after();
+  } })));
 }
 
 function testView() {
@@ -213,6 +288,7 @@ document.addEventListener("click", (e) => {
   const val = (id) => ($("#" + id)?.value || "").trim();
   switch (a) {
     case "close": open = null; break;
+    case "toggle-terms": { const id = b.dataset.id; if (expanded.has(id)) expanded.delete(id); else expanded.add(id); render(); return; }
     case "open-cat": open = { type: "cat", id: b.dataset.id }; break;
     case "open-sub": open = { type: "sub", cat: c.id, name: b.dataset.name }; break;
     case "back-cat": open = { type: "cat", id: c.id }; break;
@@ -221,7 +297,7 @@ document.addEventListener("click", (e) => {
       S.categories.push({ id: n, fam: b.dataset.fam, terms: [], subs: [] }); note(`Added category "${n}" in ${fam(b.dataset.fam).label}`); open = { type: "cat", id: n }; break;
     }
     case "rename-cat": { const n = val("cname"); if (!n || n === c.id) break; if (cat(n)) { toast("That name exists"); return; }
-      note(`Renamed category "${c.id}" to "${n}"`); S.early.forEach((x) => { if (x.cat === c.id) x.cat = n; }); c.id = n; open.id = n; break; }
+      note(`Renamed category "${c.id}" to "${n}"`); S.early.forEach((x) => { if (x.cat === c.id) x.cat = n; }); if (expanded.has(c.id)) { expanded.delete(c.id); expanded.add(n); } c.id = n; open.id = n; break; }
     case "move-cat": if (b.dataset.fam !== c.fam) { note(`Moved "${c.id}" from ${fam(c.fam).label} to ${fam(b.dataset.fam).label}`); c.fam = b.dataset.fam; } break;
     case "up": case "down": { const i = S.categories.indexOf(c), j = a === "up" ? i - 1 : i + 1; if (j < 0 || j >= S.categories.length) break;
       [S.categories[i], S.categories[j]] = [S.categories[j], S.categories[i]]; note(`Priority: "${c.id}" now checked ${a === "up" ? "before" : "after"} "${S.categories[i].id}" (#${j + 1})`); break; }
