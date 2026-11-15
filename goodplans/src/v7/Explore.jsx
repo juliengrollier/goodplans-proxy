@@ -67,7 +67,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
 
   return (
     <div>
-      <FilterHeader filters={filters} setFilters={(f) => { setFilters((f.ids || []).length ? f : { ...f, list: null }); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />
+      {!filters.list && (<FilterHeader filters={filters} setFilters={(f) => { setFilters((f.ids || []).length ? f : { ...f, list: null }); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />)}
       {filters.list && (() => {
         const meta = listTile || (listMeta && listMeta.title === filters.list ? listMeta : null);
         const col = meta?.color, fg = col ? "#fff" : undefined;
