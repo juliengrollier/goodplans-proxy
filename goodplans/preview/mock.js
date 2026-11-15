@@ -28,6 +28,11 @@ const EVENTS = [
   ev("p17", "Trivia night", 3, "8 PM", "Free", "Parklife, Bushwick", "Bushwick", "Nightlife", "Trivia", [40.6985, -73.9270], "Teams of up to six.", { }),
   ev("p18", "Trivia night", 10, "8 PM", "Free", "Parklife, Bushwick", "Bushwick", "Nightlife", "Trivia", [40.6985, -73.9270], "Teams of up to six."),
   ev("p19", "Cocoa & skating", 0, span(-3, 3), "Free", "Bryant Park Winter Village", "Midtown", "Outdoors", "Skating", [40.7536, -73.9832], "Free admission rink; skate rental extra."),
+  ev("p21", "Indie rock triple bill", 1, "8 PM", "$18", "Mercury Lounge, LES", "Lower East Side", "Music", "Rock", [40.7222, -73.9866], "Three up-and-coming guitar bands."),
+  ev("p22", "Hip-hop showcase", 2, "9 PM", "$15", "Baby's All Right, Williamsburg", "Williamsburg", "Music", "Hip-Hop", [40.7099, -73.9631], "Local MCs and a live DJ."),
+  ev("p23", "Folk singer-songwriter night", 3, "7 PM", "$12", "Rockwood Music Hall, LES", "Lower East Side", "Music", "Folk", [40.7224, -73.9887], "Acoustic sets in a cozy room."),
+  ev("p24", "Afrobeat & Latin dance band", 4, "9 PM", "$20", "Nublu, East Village", "East Village", "Music", "World Music", [40.7238, -73.9817], "Horns, percussion and a packed floor."),
+  ev("p25", "Jazz jam session", 5, "10 PM", "Free", "Fat Cat, West Village", "West Village", "Music", "Jazz", [40.7337, -74.0021], "Open jam, bring your instrument."),
   ev("p20", "Dumpling-making workshop", 2, "3 PM", "$55", "Chinatown community kitchen", "Chinatown", "Food & Drink", "Class", [40.7158, -73.997], "Fold and pan-fry three styles."),
 ];
 

@@ -198,6 +198,10 @@ export function scoreEvent(ev, ctx) {
   if (taste.mutedVenues?.[venueKey(ev)]) s -= 15;
   // Categories hidden or picked in filters (ncatAdj: -24 … +12)
   if (taste.ncatAdj && ev.ncat) s += taste.ncatAdj[ev.ncat] || 0;
+  if (taste.nsubAdj && ev.nsub) s += taste.nsubAdj[ev.nsub] || 0;
+  // Starred (boosted) categories and sub-types
+  if (taste.stars?.cats?.[ev.ncat]) { s += 10; why.push("You boosted " + ev.ncat); }
+  if (ev.nsub && taste.stars?.subs?.[ev.nsub]) { s += 8; why.push("You boosted " + ev.nsub); }
   // Learned from the "why" picker: keywords, weekday, time of day, outdoors
   if (taste.kwAdj) s += clamp((ev.kw || []).reduce((a, k) => a + (taste.kwAdj[k.toLowerCase()] || 0), 0), -20, 15);
   if (taste.dowAdj && ev.E) s += taste.dowAdj[new Date((evCovers(ev, today) ? isoDay(today) : ev.E) + "T12:00:00").getDay()] || 0;

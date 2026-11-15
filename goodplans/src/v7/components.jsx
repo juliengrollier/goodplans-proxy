@@ -6,7 +6,7 @@ import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
 import { whenLabel, isFree, weatherBadge } from "./engine.js";
 import { useEventImage, dropImage } from "./images.js";
 
-export const ActionsCtx = createContext({ onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0 });
+export const ActionsCtx = createContext({ onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0, isStar: () => false, toggleStar: () => {} });
 
 export function CatBullet({ cat, ev, size = 30, dark }) {
   // With an event: its category icon in its family colour. With only a (legacy) category name: the older glyph.

@@ -1,6 +1,6 @@
 import React from "react";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet } from "./components.jsx";
+import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx } from "./components.jsx";
 import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
@@ -59,6 +59,7 @@ function Forecast({ weather, today }) {
 
 // Top picks for one family (Watch, Listen, …): tap an icon to switch. Order fixed per session, favourite families first.
 function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], onHideCat = () => {} }) {
+  const A = React.useContext(ActionsCtx);
   const counts = data.reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {});
   const order = React.useRef(null);
   const avail = FAMILIES.map((f) => f.id).filter((id) => counts[id] >= 2);
@@ -98,7 +99,7 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], onHide
       </div>
       {cats.length > 1 && (
         <div className="hscroll" style={{ gap: 6, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="group" aria-label={FAM[cur].label + " categories"}>
-          {cats.map((c) => <CatChip key={c.id} c={c} n={catN[c.id] || 0} on={curCat === c.id} off={xcats.includes(c.id)} dark={dark} onPick={() => setCat(curCat === c.id ? null : c.id)} onHide={() => hide(c.id)} />)}
+          {cats.map((c) => <CatChip key={c.id} c={c} n={catN[c.id] || 0} on={curCat === c.id} off={xcats.includes(c.id)} starred={A.isStar("cats", c.id)} dark={dark} onPick={() => setCat(curCat === c.id ? null : c.id)} onHide={() => hide(c.id)} onStar={() => A.toggleStar("cats", c.id)} />)}
         </div>
       )}
       <div key={cur + (curCat || "")} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18, minHeight: 300 }}>

@@ -1,14 +1,14 @@
 // Shared filters for Explore and Map, kept calm:
 // row 1 = the 8 families (colour + icon); tapping one reveals its categories as chips (only those with events, with counts);
 // row 2 = When + a Filters button (price, distance, mood, calendar in a sheet); active sheet filters show as removable pills.
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { Icon } from "./icons.jsx";
-import { Dialog } from "./components.jsx";
+import { Dialog, ActionsCtx } from "./components.jsx";
 import { isFree, priceNum, startMinutes, nowMinutes } from "./engine.js";
 import { matchV, evCovers, evStart, evEnd, eHour } from "../lib/core.js";
-import { FAMILIES, FAM, CATEGORIES, CAT, famColor, LIcon, CatChip } from "./taxonomy.js";
+import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
 
-export const EMPTY_FILTERS = { fam: null, cats: [], xcats: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "" };
+export const EMPTY_FILTERS = { fam: null, cats: [], xcats: [], subs: [], xsubs: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "" };
 
 const OPTS = {
   when: [["today", "Today"], ["now", "Now & soon"], ["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "Next 7 days"], ["any", "Any time"]],
@@ -19,7 +19,7 @@ const OPTS = {
 const labelOf = (k, v) => (OPTS[k].find(([x]) => x === v) || [])[1];
 const sheetCount = (f) => (f.price !== "any") + (f.dist !== "any") + !!f.mood + !!f.noClash;
 
-export const activeCount = (f) => !!f.fam + f.cats.length + (f.xcats || []).length + (f.when !== EMPTY_FILTERS.when) + sheetCount(f) + !!f.q.trim();
+export const activeCount = (f) => !!f.fam + f.cats.length + (f.xcats || []).length + (f.subs || []).length + (f.xsubs || []).length + (f.when !== EMPTY_FILTERS.when) + sheetCount(f) + !!f.q.trim();
 
 export function applyFilters(list, f, today) {
   const tom = new Date(today); tom.setDate(today.getDate() + 1);
@@ -33,6 +33,8 @@ export function applyFilters(list, f, today) {
     if (f.fam && e.fam !== f.fam) return false;
     if (f.cats.length && !f.cats.includes(e.ncat)) return false;
     if ((f.xcats || []).includes(e.ncat)) return false;
+    if ((f.subs || []).length && !f.subs.includes(e.nsub)) return false;
+    if (e.nsub && (f.xsubs || []).includes(e.nsub)) return false;
     if (f.when === "today" && !evCovers(e, today)) return false;
     if (f.when === "now") { const sm = startMinutes(e); if (!(evCovers(e, today) && sm != null && sm >= now - 90 && sm <= now + 150)) return false; }
     if (f.when === "tonight" && !(evCovers(e, today) && (startMinutes(e) ?? eHour(e.time, e.cat) * 60) >= 16 * 60)) return false;
@@ -55,14 +57,25 @@ export default function FilterBar({ f, setF, dark, items = [], today }) {
   const [openWhen, setOpenWhen] = useState(false);
   const [sheet, setSheet] = useState(false);
   // Counts follow every other filter, so the numbers match what a tap would show
-  const base = useMemo(() => (today ? applyFilters(items, { ...f, fam: null, cats: [], xcats: [] }, today) : items), [items, f.when, f.price, f.dist, f.mood, f.noClash, f.q, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const base = useMemo(() => (today ? applyFilters(items, { ...f, fam: null, cats: [], xcats: [], subs: [], xsubs: [] }, today) : items), [items, f.when, f.price, f.dist, f.mood, f.noClash, f.q, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const famN = useMemo(() => base.reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {}), [base]);
   const catN = useMemo(() => base.reduce((m, e) => ((m[e.ncat] = (m[e.ncat] || 0) + 1), m), {}), [base]);
-  const pickFam = (id) => setF({ ...f, fam: f.fam === id ? null : id, cats: [], xcats: [] });
+  const subN = useMemo(() => base.reduce((m, e) => { if (e.nsub) m[e.ncat + '|' + e.nsub] = (m[e.ncat + '|' + e.nsub] || 0) + 1; return m; }, {}), [base]);
+  const A = useContext(ActionsCtx);
+  const pickFam = (id) => setF({ ...f, fam: f.fam === id ? null : id, cats: [], subs: [] });
   const xc = f.xcats || [];
-  const toggleCat = (c) => setF({ ...f, cats: f.cats.includes(c) ? f.cats.filter((x) => x !== c) : [...f.cats, c], xcats: xc.filter((x) => x !== c) });
+  const toggleCat = (c) => setF({ ...f, cats: f.cats.includes(c) ? f.cats.filter((x) => x !== c) : [...f.cats, c], xcats: xc.filter((x) => x !== c), subs: [] });
   const hideCat = (c) => setF({ ...f, xcats: xc.includes(c) ? xc.filter((x) => x !== c) : [...xc, c], cats: f.cats.filter((x) => x !== c) });
   const cats = f.fam ? CATEGORIES.filter((c) => c.fam === f.fam && (catN[c.id] || f.cats.includes(c.id) || xc.includes(c.id))).sort((a, b) => (catN[b.id] || 0) - (catN[a.id] || 0)) : [];
+  // Third level: sub-types of the focused category (one category picked, or a family with a single category),
+  // shown only when it has enough events to be worth splitting
+  const famCats = f.fam ? CATEGORIES.filter((c) => c.fam === f.fam && catN[c.id]) : [];
+  const focus = f.cats.length === 1 ? f.cats[0] : famCats.length === 1 ? famCats[0].id : null;
+  const subs = focus && SUBTYPES[focus] ? SUBTYPES[focus].map(([n]) => n).filter((n) => subN[focus + "|" + n] || (f.subs || []).includes(n) || (f.xsubs || []).includes(n)) : [];
+  const showSubs = focus && subs.length >= 2 && (catN[focus] || 0) >= 6;
+  const xs = f.xsubs || [], ps = f.subs || [];
+  const toggleSub = (n) => setF({ ...f, subs: ps.includes(n) ? ps.filter((x) => x !== n) : [...ps, n], xsubs: xs.filter((x) => x !== n) });
+  const hideSub = (n) => setF({ ...f, xsubs: xs.includes(n) ? xs.filter((x) => x !== n) : [...xs, n], subs: ps.filter((x) => x !== n) });
   const nSheet = sheetCount(f);
   const pills = [
     f.price !== "any" && ["price", labelOf("price", f.price), () => setF({ ...f, price: "any" })],
@@ -93,8 +106,15 @@ export default function FilterBar({ f, setF, dark, items = [], today }) {
       {/* Categories of the chosen family */}
       {f.fam && (
         <div className="hscroll" style={{ gap: 6, padding: "0 12px", scrollPaddingInline: 12 }} role="group" aria-label={FAM[f.fam].label + " categories"}>
-          {cats.map((c) => <CatChip key={c.id} c={c} n={catN[c.id] || 0} on={f.cats.includes(c.id)} off={xc.includes(c.id)} dark={dark} onPick={() => toggleCat(c.id)} onHide={() => hideCat(c.id)} />)}
+          {cats.map((c) => <CatChip key={c.id} c={c} n={catN[c.id] || 0} on={f.cats.includes(c.id)} off={xc.includes(c.id)} starred={A.isStar("cats", c.id)} dark={dark} onPick={() => toggleCat(c.id)} onHide={() => hideCat(c.id)} onStar={() => A.toggleStar("cats", c.id)} />)}
           {!cats.length && <span className="muted" style={{ fontSize: 13, padding: "6px 4px" }}>Nothing in {FAM[f.fam].label} with these filters</span>}
+        </div>
+      )}
+
+      {showSubs && (
+        <div className="hscroll" style={{ gap: 6, padding: "0 12px", scrollPaddingInline: 12 }} role="group" aria-label={focus + " types"}>
+          <span style={{ alignSelf: "center", fontSize: 11, fontWeight: 800, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, flexShrink: 0 }}>{focus}</span>
+          {subs.map((n) => <CatChip key={n} c={CAT[focus]} label={n} n={subN[focus + "|" + n] || 0} on={ps.includes(n)} off={xs.includes(n)} starred={A.isStar("subs", n)} dark={dark} onPick={() => toggleSub(n)} onHide={() => hideSub(n)} onStar={() => A.toggleStar("subs", n)} />)}
         </div>
       )}
 

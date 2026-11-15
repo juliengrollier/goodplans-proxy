@@ -4,7 +4,7 @@
 import React from "react";
 import {
   Popcorn, Headphones, UtensilsCrossed, PartyPopper, Scissors, Activity, Compass, GraduationCap,
-  Drama, Laugh, Clapperboard, Sparkles, Trophy, Guitar, Music2, Piano, Wine, Soup, Martini, Disc3, Footprints, MicVocal,
+  Drama, Laugh, Clapperboard, Sparkles, Trophy, Guitar, Music2, Piano, Star, Wine, Soup, Martini, Disc3, Footprints, MicVocal,
   Palette, ChefHat, Bike, Flower2, Volleyball, Landmark, ShoppingBasket, FerrisWheel, Trees, Presentation, BookOpen, Signpost,
 } from "lucide";
 
@@ -33,8 +33,6 @@ export const CATEGORIES = [
   { id: "Theater", fam: "watch", icon: Drama, re: /theat|broadway|musical|\bplay\b|cabaret|drag|burlesque|magic show|puppet|circus|shakespeare|one-?(wo)?man show/ },
   { id: "Film", fam: "watch", icon: Clapperboard, re: /film|screening|cinema|movie|documentary|double feature/ },
   { id: "Live Sports", fam: "watch", icon: Trophy, re: /\bvs\.?\b|versus|knicks|nets\b|yankees|mets\b|rangers|islanders|liberty|nycfc|red bulls|us open|tennis|boxing|wrestling|roller derby|watch party/ },
-  { id: "Jazz & Blues", fam: "listen", icon: Music2, re: /jazz|blues|bebop|big band|swing band/ },
-  { id: "Classical", fam: "listen", icon: Piano, re: /classical|orchestra|symphon|chamber|string quartet|philharmonic|recital|choir|choral|organ|baroque|vivaldi|bach|beethoven|mozart/ },
   { id: "Tastings", fam: "eat", icon: Wine, re: /tasting|wine|natural wine|sake|whisk|mezcal|tequila|cheese|chocolate|beer fest|cider/ },
   { id: "Food Markets & Pop-ups", fam: "eat", icon: Soup, re: /food (market|festival|hall|pop-?up|crawl)|night market|smorgasburg|supper club|pop-?up dinner|dumpling|food truck|crawl|feast|potluck|friendsgiving/ },
   { id: "Bars & Happy Hours", fam: "eat", icon: Martini, re: /happy hour|cocktail|speakeasy|brewery|taproom|\bbar\b|pub\b|beer garden|biergarten|oktoberfest/ },
@@ -47,12 +45,38 @@ export const CATEGORIES = [
   { id: "Run & Ride", fam: "move", icon: Bike, re: /\brun\b|running|5k|10k|half marathon|race|bike|cycling|\bride\b/ },
   { id: "Play", fam: "move", icon: Volleyball, re: /climb|boulder|skat|rink|kayak|paddle|canoe|pickleball|soccer|basketball|volleyball|bowling|mini ?golf|ping ?pong|swim|hike|frisbee/ },
   { id: "Parks & Nature", fam: "explore", icon: Trees, re: /park|garden|nature|bird|botanic|foliage|waterfront|beach|forest|wildlife|cherry blossom/ },
-  { id: "Concerts", fam: "listen", icon: Guitar, re: /concert|live music|band|singer|songwriter|hip-?hop|rap\b|rock|indie|folk|r&b|soul|funk|punk|gig|acoustic|showcase/ },
+  { id: "Concerts", fam: "listen", icon: Guitar, re: /concert|live music|band|singer|songwriter|hip-?hop|rap\b|rock|indie|folk|r&b|soul|funk|punk|gig|acoustic|showcase|jazz|blues|bebop|classical|orchestra|symphon|chamber|string quartet|philharmonic|recital|choir|choral|organ|baroque|vivaldi|bach|beethoven|mozart/ },
 ];
 export const CAT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 export const CAT_NAMES = CATEGORIES.map((c) => c.id);
 
 // Fallback from the older categories when nothing in the text decides
+// Third level: sub-types for the bigger categories (Claude picks one; these patterns are the fallback)
+export const SUBTYPES = {
+  "Concerts": [["Rock & Indie", /rock|indie|punk|garage|shoegaze|alt/], ["Hip-hop & R&B", /hip-?hop|rap\b|r&b|soul|neo-soul/], ["Electronic", /electronic|synth|ambient|techno|house/], ["Folk & Acoustic", /folk|acoustic|singer-?songwriter|americana|bluegrass|country/], ["Jazz & Blues", /jazz|blues|bebop|big band|swing/], ["Classical", /classical|orchestra|symphon|chamber|quartet|philharmonic|recital|choir|choral|organ|baroque|opera/], ["Pop", /\bpop\b/], ["World & Latin", /latin|salsa|cumbia|afro|world|reggae|k-?pop|bollywood|flamenco|klezmer|brazil/]],
+  "Theater": [["Broadway", /broadway(?! in bryant)/], ["Off-Broadway", /off-?broadway|off off/], ["Cabaret & Drag", /cabaret|drag|burlesque/], ["Immersive", /immersive|site-specific/]],
+  "Comedy": [["Stand-up", /stand-?up|comic|showcase/], ["Improv", /improv/], ["Storytelling", /storytell|moth|story/], ["Variety", /variety|sketch|vaudeville|magic/]],
+  "Film": [["New releases", /premiere|new release|opening night/], ["Repertory & Classics", /restored|classic|repertory|retrospective|35mm|double feature/], ["Documentary", /documentar/], ["Outdoor", /outdoor|rooftop|park|under the stars/]],
+  "Clubs & DJs": [["House & Techno", /house|techno|rave/], ["Disco & Funk", /disco|funk|boogie/], ["Hip-hop", /hip-?hop|rap|r&b/], ["Queer parties", /queer|lgbt|gay|lesbian|drag/]],
+  "Dance Socials": [["Salsa & Bachata", /salsa|bachata|kizomba|merengue/], ["Swing", /swing|lindy|charleston/], ["Tango", /tango/], ["Other styles", /contra|square|line danc|ballroom|disco/]],
+  "Tastings": [["Wine", /wine/], ["Beer & Cider", /beer|cider|brew/], ["Spirits", /whisk|mezcal|tequila|rum|gin|sake|spirit/], ["Food", /cheese|chocolate|oyster|olive|honey|food/]],
+  "Museums & Galleries": [["Museums", /museum/], ["Galleries", /gallery|galleries/], ["Openings", /opening|reception|vernissage/], ["Art fairs", /art fair|biennial|armory/]],
+  "Markets": [["Flea & Vintage", /flea|vintage|antique|thrift/], ["Makers & Crafts", /maker|craft|artisan|handmade/], ["Holiday", /holiday|christmas|winter village/], ["Records & Books", /record|vinyl|book/]],
+  "Talks & Panels": [["Ideas & Science", /science|tech|ideas|future|climate/], ["Culture & Arts", /art|film|music|literat|design/], ["City & History", /history|city|new york|architecture|neighborhood/], ["Politics & Society", /politic|democracy|justice|society|economy|election/]],
+  "Tours": [["History", /history|historic|heritage|tenement/], ["Architecture", /architect|building|skyscraper|open house/], ["Food", /food|tasting|eat/], ["Nature", /nature|bird|park|garden/]],
+  "Arts & Crafts": [["Ceramics", /pottery|ceramic|clay|wheel/], ["Painting & Drawing", /paint|drawing|sketch|watercolor/], ["Textiles", /knit|crochet|sew|embroider|weav|textile/], ["Printmaking", /print|screen ?print|risograph|letterpress|zine/]],
+  "Play": [["Climbing", /climb|boulder/], ["Skating", /skat|rink/], ["Water sports", /kayak|paddle|canoe|swim|sail/], ["Games & Sports", /pickleball|soccer|basketball|volleyball|bowling|golf|ping ?pong|frisbee/]],
+};
+export function classifySub(ev, ncat, claudeSub) {
+  const list = SUBTYPES[ncat];
+  if (!list) return null;
+  if (claudeSub && list.some(([n]) => n === claudeSub)) return claudeSub;
+  const title = (ev.title || "").toLowerCase(), full = [ev.title, ev.sub, ev.desc, ...(ev.kw || [])].join(" ").toLowerCase();
+  const hit = list.find(([, re]) => re.test(title)) || list.find(([, re]) => re.test(full));
+  return hit ? hit[0] : null;
+}
+export const SUB_NAMES = Object.fromEntries(Object.entries(SUBTYPES).map(([c, l]) => [c, l.map(([n]) => n)]));
+
 const FROM_OLD = { Music: "Concerts", Comedy: "Comedy", "Art & Culture": "Museums & Galleries", Film: "Film", "Food & Drink": "Food Markets & Pop-ups", Outdoors: "Parks & Nature", Sports: "Play", Family: "Festivals & Parades", "Talk & Learn": "Talks & Panels", "Get Creative": "Arts & Crafts", Nightlife: "Clubs & DJs", Shopping: "Markets", Other: "Festivals & Parades" };
 
 export function classify(ev, claudeCat) {
@@ -71,8 +95,8 @@ export const evColor = (ev, dark) => famColor(CAT[ev.ncat]?.fam || ev.fam, dark)
 export const evNode = (ev) => (CAT[ev.ncat] || CAT.Concerts).icon;
 
 // Render a Lucide icon node (array of [tag, attrs]) as React, or as an SVG string for map pins
-export function LIcon({ node, size = 20, color = "currentColor", stroke = 2.2 }) {
-  return React.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true, style: { display: "block" } },
+export function LIcon({ node, size = 20, color = "currentColor", stroke = 2.2, fill = "none" }) {
+  return React.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", fill, stroke: color, strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true, style: { display: "block" } },
     node.map(([tag, attrs], i) => React.createElement(tag, { key: i, ...attrs })));
 }
 export function lIconString(node, size, color = "#fff", stroke = 2.4) {
@@ -80,11 +104,15 @@ export function lIconString(node, size, color = "#fff", stroke = 2.4) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 }
 
-// A category chip: tap the label to show only it, tap × to hide it (tap again to bring it back)
-export function CatChip({ c, n, on, off, dark, onPick, onHide }) {
+// A chip for a category or sub-type: ☆ boosts it in your taste (★ = boosted), the label filters to it, × hides it (↺ brings it back)
+export function CatChip({ c, label, n, on, off, starred, dark, onPick, onHide, onStar }) {
   const col = dark ? FAM[c.fam].dark : FAM[c.fam].light;
-  return React.createElement("span", { className: "chip", style: { height: 32, flexShrink: 0, gap: 0, padding: 0, overflow: "hidden", background: on ? col : undefined, color: on ? "#fff" : undefined, borderColor: on ? col : undefined, opacity: off ? 0.5 : 1 } },
-    React.createElement("button", { onClick: onPick, "aria-pressed": on, disabled: off, style: { display: "inline-flex", alignItems: "center", gap: 6, height: "100%", padding: "0 6px 0 12px", border: "none", background: "none", color: "inherit", font: "inherit", textDecoration: off ? "line-through" : "none" } },
-      React.createElement(LIcon, { node: c.icon, size: 14, color: on ? "#fff" : col }), c.id, React.createElement("span", { style: { opacity: 0.7, fontWeight: 700 } }, n)),
-    React.createElement("button", { onClick: onHide, "aria-label": (off ? "Show " : "Hide ") + c.id, style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: "100%", border: "none", borderLeft: "1px solid " + (on ? "rgba(255,255,255,.35)" : "var(--line)"), background: "none", color: "inherit", font: "inherit", fontSize: 15, fontWeight: 700 } }, off ? "↺" : "×"));
+  const seg = { display: "inline-flex", alignItems: "center", justifyContent: "center", height: "100%", border: "none", background: "none", color: "inherit", font: "inherit" };
+  const name = label || c.id;
+  return React.createElement("span", { className: "chip", style: { height: 32, flexShrink: 0, gap: 0, padding: 0, overflow: "hidden", background: on ? col : undefined, color: on ? "#fff" : undefined, borderColor: on ? col : starred ? col : undefined, opacity: off ? 0.5 : 1 } },
+    onStar && React.createElement("button", { onClick: onStar, "aria-pressed": !!starred, "aria-label": (starred ? "Remove boost: " : "Boost: ") + name, style: { ...seg, width: 30, paddingLeft: 4 } },
+      React.createElement(LIcon, { node: Star, size: 15, color: on ? "#fff" : starred ? col : "var(--ink3)", stroke: 2.2, fill: starred ? (on ? "#fff" : col) : "none" })),
+    React.createElement("button", { onClick: onPick, "aria-pressed": on, disabled: off, style: { ...seg, gap: 6, padding: onStar ? "0 6px 0 2px" : "0 6px 0 12px", textDecoration: off ? "line-through" : "none", fontWeight: starred ? 800 : undefined } },
+      !label && React.createElement(LIcon, { node: c.icon, size: 14, color: on ? "#fff" : col }), name, React.createElement("span", { style: { opacity: 0.7, fontWeight: 700 } }, n)),
+    React.createElement("button", { onClick: onHide, "aria-label": (off ? "Show " : "Hide ") + name, style: { ...seg, width: 30, borderLeft: "1px solid " + (on ? "rgba(255,255,255,.35)" : "var(--line)"), fontSize: 15, fontWeight: 700 } }, off ? "↺" : "×"));
 }
