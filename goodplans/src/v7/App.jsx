@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
-import { buildTiles } from "./tiles.js";
+import { hoodCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
 import Today from "./Today.jsx";
 import Explore from "./Explore.jsx";
@@ -134,13 +134,15 @@ export default function App() {
   };
   const signal = useCallback((ev, kind) => { if (ev) putModel(L.learn(modelRef.current, ev, kind, floorDay(new Date())), L.SIGNALS[kind]?.s >= 0.7); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [who, setWhoState] = useState(() => localStorage.getItem("gp_who") || "");
-  const [together, setTogetherState] = useState(() => localStorage.getItem("gp_together") === "1");
+  const [together, setTogetherState] = useState(false); // the Together mode was removed
   const [partner, setPartner] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_partner_model") || "null"); } catch { return null; } });
   const [pastSaves, setPastSaves] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_past_saves") || "[]"); } catch { return []; } });
   const [mapsData, setMapsData] = useState(() => M.loadMaps());
   const [quiz, setQuiz] = useState(() => Q.loadQuiz());
   const ls = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || d); } catch { return JSON.parse(d); } };
   const [moodFav, setMoodFav] = useState(() => ls("gp_moodfav_v1", "[]"));
+  const [moodClicks, setMoodClicks] = useState(() => ls("gp_moodclicks_v1", "{}"));
+  const [moodHide, setMoodHide] = useState(() => ls("gp_moodhide_v1", "[]"));
   const [moodFb, setMoodFb] = useState(() => ls("gp_moodfb_v1", "{}"));
   const [meet, setMeetState] = useState(() => { try { return localStorage.getItem("gp_meet_v1") === "1"; } catch { return false; } });
   const [showQuiz, setShowQuiz] = useState(false);
@@ -443,10 +445,13 @@ export default function App() {
     const t = (moodStore.shown || {})[cityR.first.id];
     if (!t || Date.now() - t > 3 * 3600000) saveMood({ ...moodStore, shown: { ...(moodStore.shown || {}), [cityR.first.id]: Date.now() } });
   }, [cityR.first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const HOL = /^nyc-|season-opens|holiday-lights|thanksgiving|long-weekend|foliage|last-leaves/, WX = /cold-snap|first-warm|warm-surprise|warming|snow|dark-evenings|light-evenings/;
+  const cityHol = cityR.all.filter((x) => HOL.test(x.id) && x.list.length >= 2).slice(0, 3);
+  const cityWx = cityR.all.filter((x) => WX.test(x.id) && x.list.length >= 2).slice(0, 3);
   // Claude writes each title + subtitle (cached per mood, day part and events); title banks fill in meanwhile
   useEffect(() => {
     if (!ready || aiOff.current) return;
-    const jobs = [["you", youA], ["you", youB], ["city", cityA], ["city", cityB], ["city", cityC]].filter(([, m]) => m);
+    const jobs = [["you", youA], ["you", youB], ...cityHol.map((m) => ["city", m]), ...cityWx.map((m) => ["city", m])].filter(([, m]) => m);
     jobs.forEach(([scope, m]) => {
       const k = mKey(scope, m);
       if (moodTxt[k]) return;
@@ -463,7 +468,7 @@ export default function App() {
         });
       }).catch((e) => { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
     });
-  }, [ready, mKey("you", youA), mKey("you", youB), mKey("city", cityA), mKey("city", cityB), mKey("city", cityC)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, mKey("you", youA), mKey("you", youB), cityHol.map((m) => mKey("city", m)).join(), cityWx.map((m) => mKey("city", m)).join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const view = (scope, m, fallbackSub) => m && { id: m.id, icon: PULSE_ICON[m.id] || null, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, writing: !moodTxt[mKey(scope, m)] };
   const moodProps = {
     you: view("you", youA, youR.readLine ? "Reading the room: " + youR.readLine : youA?.offer), youOther: view("you", youB, youB?.offer),
@@ -487,6 +492,13 @@ export default function App() {
     onYouOpen: (ev) => { if (youA) saveYou(learnYou(youStore, youR.slot, youA.id, 0.3)); openEvent(ev); },
     onCityOpen: (ev) => { if (cityA) saveMood({ ...moodStore, aff: { ...(moodStore.aff || {}), [cityA.id]: ((moodStore.aff || {})[cityA.id] || 0) + 0.5 } }); openEvent(ev); },
   };
+  // New York right now: three rows of one-card carousels (season and festivities, neighbourhoods, weather)
+  const hoodItems = useMemo(() => hoodCards(visible, today, { xcats: filters.xcats || [], xsubs: filters.xsubs || [] }), [visible, today, filters.xcats, filters.xsubs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const nyRows = [
+    cityHol.map((m) => view("city", m, m.facts)),
+    hoodItems,
+    cityWx.map((m) => view("city", m, m.facts)),
+  ].map((r) => r.filter((c) => c && c.list?.length)).filter((r) => r.length);
 
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
   const tagBusy = useRef(false);
@@ -682,7 +694,7 @@ export default function App() {
     setTogetherState(on); try { localStorage.setItem("gp_together", on ? "1" : "0"); } catch { /* private mode */ }
     toast(on ? "Together: picks that suit you both" : "Back to your own picks");
   };
-  useEffect(() => { if (ready && together) loadPartner(true); }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (false) loadPartner(true); }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Taste card: Claude puts the strongest learned patterns into a few plain lines
   const [cardBusy, setCardBusy] = useState(false);
@@ -789,13 +801,20 @@ export default function App() {
     const fb = { ...moodFb }; if (next) fb[t.key] = next; else delete fb[t.key];
     setMoodFb(fb); try { localStorage.setItem("gp_moodfb_v1", JSON.stringify(fb)); } catch { /* full */ }
   };
+  // My moods: remove one (an unpinned one is hidden from the auto list until you open it again)
+  const dropMood = (t) => {
+    if (moodFav.includes(t.key)) { const f = moodFav.filter((k) => k !== t.key); setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ } }
+    const h = [...new Set([...moodHide, t.key])]; setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ }
+  };
   const favMood = (t) => {
+    if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } }
     const on = moodFav.includes(t.key); learnTile(t, on ? -0.5 : 0.5);
     const f = on ? moodFav.filter((k) => k !== t.key) : [...moodFav, t.key].slice(-8); // first in, first out: the oldest favourite makes room
     setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
     toast(on ? "Removed from your moods" : "Added to your moods");
   };
   const openTile = (t) => {
+    if (/^(mood|pick|gen)-/.test(t.key || "")) { const c = { ...moodClicks, [t.key]: { n: (moodClicks[t.key]?.n || 0) + 1, at: Date.now() } }; setMoodClicks(c); try { localStorage.setItem("gp_moodclicks_v1", JSON.stringify(c)); } catch { /* full */ } if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } } }
     const base = { ...filters, fam: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
     setFilters(t.list ? { ...base, ids: t.list.map((e) => e.id), when: "any" } : { ...base, ...t.patch });
     setTab("explore"); window.scrollTo(0, 0);
@@ -871,7 +890,7 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today tiles={tileSet} moodFav={moodFav} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={who ? setTogether : null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
+        {tab === "today" && <Today tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
