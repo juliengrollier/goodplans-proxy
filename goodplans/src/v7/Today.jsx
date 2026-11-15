@@ -421,10 +421,9 @@ export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMo
               <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 8 }}>Your moods</div>
               <div className="hscroll" style={{ margin: "0 -16px", padding: "0 16px", gap: 8 }}>
                 {favTiles.map((t) => (
-                  <button key={"f" + t.key} onClick={() => onTile(t)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 7, height: 38, padding: "0 8px 0 12px", borderRadius: 19, border: "none", background: t.color, color: "#fff", fontWeight: 800, fontSize: 13.5 }}>
-                    <span style={{ whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
-                    <span style={{ opacity: 0.8, fontSize: 12 }}>{t.n}</span>
-                    <span role="button" aria-label="Remove from your moods" onClick={(e) => { e.stopPropagation(); onMoodFav(t); }} style={{ display: "flex", padding: 3 }}><Icon name="heart" size={14} fill="currentColor" /></span>
+                  <button key={"f" + t.key} onClick={() => onTile(t)} style={{ flexShrink: 0, width: "calc((100vw - 32px - 24px) / 4)", maxWidth: 110, height: 54, padding: "6px 6px", borderRadius: 14, border: "1.5px solid " + t.color, background: "transparent", color: "var(--ink)", display: "flex", alignItems: "center", gap: 6, textAlign: "left" }}>
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 4, background: t.color, flexShrink: 0, alignSelf: "flex-start", marginTop: 3 }} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: 800, lineHeight: 1.12, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.title}</span>
                   </button>
                 ))}
               </div>
