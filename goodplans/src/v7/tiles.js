@@ -65,11 +65,13 @@ const VERBS = [
 export const verbColor = (t) => { const hit = (txt) => VERBS.find(([re]) => re.test(txt)); const h = hit((t.title || "") + " " + (t.key || "")) || hit(t.teaser || ""); return h ? h[1] : "#0891B2"; };
 
 // New York right now, neighbourhood row: where the most good stuff is this week
+const topCats = (l) => { const c = {}; l.forEach((e) => { const k = e.ncat || e.cat; if (k) c[k] = (c[k] || 0) + 1; }); const t = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k); return t.length ? "Mostly " + t.join(", ").toLowerCase() : "Busy this week"; };
 export function hoodCards(visible, today, hid) {
   const m = new Map();
-  visible.forEach((e) => { if (!e.hood || daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; if (!m.has(e.hood)) m.set(e.hood, []); m.get(e.hood).push(e); });
+  const BORO = /^(manhattan|brooklyn|queens|the bronx|bronx|staten island|nyc|new york|new york city|citywide|various)$/i;
+  visible.forEach((e) => { if (!e.hood || BORO.test(e.hood.trim()) || daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; if (!m.has(e.hood)) m.set(e.hood, []); m.get(e.hood).push(e); });
   return [...m.entries()].filter(([, l]) => l.length >= 3)
-    .map(([k, l]) => ({ id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: "Around " + k, sub: l.length + " things on this week", list: l, fit: l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 5).reduce((x, e) => x + (e.sc || 0), 0) }))
+    .map(([k, l]) => ({ id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: "Around " + k, sub: topCats(l), list: l, fit: l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 5).reduce((x, e) => x + (e.sc || 0), 0) }))
     .sort((a, b) => b.fit - a.fit).slice(0, 3);
 }
 
