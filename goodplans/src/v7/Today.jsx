@@ -325,8 +325,9 @@ function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
 export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [moreN, setMoreN] = useState(0);
   const allT = tiles ? tiles.all : [];
-  const shownMoods = tiles ? allT.slice(0, tiles.base + 4 * moreN) : [];
-  const moreLeft = tiles ? Math.max(0, allT.length - shownMoods.length) : 0;
+  const nShow = tiles ? tiles.base + 4 * moreN : 0;
+  // Endless: once every list has been shown, the sequence starts over from a shifted position
+  const shownMoods = allT.length ? Array.from({ length: Math.min(nShow, allT.length) }, (_, i) => allT[(i + (nShow > allT.length ? nShow - allT.length : 0)) % allT.length]) : [];
   const favTiles = tiles ? moodFav.map((k) => (tiles.every || allT).find((t) => t.key === k)).filter(Boolean) : [];
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
@@ -418,17 +419,23 @@ export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMo
           {favTiles.length > 0 && (
             <div style={{ padding: "0 16px 12px" }}>
               <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Your moods</div>
-              <div className="hscroll" style={{ margin: "0 -16px", padding: "0 16px" }}>
-                {favTiles.map((t) => <MoodTile key={"f" + t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav onFb={onMoodFb} onFav={onMoodFav} />)}
+              <div className="hscroll" style={{ margin: "0 -16px", padding: "0 16px", gap: 8 }}>
+                {favTiles.map((t) => (
+                  <button key={"f" + t.key} onClick={() => onTile(t)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 7, height: 38, padding: "0 8px 0 12px", borderRadius: 19, border: "none", background: t.color, color: "#fff", fontWeight: 800, fontSize: 13.5 }}>
+                    <span style={{ whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</span>
+                    <span style={{ opacity: 0.8, fontSize: 12 }}>{t.n}</span>
+                    <span role="button" aria-label="Remove from your moods" onClick={(e) => { e.stopPropagation(); onMoodFav(t); }} style={{ display: "flex", padding: 3 }}><Icon name="heart" size={14} fill="currentColor" /></span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {shownMoods.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}
           </div>
-          {moreLeft > 0 && (
+          {allT.length > 0 && (
             <div style={{ padding: "12px 16px 0" }}>
-              <button className="btn" style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }} onClick={() => setMoreN(moreN + 1)}>More moods ({moreLeft} left)</button>
+              <button className="btn" style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }} onClick={() => setMoreN(moreN + 1)}>More moods</button>
             </div>
           )}
         </>

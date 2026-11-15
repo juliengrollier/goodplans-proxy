@@ -3,6 +3,8 @@
 import { Moon, PartyPopper, Heart, Smile, Beer, Coffee, Sunrise, Sunset, TreePine, Compass, Landmark, Utensils, Activity, Umbrella, Flame, MapPin, Sun, Tag, Sparkles, BookOpen } from "lucide-react";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { PULSE_ICON } from "./pulseIcons.js";
+import { daysUntil } from "../lib/core.js";
+import { isFree } from "./engine.js";
 
 const MOOD_ICON = {
   "nightcap": Moon, "big-night": PartyPopper, "date-night": Heart, "laugh": Smile, "shake-week": Beer, "after-work": Coffee,
@@ -18,6 +20,20 @@ const QUICK = [
   ["weekend", "This weekend", "#F2611D", { when: "weekend" }],
   ["week", "This week", "#2563EB", { when: "week" }],
 ];
+
+// Endless tail: lists generated from what is actually on in the next two weeks (by category, sub-type, area, free)
+function facetTiles(visible, today, hid) {
+  const ok = visible.filter((e) => { const d = daysUntil(e, today); return d <= 14 && !hid.xcats.includes(e.cat) && !hid.xsubs.includes(e.sub); });
+  const by = (key, label, teaser, icon, pick, pre) => { const m = new Map(); ok.forEach((e) => { const k = pick(e); if (k) { if (!m.has(k)) m.set(k, []); m.get(k).push(e); } });
+    return [...m.entries()].filter(([, l]) => l.length >= 3).map(([k, l]) => ({ key: "gen-" + key + "-" + k, title: label(k), teaser: teaser(k), n: l.length, icon, list: l, facet: pre })); };
+  const all = [
+    ...by("cat", (k) => "More " + k.toLowerCase(), (k) => "Everything in " + k.toLowerCase() + " over the next two weeks.", Sparkles, (e) => e.ncat || e.cat, "cat:"),
+    ...by("sub", (k) => k, (k) => "Just " + k.toLowerCase() + ", soonest first.", Compass, (e) => e.sub, "sub:"),
+    ...by("hood", (k) => "Around " + k, (k) => "What is on in " + k + " in the next two weeks.", MapPin, (e) => e.hood, "hood:"),
+    ...by("free", (k) => "Free " + k.toLowerCase(), (k) => "No ticket needed, in " + k.toLowerCase() + ".", Tag, (e) => (isFree(e) ? e.ncat || e.cat : null), "price:"),
+  ];
+  return all.sort((a, b) => b.n - a.n).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
+}
 
 export function buildTiles({ visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
   const hid = { xcats: filters.xcats || [], xsubs: filters.xsubs || [] };
@@ -49,7 +65,10 @@ export function buildTiles({ visible, today, filters, youR, youA, youTitle, pick
       out.push(t);
     }
   }
+  const seen = new Set(out.map((t) => t.title.toLowerCase()));
+  const gen = facetTiles(visible, today, hid).filter((t) => !seen.has(t.title.toLowerCase()));
   out.sort((a, b) => (fb[a.key] === -1) - (fb[b.key] === -1));
+  const lead = out.length; out.push(...gen); order.push(...gen);
   const base = Math.max(8, Math.min(10, out.length)) - (Math.max(8, Math.min(10, out.length)) % 2);
-  return { quick, lists: out.slice(0, base), all: out, every: order, base };
+  return { quick, lists: out.slice(0, base), all: out, every: order, base, curated: lead };
 }
