@@ -99,7 +99,7 @@ export function Flags({ ev }) {
   return (
     <>
       {ev.busy && <span className="tag tag-warn">Clashes with your calendar</span>}
-      {ev.recurring && <span className="tag tag-plain">Weekly</span>}
+      {ev.recurring && <span className="tag tag-plain">{(ev.recLabel || "Recurring").split(" · ")[0]}</span>}
       <WeatherTag ev={ev} />
     </>
   );
@@ -135,7 +135,7 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
   );
 }
 
-export function CompactCard({ ev, dark, today, onOpen, label }) {
+export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   return (
     <div {...tap(onOpen, ev)} className="card-sm" style={{ padding: 8, display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ width: 84, flexShrink: 0 }}><Media ev={ev} dark={dark} height={104} radius={16} hideTitle /></div>
@@ -144,7 +144,7 @@ export function CompactCard({ ev, dark, today, onOpen, label }) {
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
         <Snippet ev={ev} lines={2} size={12.5} />
         <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 700, minWidth: 0 }}>
-          <span style={{ whiteSpace: "nowrap" }}>{whenLabel(ev, today)}</span><Travel tt={ev.tt} />
+          <span style={{ whiteSpace: "nowrap" }}>{when || whenLabel(ev, today)}</span><Travel tt={ev.tt} />
         </span>
         <div className="row" style={{ gap: 6, justifyContent: "space-between", marginTop: 2, minWidth: 0 }}>
           <div className="row" style={{ gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}><PriceTag ev={ev} />{ev.busy ? <span className="tag tag-warn">Clash</span> : <WeatherTag ev={ev} compact />}<Keywords ev={ev} max={3} oneLine /></div>

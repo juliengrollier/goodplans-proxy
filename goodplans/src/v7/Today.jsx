@@ -2,7 +2,7 @@ import React from "react";
 import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet } from "./components.jsx";
 import { catColor, catIcon } from "./theme.js";
-import { startMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
+import { startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay } from "./engine.js";
 import { DAYS, MONTHS, evCovers, CATS } from "../lib/core.js";
 import { Travel } from "./components.jsx";
 
@@ -13,9 +13,9 @@ function greeting(d) {
 }
 
 function soonLabel(ev) {
-  const sm = startMinutes(ev), now = nowMinutes();
+  const sm = startMinutes(ev), em = endMinutes(ev), now = nowMinutes();
   if (sm == null) return "Today";
-  if (sm <= now) return "On now";
+  if (sm <= now) return em != null ? "On now · until " + fmtClock(em % 1440) : "On now";
   const d = sm - now;
   return d < 60 ? "In " + d + " min" : "At " + fmtClock(sm);
 }
@@ -59,19 +59,24 @@ function Forecast({ weather, today }) {
 // Top picks for one topic: tap a category icon to switch. Defaults to the category you rate highest.
 function TopPicks({ data, dark, today, onOpen, eprof }) {
   const counts = data.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {});
-  const cats = Object.keys(CATS).filter((c) => counts[c] >= 2).sort((a, b) => (eprof?.categories?.[b] ?? 30) - (eprof?.categories?.[a] ?? 30));
-  const [cat, setCat] = React.useState(null);
+  // Order is fixed once per session (favourite first), so icons don't jump around while taste updates
+  const order = React.useRef(null);
+  const avail = Object.keys(CATS).filter((c) => counts[c] >= 2);
+  if (!order.current && avail.length) order.current = [...avail].sort((a, b) => (eprof?.categories?.[b] ?? 30) - (eprof?.categories?.[a] ?? 30));
+  const cats = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
+  const [cat, setCat] = React.useState(() => { try { return sessionStorage.getItem("gp_toppick") || null; } catch { return null; } });
+  const pick = (c) => { setCat(c); try { sessionStorage.setItem("gp_toppick", c); } catch { /* private mode */ } };
   const cur = cat && cats.includes(cat) ? cat : cats[0];
   if (!cur) return null;
   const list = data.filter((e) => e.cat === cur).sort((a, b) => b.sc - a.sc).slice(0, 5);
   return (
     <>
       <SectionHead title="Top picks" n={cur} color={catColor(cur, dark)} />
-      <div className="hscroll" style={{ gap: 8, padding: "0 16px 12px" }} role="tablist" aria-label="Topic">
+      <div className="hscroll" style={{ gap: 8, padding: "0 20px 12px" }} role="tablist" aria-label="Topic">
         {cats.map((c) => {
           const on = c === cur, col = catColor(c, dark);
           return (
-            <button key={c} role="tab" aria-selected={on} aria-label={c} onClick={() => setCat(c)}
+            <button key={c} role="tab" aria-selected={on} aria-label={c} onClick={() => pick(c)}
               style={{ flexShrink: 0, border: "none", background: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, width: 50, opacity: on ? 1 : 0.45 }}>
               <span style={{ width: 38, height: 38, borderRadius: 19, background: col, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 5px ${col}` : "none" }}>
                 <Glyph name={catIcon(c)} size={21} color={col} />
@@ -81,7 +86,7 @@ function TopPicks({ data, dark, today, onOpen, eprof }) {
           );
         })}
       </div>
-      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div key={cur} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10, minHeight: 300 }}>
         {list.map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
       </div>
     </>
@@ -104,6 +109,7 @@ function renderHighlights(text, ids, data, onOpen) {
 }
 
 export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof }) {
+  const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
@@ -152,19 +158,20 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
           <button onClick={() => setTab("map")} aria-label="Open the map" style={{ border: "none", padding: 0, background: "none", display: "block" }}>
             <LeafletMap events={nowSoon} home={home} dark={dark} height={170} interactive={false} zoom={14} />
           </button>
-          {nowSoon.slice(0, 3).map((ev) => (
+          {nowSoon.slice(0, showAllNow ? 12 : 4).map((ev) => (
             <button key={ev.id} onClick={() => onOpen(ev)} className="row" style={{ gap: 10, padding: "0 4px", border: "none", background: "none", textAlign: "left" }}>
               <CatBullet cat={ev.cat} size={30} dark={dark} />
               <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
                 <span className="ell" style={{ fontSize: 15, fontWeight: 800 }}>{ev.title}</span>
                 <span className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 700 }}>
-                  <span style={{ color: soonLabel(ev) === "On now" ? "var(--free-ink)" : "var(--soon-ink)" }}>{soonLabel(ev)}</span>
+                  <span style={{ color: soonLabel(ev).startsWith("On now") ? "var(--free-ink)" : "var(--soon-ink)" }}>{soonLabel(ev)}</span>
                   <Travel tt={ev.tt} size={12} muted />
                 </span>
               </span>
               <Icon name="chev" size={16} />
             </button>
           ))}
+          {nowSoon.length > 4 && <button className="chip" style={{ alignSelf: "center" }} onClick={() => setShowAllNow(!showAllNow)}>{showAllNow ? "Show fewer" : "Show all " + nowSoon.length}</button>}
           {!nowSoon.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing starting nearby in the next couple of hours. Tonight's picks are below.</div>}
         </div>
       )}

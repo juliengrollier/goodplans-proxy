@@ -57,7 +57,7 @@ a{color:inherit}
 .disp{font-family:'Fredoka',system-ui,sans-serif;font-weight:600}
 .muted{color:var(--ink3)}
 .row{display:flex;align-items:center}
-.hscroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x proximity;padding:0 16px}
+.hscroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x proximity;padding:0 20px;scroll-padding-inline:20px}
 .hscroll>*{scroll-snap-align:start}
 .card{background:var(--card);border-radius:26px;box-shadow:var(--shadow)}
 .card-sm{background:var(--card);border-radius:22px;box-shadow:var(--shadow-sm)}

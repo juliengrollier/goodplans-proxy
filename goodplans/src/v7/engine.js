@@ -14,7 +14,8 @@ export const seriesKey = (ev) =>
 
 // ── Taste model (device-local until accounts land)
 export const TASTE_KEY = "gp_taste_v7";
-export const emptyTaste = () => ({ thumbs: {}, notForMe: {}, follows: {}, hiddenSeries: {}, catAdj: {}, subAdj: {}, priceSens: 0, farSens: 0, log: [] });
+export const emptyTaste = () => ({ thumbs: {}, notForMe: {}, follows: {}, hiddenSeries: {}, catAdj: {}, subAdj: {}, kwAdj: {}, dowAdj: {}, todAdj: {}, priceSens: 0, farSens: 0, log: [] });
+export const todOf = (ev) => { const sm = startMinutes(ev); return sm == null ? null : sm < 12 * 60 ? "morning" : sm < 17 * 60 ? "afternoon" : sm < 21 * 60 ? "evening" : "late"; };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -30,7 +31,12 @@ export function applyReaction(taste, prof, ev, kind, reason) {
   if (kind === "undo") { delete t.thumbs[ev.id]; delete t.notForMe[ev.id]; delete t.hiddenSeries[seriesKey(ev)]; }
   // Reason picked after a thumb on a card
   if (kind === "why") {
-    const [dir, r] = String(reason || "").split(":");
+    const [dir, r, ...rest] = String(reason || "").split(":");
+    const arg = rest.join(":"), sgn = dir === "up" ? 1 : -1;
+    if (r === "kw" && arg) t.kwAdj = { ...(t.kwAdj || {}), [arg]: clamp(((t.kwAdj || {})[arg] || 0) + 6 * sgn, -24, 18) };
+    if (r === "dow" && arg !== "") t.dowAdj = { ...(t.dowAdj || {}), [arg]: clamp(((t.dowAdj || {})[arg] || 0) + 4 * sgn, -16, 10) };
+    if (r === "tod" && arg) t.todAdj = { ...(t.todAdj || {}), [arg]: clamp(((t.todAdj || {})[arg] || 0) + 4 * sgn, -16, 10) };
+    if (r === "outdoor") t.todAdj = { ...(t.todAdj || {}), outdoor: clamp(((t.todAdj || {}).outdoor || 0) + 4 * sgn, -16, 10) };
     if (dir === "up") {
       if (r === "type") bump(5, 8);
       if (r === "venue" && ev.venue) { t.follows = { ...t.follows, [venueKey(ev)]: venueLabel(ev) }; }
@@ -87,17 +93,29 @@ export const isOutdoor = (ev) =>
   (/\b(park|pier|plaza|garden|green|beach|lawn)\b/i.test((ev.venue || "").split(",")[0]) && !/square garden|garden (theat|hall)|park (ave|slope)/i.test(ev.venue || ""));
 
 // ── Time
-export function startMinutes(ev) {
+// "7 PM", "7–11 PM", "7:30 PM - 1 AM", "19:00" → minutes since midnight; end may be past midnight (> 1440)
+export function timeRange(ev) {
   const t = ev.time || "";
-  const m = t.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i);
-  if (m) {
-    let h = parseInt(m[1]) % 12; if (/pm/i.test(m[3])) h += 12;
-    return h * 60 + (m[2] ? parseInt(m[2]) : 0);
-  }
-  const m24 = t.match(/^(\d{1,2}):(\d{2})/);
-  if (m24) return parseInt(m24[1]) * 60 + parseInt(m24[2]);
-  return null;
+  const parts = [...t.matchAll(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm|a\.m\.|p\.m\.)?/g)].filter((m) => +m[1] <= 24).slice(0, 2);
+  if (!parts.length) return null;
+  const mer = (m) => (m[3] ? (/p/i.test(m[3]) ? "pm" : "am") : null);
+  const toMin = (m, ap) => {
+    let h = +m[1];
+    if (ap) { h = h % 12; if (ap === "pm") h += 12; }
+    else if (!/\d:\d/.test(t) || !m[2]) { if (h < 12 && h >= 1 && h <= 11) h += h < 9 ? 12 : 0; }
+    return h * 60 + (m[2] ? +m[2] : 0);
+  };
+  const ap0 = mer(parts[0]), ap1 = parts[1] ? mer(parts[1]) : null;
+  if (!ap0 && !ap1 && !/^\d{1,2}:\d{2}/.test(t)) return null;
+  let s0 = toMin(parts[0], ap0 || ap1);
+  let e = parts[1] ? toMin(parts[1], ap1 || ap0) : null;
+  if (!ap0 && ap1 && e != null && s0 > e && s0 - 720 >= 0 && s0 - 720 < e) s0 -= 720; // "11–1 PM" style
+  if (/doors|show/i.test(t)) e = null; // "doors 6:30, show 7" is not a range
+  if (e != null && e <= s0) e += 1440;
+  return { s: s0, e };
 }
+export function startMinutes(ev) { return timeRange(ev)?.s ?? null; }
+export function endMinutes(ev) { return timeRange(ev)?.e ?? null; }
 export const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 export const fmtClock = (mins) => {
   const h = Math.floor(mins / 60) % 24, m = mins % 60, ap = h >= 12 ? "PM" : "AM", h12 = h % 12 || 12;
@@ -165,6 +183,10 @@ export function scoreEvent(ev, ctx) {
   if (followed) { s += 12; why.push("You follow " + venueLabel(ev)); }
   if (taste.thumbs[ev.id] === 1) s += 6;
   if (taste.mutedVenues?.[venueKey(ev)]) s -= 15;
+  // Learned from the "why" picker: keywords, weekday, time of day, outdoors
+  if (taste.kwAdj) s += clamp((ev.kw || []).reduce((a, k) => a + (taste.kwAdj[k.toLowerCase()] || 0), 0), -20, 15);
+  if (taste.dowAdj && ev.E) s += taste.dowAdj[new Date((evCovers(ev, today) ? isoDay(today) : ev.E) + "T12:00:00").getDay()] || 0;
+  if (taste.todAdj) { const td = todOf(ev); if (td) s += taste.todAdj[td] || 0; if (isOutdoor(ev)) s += taste.todAdj.outdoor || 0; }
   const p = priceNum(ev);
   if (!isFree(ev) && p != null && p >= 15 && taste.priceSens) s -= taste.priceSens * 4;
   if (bd.tt?.mins > 20 && taste.farSens) s -= taste.farSens * 4;
@@ -218,11 +240,14 @@ export function buildToday(scored, { today, freeUntil, eprof }) {
   const used = new Set();
   const take = (arr, n) => { const out = []; for (const e of arr) { if (used.has(e.id)) continue; out.push(e); used.add(e.id); if (out.length === n) break; } return out; };
 
+  // Starting in the next 2.5 h, started in the last 90 min, or running now (end time known)
+  const onNow = (e) => { const sm = startMinutes(e), em = endMinutes(e); return sm != null && sm <= now && (em != null ? em > now : sm >= now - 90); };
   const nowSoon = dedupe(live.filter((e) => {
     if (!evCovers(e, today) || isImprecise(e) || !hasKnownTime(e)) return false;
     const sm = startMinutes(e); if (sm == null) return false;
-    return sm >= now - 90 && sm <= now + 150 && (e.tt?.mins ?? 99) <= 25 && fitsFree(e, freeUntil, today);
-  })).sort((a, b) => startMinutes(a) - startMinutes(b)).slice(0, 6);
+    return (onNow(e) || (sm > now && sm <= now + 150)) && (e.tt?.mins ?? 99) <= 25 && fitsFree(e, freeUntil, today);
+  })).sort((a, b) => (onNow(b) - onNow(a)) || (startMinutes(a) - startMinutes(b)) || (b.sc - a.sc)).slice(0, 12);
+  nowSoon.forEach((e) => used.add(e.id));
 
   const tonightPool = dedupe(live.filter((e) => {
     if (!evCovers(e, today)) return false;

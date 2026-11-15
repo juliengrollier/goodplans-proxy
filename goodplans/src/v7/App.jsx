@@ -10,7 +10,7 @@ import Plans from "./Plans.jsx";
 import Me from "./Me.jsx";
 import EventSheet from "./EventSheet.jsx";
 import { FreeUntilDialog, Surprise, WhyDialog } from "./Extras.jsx";
-import { REC_KEY, updateRecurring, withRegulars } from "./recurring.js";
+import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, toggleFollow, effectiveProf, scoreEvent, buildToday,
   fetchWeather, fitsFree, isOver, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
@@ -277,6 +277,15 @@ export default function App() {
     s.calChecked = calStatus === "ok"; return s;
   }, [eprof, beh, today, home, taste, weather, busySlots, calStatus]);
 
+  // Regulars view: one card per remembered series, its next date when known
+  const regulars = useMemo(() => Object.values(rec).map((r) => {
+    const live = scored.filter((e) => e.recKey === r.key && !e.hidden && !isOver(e, today)).sort((x, y) => (x.E < y.E ? -1 : 1))[0];
+    if (live) return { ev: live, r };
+    const E = nextDate(r, today);
+    const ev = scoreOne({ ...r.ev, id: "rec-" + r.key.replace(/[^a-z0-9]+/gi, "-") + "-" + (E || "x"), E: E || r.dates?.[r.dates.length - 1] || isoDay(today), recurring: "synthetic", recKey: r.key, recLabel: patternLabel(r) });
+    return { ev, r, when: E ? null : "Dates vary · last " + (r.dates?.length ? new Date(r.dates[r.dates.length - 1] + "T12:00:00").toLocaleDateString([], { month: "short", day: "numeric" }) : "?") };
+  }).filter((x) => !x.ev.hidden), [rec, scored, today, scoreOne]);
+
   // Auto free-until from the next calendar busy slot today
   const autoFree = useMemo(() => {
     if (calStatus !== "ok") return null;
@@ -344,7 +353,7 @@ export default function App() {
 
   // ── Event sheet and deep links
   const openEvent = useCallback((ev) => { setOpenEv(ev.id); track(ev, "viewedCats"); }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
-  const sheetEv = openEv ? (scored.find((e) => e.id === openEv) || (favs[openEv] && scoreOne(favs[openEv]))) : null;
+  const sheetEv = openEv ? (scored.find((e) => e.id === openEv) || regulars.find((x) => x.ev.id === openEv)?.ev || (favs[openEv] && scoreOne(favs[openEv]))) : null;
 
   useEffect(() => {
     if (!ready) return;
@@ -421,7 +430,7 @@ export default function App() {
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
+        {tab === "explore" && <Explore scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme}
@@ -440,7 +449,7 @@ export default function App() {
         onPick={(m) => { setFreeUntil(m); setShowFree(false); }} />}
       {surprise && !sheetEv && <Surprise ev={surprise.ev} empty={!surprise.ev} dark={dark} today={today} weather={weather}
         onOpen={(ev) => openEvent(ev)} onAnother={() => setSurprise(pickSurprise(surprise.seen))} onClose={() => setSurprise(null)} />}
-      {whyAsk && <WhyDialog ev={whyAsk.ev} dir={whyAsk.dir} onPick={(r) => { react(whyAsk.ev, "why", whyAsk.dir + ":" + r); setWhyAsk(null); }} onClose={() => setWhyAsk(null)} />}
+      {whyAsk && <WhyDialog ev={whyAsk.ev} dir={whyAsk.dir} today={today} onPick={(rs) => { rs.forEach((r) => react(whyAsk.ev, "why", whyAsk.dir + ":" + r, true)); toast("Thanks, noted"); setWhyAsk(null); }} onClose={() => setWhyAsk(null)} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
     </ActionsCtx.Provider>
