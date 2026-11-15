@@ -52,6 +52,21 @@ function facetTiles(visible, today, hid) {
   return out.sort((a, b) => b.fit - a.fit).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
 }
 
+// Colour follows the action verb a list is really about, so the same colour always means the same kind of outing
+const VERBS = [
+  [/free|cheap|under \$|no ticket/i, "#475569"],
+  [/laugh|comedy|stand-?up|funny/i, "#D97706"],
+  [/dance|club|\bdj\b|party|big night|nightcap|after dark|night owl/i, "#C026D3"],
+  [/eat|food|feed|cocktail|drink|brunch|taste|cook|dinner|beer|wine|shake|market/i, "#EA580C"],
+  [/meet|date|social|friends|mingle|together|group/i, "#DB2777"],
+  [/music|concert|gig|live|jazz|listen|band/i, "#7C3AED"],
+  [/film|movie|screen|watch|theat|stage|show/i, "#2563EB"],
+  [/culture|museum|gallery|learn|talk|book|weird|art\b|deep cut|class|workshop/i, "#4F46E5"],
+  [/move|run|ride|fresh air|outdoor|walk|park|wander|hike|sport|fitness|explor|bike|yoga/i, "#16A34A"],
+  [/lazy|chill|sunday|cosy|cozy|warm|hideout|early|coffee|slow|rain/i, "#0D9488"],
+];
+export const verbColor = (t) => { const hit = (txt) => VERBS.find(([re]) => re.test(txt)); const h = hit((t.title || "") + " " + (t.key || "")) || hit(t.teaser || ""); return h ? h[1] : "#0891B2"; };
+
 export function buildTiles({ visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
   const hid = { xcats: filters.xcats || [], xsubs: filters.xsubs || [] };
   const quick = QUICK.map(([key, title, color, patch]) => ({ key, title, color, patch, n: applyFilters(visible, { ...EMPTY_FILTERS, ...patch, ...hid }, today).length })).filter((t) => t.n);
@@ -67,10 +82,13 @@ export function buildTiles({ visible, today, filters, youR, youA, youTitle, pick
   const fill = pool.filter((p) => !have.has(p.id)).map((p) => ({ key: "pick-" + p.id, title: p.name, teaser: p.teaser, n: p.list.length, color: p.color, icon: p.icon || BookOpen, list: p.list, f: p.f }));
   const bk = book.length ? [{ key: "book", title: "Book ahead", teaser: "Ticketed and selling out soon, so decide early.", n: book.length, color: "#C2410C", icon: Tag, list: book }] : [];
   // Lead with the top mood, then alternate your picks and the other moods, then the rest of the pool and Book ahead
+  // Variety: round-robin over three kinds (what suits this moment, your taste picks, fresh generated lists), each already best-first
   const rest = moods.filter((m) => m !== top);
+  const genAll = facetTiles(visible, today, hid);
+  const kinds = [rest, [...pk, ...fill], genAll];
   const order = top ? [top] : [];
-  for (let i = 0; i < Math.max(pk.length, rest.length); i++) { if (pk[i]) order.push(pk[i]); if (rest[i]) order.push(rest[i]); }
-  order.push(...fill, ...bk);
+  for (let i = 0; i < Math.max(...kinds.map((k) => k.length)); i++) for (const k of kinds) if (k[i]) order.push(k[i]);
+  order.push(...bk);
   if (meet) { const i = order.findIndex((t) => t.key === "pick-meet"); if (i > 0) order.unshift(...order.splice(i, 1)); }
   const overlap = (a, b) => { const ids = new Set(a.list.slice(0, 10).map((e) => e.id)); return b.list.slice(0, 10).filter((e) => ids.has(e.id)).length / Math.min(10, Math.max(1, ids.size)); };
   // Near-copies last: strict first, then the looser ones, so "More moods" keeps giving fresh lists. Thumbs-down ones go to the end.
@@ -82,10 +100,9 @@ export function buildTiles({ visible, today, filters, youR, youA, youTitle, pick
       out.push(t);
     }
   }
-  const seen = new Set(out.map((t) => t.title.toLowerCase()));
-  const gen = facetTiles(visible, today, hid).filter((t) => !seen.has(t.title.toLowerCase()));
   out.sort((a, b) => (fb[a.key] === -1) - (fb[b.key] === -1));
-  const lead = out.length; out.push(...gen); order.push(...gen);
-  const base = Math.max(8, Math.min(10, out.length)) - (Math.max(8, Math.min(10, out.length)) % 2);
-  return { quick, lists: out.slice(0, base), all: out, every: order, base, curated: lead };
+  out.forEach((t) => { if (!/^(quick|book)/.test(t.key)) t.color = verbColor(t); });
+  order.forEach((t) => { if (t.key !== "book") t.color = verbColor(t); });
+  const base = Math.min(6, out.length) - (Math.min(6, out.length) % 2);
+  return { quick, lists: out.slice(0, base), all: out, every: order, base };
 }

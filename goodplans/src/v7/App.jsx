@@ -791,7 +791,7 @@ export default function App() {
   };
   const favMood = (t) => {
     const on = moodFav.includes(t.key); learnTile(t, on ? -0.5 : 0.5);
-    const f = on ? moodFav.filter((k) => k !== t.key) : [...moodFav, t.key];
+    const f = on ? moodFav.filter((k) => k !== t.key) : [...moodFav, t.key].slice(-8); // first in, first out: the oldest favourite makes room
     setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
     toast(on ? "Removed from your moods" : "Added to your moods");
   };
