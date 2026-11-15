@@ -544,8 +544,6 @@ export default function App() {
   const locLabel = locSt === "ok" ? "Near you" : locSt === "cached" ? "Near you" : locSt === "locating" ? "Locating…" : "Lower East Side";
   const plansCount = Object.values(favs).filter((e) => evActive(e, today) && daysUntil(e, today) <= 1).length;
 
-  if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
-
   // Learned preference per category and sub-type: boosts, thumbs, reasons, saves and filter choices
   const prefs = useMemo(() => {
     const cats = {}, subs = {}, add = (m, k, v) => { if (k) m[k] = (m[k] || 0) + v; };
@@ -558,6 +556,8 @@ export default function App() {
     Object.values(favs).forEach((e) => { const x = byId[e.id] || e; add(cats, x.ncat, 5); add(subs, x.nsub, 5); });
     return { cats, subs };
   }, [taste, favs, scored]);
+  if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
+
   const actions = {
     prefOf: (kind, id) => prefs[kind]?.[id] || 0,
     onReact: (ev, kind, reason, quiet) => react(ev, kind, reason, quiet),
