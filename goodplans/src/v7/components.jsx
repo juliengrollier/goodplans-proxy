@@ -133,10 +133,11 @@ export function Flags({ ev }) {
   );
 }
 
-// "Until Dec 3" is context, not the headline: regular weight; days and times stay semi-bold
+// Day and time stay semi-bold; "until Dec 3" is context, so it is regular weight and softer
 export function When({ text }) {
-  const until = /^until\b/i.test(text || "");
-  return <span style={{ fontWeight: until ? 400 : 700, color: until ? "var(--ink3)" : "inherit" }}>{text}</span>;
+  const i = (text || "").indexOf(" · until ");
+  if (i < 0) return <span style={{ fontWeight: 700 }}>{text}</span>;
+  return <span><span style={{ fontWeight: 700 }}>{text.slice(0, i)}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}>{text.slice(i)}</span></span>;
 }
 
 // Category · sub-type, shown next to the icon on cards
@@ -287,7 +288,7 @@ function loadLeaflet() {
   return leafletPromise;
 }
 
-export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger }) {
+export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger, hideHome }) {
   const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef(false);
   const [err, setErr] = useState(null);
   const [hint, setHint] = useState(false);
@@ -318,7 +319,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       ? L.tileLayer(`https://basemaps.cartocdn.com/rastertiles/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, { maxZoom: 19, attribution: "© OpenStreetMap © CARTO" }).addTo(m)
       : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap", className: dark ? "gp-tiles-dark" : "gp-tiles-light" }).addTo(m);
     layerRef.current.clearLayers();
-    L.marker(home, { icon: L.divIcon({ className: "", html: '<div class="gp-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(layerRef.current);
+    if (!hideHome) L.marker(home, { icon: L.divIcon({ className: "", html: '<div class="gp-me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(layerRef.current);
     if (fit && events.length && !fitted.current) {
       const pts = [home, ...events.map((e) => e.coord)];
       m.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 15 });
@@ -354,18 +355,30 @@ export function QuickTile({ t }) {
   );
 }
 
-// Mood / Pick tile: colour, icon, title, a teaser saying what drives the list, and a count
-export function MoodTile({ t, big, wide, compact }) {
+// Mood / Pick tile: colour, icon, title, a teaser saying what drives the list, a count, and thumbs + heart so the app learns
+export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
+  const act = (fn) => (e) => { e.stopPropagation(); fn(); };
+  const ib = (on) => ({ width: 30, height: 30, borderRadius: 15, border: "none", background: "transparent", color: "#fff", opacity: on ? 1 : 0.55, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 });
   return (
-    <button onClick={t.open} style={{ gridColumn: big || wide ? "1 / -1" : undefined, width: compact ? 168 : undefined, flexShrink: compact ? 0 : undefined, border: "none", borderRadius: 20, padding: "14px 14px 12px", background: t.color, color: "#fff", textAlign: "left", minHeight: big ? 128 : wide ? 104 : 124, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden" }}>
+    <div role="button" tabIndex={0} onClick={t.open} onKeyDown={(e) => { if (e.key === "Enter") t.open(); }}
+      style={{ width: compact ? 168 : undefined, flexShrink: compact ? 0 : undefined, borderRadius: 20, padding: "14px 14px 8px 14px", background: t.color, color: "#fff", textAlign: "left", minHeight: 132, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden", cursor: "pointer", opacity: fb === -1 ? 0.5 : 1 }}>
       <span style={{ position: "absolute", right: -6, top: -6, opacity: 0.22 }} aria-hidden="true">
         {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
       </span>
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span className="disp" style={{ fontSize: big ? 22 : 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
+        <span className="disp" style={{ fontSize: 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
         {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
       </span>
-      <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
-    </button>
+      <span className="row" style={{ justifyContent: "space-between", minHeight: 30 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
+        {onFb && (
+          <span className="row" style={{ gap: 0, marginRight: -6 }}>
+            <button aria-label="More like this" aria-pressed={fb === 1} style={ib(fb === 1)} onClick={act(() => onFb(t, 1))}><Icon name="up" size={16} /></button>
+            <button aria-label="Less like this" aria-pressed={fb === -1} style={ib(fb === -1)} onClick={act(() => onFb(t, -1))}><Icon name="down" size={16} /></button>
+            <button aria-label={fav ? "Remove from your moods" : "Add to your moods"} aria-pressed={fav} style={ib(fav)} onClick={act(() => onFav(t))}><Icon name="heart" size={17} fill={fav ? "currentColor" : "none"} /></button>
+          </span>
+        )}
+      </span>
+    </div>
   );
 }

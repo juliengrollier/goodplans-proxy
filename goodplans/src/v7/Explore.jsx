@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ResultRow, CompactCard, MoodTile } from "./components.jsx";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { ResultRow, CompactCard, MoodTile, ActionsCtx } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
@@ -7,6 +7,8 @@ import { startMinutes } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 
 export default function Explore({ tiles, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [] }) {
+  const act = useContext(ActionsCtx);
+  const [collapsed, setCollapsed] = useState({});
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
@@ -14,8 +16,8 @@ export default function Explore({ tiles, onTile = () => {}, scored, dark, today,
   const first = useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: "smooth" }); }, [filters, sort]);
 
-  const listTile = filters.list ? (tiles?.lists || []).find((t) => t.title === filters.list) : null;
-  const more = filters.list && tiles ? tiles.lists.filter((t) => t.title !== filters.list).slice(0, 8) : [];
+  const listTile = filters.list ? (tiles?.every || tiles?.lists || []).find((t) => t.title === filters.list) : null;
+  const more = filters.list && tiles ? (tiles.all || tiles.lists).filter((t) => t.title !== filters.list).slice(0, 8) : [];
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
   // Repeated dates of the same series collapse into one card ("+N more dates")
   // Opened from a Home tile: soonest first (then grouped by category below); otherwise the chosen sort
@@ -25,9 +27,11 @@ export default function Explore({ tiles, onTile = () => {}, scored, dark, today,
   const groups = useMemo(() => {
     if (!fromTile) return null;
     const by = new Map();
-    results.slice(0, limit).forEach((e) => { const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
+    const saved = results.slice(0, limit).filter((e) => act.isSaved(e.id));
+    if (saved.length) by.set("Saved", saved);
+    results.slice(0, limit).forEach((e) => { if (act.isSaved(e.id)) return; const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
     return [...by.entries()];
-  }, [results, fromTile, limit]);
+  }, [results, fromTile, limit, act]);
 
   // Regulars: series learned from the feed (weekly, every other week, monthly, varying) plus the city's yearly events.
   // The When filter doesn't apply here; the other filters do.
@@ -77,8 +81,8 @@ export default function Explore({ tiles, onTile = () => {}, scored, dark, today,
           {groups
             ? groups.map(([cat, list]) => (
               <React.Fragment key={cat}>
-                <div className="row" style={{ gap: 8, padding: "6px 4px 0", alignItems: "baseline" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span></div>
-                {list.map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+                <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "6px 4px 0", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
+                {!collapsed[cat] && list.map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
               </React.Fragment>
             ))
             : results.slice(0, limit).map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}

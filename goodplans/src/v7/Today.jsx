@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, When, CardActions, PicOverlay } from "./components.jsx";
-import { ThemeArt } from "./themeArt.jsx";
+import { ThemePhoto } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
 import { catColor, catIcon } from "./theme.js";
@@ -277,7 +277,7 @@ function Glance({ highlights, data, onOpen }) {
   const shown = all ? rows : rows.slice(0, 2);
   return (
     <div style={{ padding: "14px 20px 2px" }}>
-      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>This week at a glance</div>
+      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>This week's picks</div>
       {highlights.text ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {shown.map((seg, i) => {
@@ -322,7 +322,12 @@ function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
   );
 }
 
-export default function Today({ tiles, onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ tiles, moodFav = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+  const [moreN, setMoreN] = useState(0);
+  const allT = tiles ? tiles.all : [];
+  const shownMoods = tiles ? allT.slice(0, tiles.base + 4 * moreN) : [];
+  const moreLeft = tiles ? Math.max(0, allT.length - shownMoods.length) : 0;
+  const favTiles = tiles ? moodFav.map((k) => (tiles.every || allT).find((t) => t.key === k)).filter(Boolean) : [];
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -410,9 +415,22 @@ export default function Today({ tiles, onTile = () => {}, onFullMap = () => {}, 
               {tiles.quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
             </div>
           )}
+          {favTiles.length > 0 && (
+            <div style={{ padding: "0 16px 12px" }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Your moods</div>
+              <div className="hscroll" style={{ margin: "0 -16px", padding: "0 16px" }}>
+                {favTiles.map((t) => <MoodTile key={"f" + t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav onFb={onMoodFb} onFav={onMoodFav} />)}
+              </div>
+            </div>
+          )}
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {tiles.lists.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
+            {shownMoods.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}
           </div>
+          {moreLeft > 0 && (
+            <div style={{ padding: "12px 16px 0" }}>
+              <button className="btn" style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }} onClick={() => setMoreN(moreN + 1)}>More moods ({moreLeft} left)</button>
+            </div>
+          )}
         </>
       )}
 
@@ -424,7 +442,7 @@ export default function Today({ tiles, onTile = () => {}, onFullMap = () => {}, 
             {cities.slice(0, 3).map((c) => (
               <button key={c.id} onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list })}
                 style={{ width: "100%", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 24, overflow: "hidden", display: "block" }}>
-                <ThemeArt id={c.id} height={176} />
+                <ThemePhoto id={c.id} name={c.theme || ""} height={176} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,.05) 0%, rgba(10,12,30,.35) 45%, rgba(10,12,30,.88) 100%)" }} />
                 <div style={{ position: "absolute", left: 18, right: 18, bottom: 14, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
                   <span className="row" style={{ gap: 9, alignItems: "center" }}>

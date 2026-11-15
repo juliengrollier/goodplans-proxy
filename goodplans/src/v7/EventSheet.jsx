@@ -1,10 +1,10 @@
 import { FAM, CAT } from "./taxonomy.js";
 import React, { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
-import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel, CompactCard } from "./components.jsx";
+import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel, CompactCard, LeafletMap, When } from "./components.jsx";
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge, fmtT } from "./engine.js";
-import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord } from "../lib/core.js";
+import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord, isImprecise } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
@@ -13,6 +13,7 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
   const thumb = taste.thumbs[ev.id] || 0;
   const followed = !!taste.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()];
   const stations = nearestSubways(safeCoord(ev), 0.7);
+  const coord = !isImprecise(ev) && ev.coord ? ev.coord : null;
   const bd = ev.bd || {};
   const bars = [["Taste", bd.taste, 50, catColor("Music", dark)], ["Nearby", bd.near, 15, catColor("Film", dark)], ["Your history", bd.bh, 15, catColor("Art & Culture", dark)], ["Source pick", bd.qual, 15, catColor("Comedy", dark)], ["Timing", bd.urg, 20, catColor("Talk & Learn", dark)]];
 
@@ -42,8 +43,14 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
       <div style={{ width: 44, height: 5, borderRadius: 3, background: "var(--line)", margin: "8px auto 0" }} aria-hidden="true" />
       <div style={{ position: "relative", margin: "calc(8px + env(safe-area-inset-top)) 12px 0" }}>
         <Media ev={ev} dark={dark} height={300} radius={30} big hideTitle credit />
-        <button onClick={onClose} aria-label="Back" style={{ position: "absolute", top: 14, left: 14, width: 44, height: 44, borderRadius: 22, border: "none", background: "#fff", color: "#1B1F3B", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(27,31,59,.15)" }}><Icon name="back" size={20} width={2.6} /></button>
-        {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: 21, right: 14, height: 30, fontSize: 13 }}>One night only</span>}
+        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {[["Save to plans", saved ? "In your plans" : "Add to plans", () => onSave(ev), <Icon key="s" name="save" size={22} fill={saved ? "currentColor" : "none"} />, saved],
+            ["Add to Google Calendar", "Add to Google Calendar", addCal, <Icon key="c" name="cal" size={21} />, false],
+            ["Share", "Share", share, <Icon key="h" name="share" size={21} />, false]].map(([al, , fn, ic, on]) => (
+            <button key={al} onClick={fn} aria-label={al} aria-pressed={al === "Save to plans" ? on : undefined} style={{ width: 46, height: 46, borderRadius: 23, border: "none", background: on ? "var(--navy)" : "#fff", color: on ? "var(--onnavy)" : "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>
+          ))}
+        </div>
+        {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: 21, left: 14, height: 30, fontSize: 13 }}>One night only</span>}
         <button onClick={onClose} aria-label="Close" style={{ position: "absolute", right: 16, bottom: -26, width: 52, height: 52, borderRadius: 26, border: "3px solid var(--bg)", background: "var(--navy)", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 16px rgba(27,31,59,.25)", zIndex: 2 }}><Icon name="close" size={22} width={2.6} /></button>
       </div>
 
@@ -65,7 +72,7 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
       </div>
 
       <div style={{ margin: "16px 16px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {[["When", whenLabel(ev, today)], ["Getting there", ev.tt ? <Travel tt={ev.tt} size={16} /> : "—"], ["Price", null], ["Booking", ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
+        {[["When", <When key="w" text={whenLabel(ev, today)} />], ["Getting there", ev.tt ? <Travel tt={ev.tt} size={16} /> : "—"], ["Price", null], ["Booking", ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
           <div key={k} className="card-sm" style={{ padding: "12px 14px", borderRadius: 20 }}>
             <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>{k}</div>
             {v != null ? <div className="disp" style={{ fontSize: 17, marginTop: 2 }}>{v}</div> : <div style={{ marginTop: 4 }}><PriceTag ev={ev} /></div>}
@@ -95,20 +102,21 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         </div>
       )}
 
+      {coord && (
+        <div style={{ padding: "22px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="row" style={{ justifyContent: "space-between", padding: "0 4px" }}>
+            <span className="disp" style={{ fontSize: 20 }}>Where</span>
+            <a href={"https://www.google.com/maps/search/?api=1&query=" + coord[0] + "," + coord[1]} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} className="row" style={{ gap: 5, fontSize: 13, fontWeight: 800 }}>Open in Maps <Icon name="link" size={14} /></a>
+          </div>
+          <LeafletMap events={[ev]} home={coord} dark={dark} height={220} interactive twoFinger rounded hideHome selectedId={ev.id} zoom={15} />
+          <div className="muted" style={{ fontSize: 13, padding: "0 4px" }}>{ev.venue}</div>
+        </div>
+      )}
+
       <div style={{ padding: "22px 20px 0", display: "flex", flexDirection: "column", gap: 10 }}>
         <div className="disp" style={{ fontSize: 20 }}>Why it's picked</div>
         <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
           {(ev.why?.length ? ev.why : ["Matches your settings"]).map((w) => <span key={w} className="tag tag-plain" style={{ height: 32, fontSize: 13, padding: "0 13px" }}>{w}</span>)}
-        </div>
-        <div className="card-sm" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div className="row" style={{ justifyContent: "space-between" }}><span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>Match</span><span className="disp" style={{ fontSize: 24 }}>{ev.sc}<span className="muted" style={{ fontSize: 14 }}>/100</span></span></div>
-          {bars.map(([l, v, mx, c]) => (
-            <div key={l} style={{ display: "grid", gridTemplateColumns: "92px 1fr 40px", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink2)" }}>{l}</span>
-              <div style={{ height: 10, borderRadius: 5, background: "var(--chip)" }}><div style={{ height: 10, borderRadius: 5, width: Math.round(((v || 0) / mx) * 100) + "%", background: c }} /></div>
-              <span style={{ fontSize: 12, fontWeight: 800, textAlign: "right" }}>{v || 0}/{mx}</span>
-            </div>
-          ))}
         </div>
       </div>
 
@@ -129,16 +137,7 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         </div>
       )}
 
-      <div style={{ height: 110 }} />
-
-      <div className="actionbar">
-        <button className="roundbtn" aria-label="Back" onClick={onClose}><Icon name="back" size={24} width={2.6} /></button>
-        <button className="pill pill-dark" style={{ flex: 1, height: 52, borderRadius: 26 }} onClick={() => onSave(ev)}>
-          <Icon name="save" size={20} fill={saved ? "currentColor" : "none"} /> {saved ? "In your plans" : "Add to plans"}
-        </button>
-        <button className="roundbtn" aria-label="Add to Google Calendar" onClick={addCal}><Icon name="cal" size={22} /></button>
-        <button className="roundbtn" aria-label="Share" onClick={share}><Icon name="share" size={22} /></button>
-      </div>
+      <div style={{ height: 60 }} />
 
       {nfm && (
         <Dialog title="Not for me because…" onClose={() => setNfm(false)}>

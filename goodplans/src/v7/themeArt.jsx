@@ -1,6 +1,7 @@
 // Standard artwork for "New York right now" cards: a palette, a motif and the skyline, chosen from the theme.
 // No network and no event photos: always there, always readable under white text.
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { API_BASE } from "./images.js";
 
 const THEMES = {
   snow: { g: ["#0F2A5C", "#5B8DEF"], m: "snow" },
@@ -69,5 +70,29 @@ export function ThemeArt({ id, height = 190 }) {
       <Motif kind={t.m} r={r} />
       <path d={SKY} fill="#0B0E22" opacity="0.4" />
     </svg>
+  );
+}
+
+// A real photo (Wikipedia / Commons, picked by /api/theme-image) over the generated art, which stays as the fallback
+const TKEY = "gp_themeimg_v1";
+const readT = () => { try { return JSON.parse(localStorage.getItem(TKEY) || "{}"); } catch { return {}; } };
+export function ThemePhoto({ id, name, height = 176 }) {
+  const [src, setSrc] = useState(() => { const c = readT()[id]; return c && Date.now() - c.at < 14 * 86400000 ? c.src : null; });
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const c = readT()[id];
+    if (c && Date.now() - c.at < 14 * 86400000) { setSrc(c.src); return; }
+    fetch(`${API_BASE}/api/theme-image?id=${encodeURIComponent(id)}&q=${encodeURIComponent(name || "")}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!live || !j || !j.src) return; setSrc(j.src); try { const m = readT(); m[id] = { src: j.src, at: Date.now() }; localStorage.setItem(TKEY, JSON.stringify(m)); } catch { /* full */ } })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [id, name]);
+  return (
+    <div style={{ position: "relative", height, overflow: "hidden" }}>
+      <ThemeArt id={id} height={height} />
+      {src && <img src={src} alt="" loading="lazy" onLoad={() => setOk(true)} onError={() => setSrc(null)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: ok ? 1 : 0, transition: "opacity .4s" }} />}
+    </div>
   );
 }

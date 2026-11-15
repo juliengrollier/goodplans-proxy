@@ -61,6 +61,7 @@ const UI = {
   plus: <path d="M12 5v14M5 12h14" />,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   chev: <path d="M9 6l6 6-6 6" />,
+  chevdown: <path d="M6 9l6 6 6-6" />,
   hide: <><path d="M3 3l18 18" /><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a15 15 0 0 1-2.6 3.1M6.6 7.7A15 15 0 0 0 3 12s4 6 9 6a9 9 0 0 0 3.4-.7" /></>,
   bell: <><path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
   link: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
@@ -74,6 +75,7 @@ const UI = {
   cloud: <path d="M7 18a4.5 4.5 0 0 1-.7-9A6 6 0 0 1 17.6 9 4.5 4.5 0 0 1 17 18z" />,
   thumbup: <path d="M7 10v11H4V10zM7 10l4-7c1.7 0 2.5 1.2 2.2 2.8L12.6 9H19a2 2 0 0 1 2 2.3l-1.2 7.4A2 2 0 0 1 17.8 21H7" />,
   save: <path d="M7 3h10a1 1 0 0 1 1 1v17l-6-4-6 4V4a1 1 0 0 1 1-1z" />,
+  heart: <path d="M12 21s-7.5-4.6-9.3-9.3C1.5 8.5 3.4 5 6.7 5c2 0 3.6 1.1 5.3 3 1.7-1.9 3.3-3 5.3-3 3.3 0 5.2 3.5 4 6.7C19.5 16.4 12 21 12 21z" />,
 };
 
 export function Icon({ name, size = 22, color = "currentColor", width = 2.2, fill = "none" }) {
