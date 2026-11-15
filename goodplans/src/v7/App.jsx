@@ -794,7 +794,7 @@ export default function App() {
   }, [visible, modelVer, today, meet]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickPool = useMemo(() => { const wk = new Date(today); wk.setDate(today.getDate() + 7); return poolPicks(visible.filter((e) => evStart(e) <= wk)); }, [visible, today]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── Home tiles (quick time tiles + moods/picks); reused as "More ideas" in Explore
-  const tileSet = useMemo(() => buildTiles({ visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
+  const tileSet = useMemo(() => buildTiles({ clicks: moodClicks, visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
     [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark, moodFb]); // eslint-disable-line react-hooks/exhaustive-deps
   // Thumbs and hearts on mood tiles teach the taste model (picks: their features; archetype moods: the You store)
   const learnTile = (t, d) => {

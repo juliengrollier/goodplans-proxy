@@ -53,8 +53,14 @@ export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
 // Dot-separated keywords on one line, in the same soft style as the blurb they replace
 export function KeywordLine({ ev, size = 12 }) {
   const t = (ev.title || "").toLowerCase();
-  const kw = [...new Set([...(ev.kw || []), ev.nsub].filter((k) => k && String(k).toLowerCase() !== t && String(k).toLowerCase() !== String(ev.ncat || ev.cat || "").toLowerCase()))].slice(0, 4);
-  if (!kw.length) return null;
+  const junk = /^(nyc|new york|other|misc|miscellaneous|general|event|events|n\/a)$/i;
+  const seen = new Set();
+  // Claude's keywords first, then the sub-type, category and area, so no card is ever left without a line
+  const kw = [...(ev.kw || []), ev.nsub, ev.sub, ev.ncat || ev.cat, ev.hood && String(ev.hood).split(",")[0]]
+    .map((k) => (k == null ? "" : String(k).trim()))
+    .filter((k) => { const l = k.toLowerCase(); if (!k || junk.test(k) || l === t || seen.has(l)) return false; seen.add(l); return true; })
+    .slice(0, 4);
+  if (!kw.length) return <div style={{ fontSize: size, lineHeight: 1.35 }}>&nbsp;</div>;
   return <div className="ell" style={{ fontSize: size, lineHeight: 1.35, color: "var(--ink3)", opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kw.join(" · ")}</div>;
 }
 
