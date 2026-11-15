@@ -44,13 +44,13 @@ export default function Explore({ scored, dark, today, onOpen, filters, setFilte
         <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Regulars · {nReg}</button>
       </div>
       {view === "all" ? (
-        <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
           {results.slice(0, limit).map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
           {!results.length && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
           {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>Show more</button>}
         </div>
       ) : (
-        <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }} role="tablist" aria-label="How often">
             {[["all", "All"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["annual", "Yearly"]].map(([k, l]) => (
               <button key={k} role="tab" aria-selected={freq === k} className={"chip" + (freq === k ? " on" : "")} style={{ height: 30 }} onClick={() => setFreq(k)}>{l}</button>

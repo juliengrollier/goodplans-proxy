@@ -109,7 +109,7 @@ const tap = (fn, ev) => ({ role: "button", tabIndex: 0, onClick: () => fn(ev), o
 
 export function HeroCard({ ev, dark, today, onOpen, label }) {
   return (
-    <div {...tap(onOpen, ev)} className="card" style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} className="ev-flat" style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Media ev={ev} dark={dark} height={190} big />
         {label && <span className="tag tag-white" style={{ position: "absolute", top: 10, left: 10 }}>{label}</span>}
@@ -137,7 +137,7 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
 
 export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   return (
-    <div {...tap(onOpen, ev)} className="card-sm" style={{ padding: 8, display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
       <div style={{ width: 84, flexShrink: 0 }}><Media ev={ev} dark={dark} height={104} radius={16} hideTitle /></div>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet cat={ev.cat} size={16} dark={dark} />{(ev.venue || "").split(",")[0]}</span>}
