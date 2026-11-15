@@ -59,6 +59,8 @@ window.fetch = async (input, init = {}) => {
   if (url.includes("script.google.com")) {
     if (url.includes("busyDays")) return json({ busySlots: [], calendarName: "Sample" });
     if (url.includes("pushStatus")) return json({ subscriptions: 0 });
+    if (url.includes("action=calAdd")) return json({ ok: true, gid: "sample-" + Date.now() });
+    if (url.includes("action=calRemove")) return json({ ok: true });
     return json({ events: EVENTS, refreshed: new Date().toISOString() });
   }
   if (url.includes("open-meteo")) return json(weather());

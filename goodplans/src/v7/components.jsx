@@ -6,7 +6,7 @@ import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
 import { whenLabel, isFree, weatherBadge } from "./engine.js";
 import { useEventImage, dropImage } from "./images.js";
 
-export const ActionsCtx = createContext({ onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0, isStar: () => false, toggleStar: () => {} });
+export const ActionsCtx = createContext({ prefOf: () => 0, onReact: () => {}, onSave: () => {}, isSaved: () => false, thumbOf: () => 0, isStar: () => false, toggleStar: () => {} });
 
 export function CatBullet({ cat, ev, size = 30, dark }) {
   // With an event: its category icon in its family colour. With only a (legacy) category name: the older glyph.
@@ -65,12 +65,14 @@ export function CardActions({ ev, size = 34, onNfm }) {
   const a = useContext(ActionsCtx);
   const t = a.thumbOf(ev.id), saved = a.isSaved(ev.id);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
-  const btn = (on) => ({ width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: on ? "var(--navy)" : "var(--chip)", color: on ? "var(--onnavy)" : "var(--ink)", flexShrink: 0 });
+  // Saves are the strong signal (full navy); an active thumb is a softer tint
+  const btn = (on, soft) => ({ width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+    background: on ? (soft ? "color-mix(in srgb, var(--navy) 38%, var(--chip))" : "var(--navy)") : "var(--chip)", color: on ? (soft ? "var(--ink)" : "var(--onnavy)") : "var(--ink)" });
   const is = Math.round(size * 0.5);
   return (
     <div className="row" style={{ gap: 6 }}>
-      <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1)} onClick={stop(() => { if (t === 1) a.onReact(ev, "undo"); else { a.onReact(ev, "up", null, true); a.askWhy(ev, "up"); } })}><Icon name="up" size={is} /></button>
-      <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
+      <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1, true)} onClick={stop(() => { if (t === 1) a.onReact(ev, "undo"); else { a.onReact(ev, "up", null, true); a.askWhy(ev, "up"); } })}><Icon name="up" size={is} /></button>
+      <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1, true)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
       <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={btn(saved)} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is} fill={saved ? "currentColor" : "none"} /></button>
     </div>
   );

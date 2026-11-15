@@ -62,14 +62,11 @@ function Forecast({ weather, today }) {
 function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs = [], onHideCat = () => {} }) {
   const A = React.useContext(ActionsCtx);
   const counts = data.filter((e) => daysUntil(e, today) <= 30).reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {});
-  const order = React.useRef(null);
   const avail = FAMILIES.map((f) => f.id).filter((id) => counts[id] >= 2);
-  // Rank families by how much their events score for you on average
-  if (!order.current && avail.length) {
-    const avg = (id) => { const l = data.filter((e) => e.fam === id).slice(0, 8); return l.reduce((a, e) => a + e.sc, 0) / Math.max(1, l.length); };
-    order.current = [...avail].sort((a, b) => avg(b) - avg(a));
-  }
-  const fams = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
+  // Order follows what the app has learned you like (boosts, thumbs, saves), then how well its events score for you
+  const famPref = (id) => CATEGORIES.filter((c) => c.fam === id).reduce((a, c) => a + A.prefOf("cats", c.id), 0);
+  const avg = (id) => { const l = data.filter((e) => e.fam === id).slice(0, 8); return l.reduce((a, e) => a + e.sc, 0) / Math.max(1, l.length); };
+  const fams = [...avail].sort((a, b) => famPref(b) - famPref(a) || avg(b) - avg(a));
   const [fam, setFam] = React.useState(() => { try { return sessionStorage.getItem("gp_topfam") || null; } catch { return null; } });
   const pick = (c) => { setFam(c); setCat(null); setSub(null); try { sessionStorage.setItem("gp_topfam", c); } catch { /* private mode */ } };
   const cur = fam && fams.includes(fam) ? fam : fams[0];
@@ -78,13 +75,13 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   if (!cur) return null;
   const inFam = data.filter((e) => e.fam === cur && daysUntil(e, today) <= 30); // within the next month
   const catN = inFam.reduce((m, e) => ((m[e.ncat] = (m[e.ncat] || 0) + 1), m), {});
-  const cats = CATEGORIES.filter((c) => c.fam === cur && (catN[c.id] || xcats.includes(c.id))).sort((a, b) => catN[b.id] - catN[a.id]);
+  const cats = CATEGORIES.filter((c) => c.fam === cur && (catN[c.id] || xcats.includes(c.id))).sort((a, b) => A.prefOf("cats", b.id) - A.prefOf("cats", a.id) || catN[b.id] - catN[a.id]);
   const hide = (id) => { onHideCat(id); if (cat === id) setCat(null); };
   const curCat = cat && catN[cat] ? cat : null;
   // Third level: sub-types of the chosen category (or of the family's only category)
   const focus = curCat || (cats.length === 1 ? cats[0].id : null);
   const subN = inFam.filter((e) => e.ncat === focus && e.nsub).reduce((m, e) => ((m[e.nsub] = (m[e.nsub] || 0) + 1), m), {});
-  const subs = focus && SUBTYPES[focus] ? SUBTYPES[focus].map(([n]) => n).filter((n) => subN[n] || xsubs.includes(n)) : [];
+  const subs = focus && SUBTYPES[focus] ? SUBTYPES[focus].map(([n]) => n).filter((n) => subN[n] || xsubs.includes(n)).sort((a, b) => A.prefOf("subs", b) - A.prefOf("subs", a) || (subN[b] || 0) - (subN[a] || 0)) : [];
   const showSubs = subs.length >= 2;
   const curSub = sub && subN[sub] && focus ? sub : null;
   const list = inFam.filter((e) => (!curCat || e.ncat === curCat) && !xcats.includes(e.ncat) && (!curSub || e.nsub === curSub) && !(e.nsub && xsubs.includes(e.nsub))).sort((a, b) => b.sc - a.sc);
@@ -93,7 +90,7 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
     <>
       <SectionHead title={"Top picks · " + (curSub || curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], subs: curSub ? [curSub] : [], when: "week" })} />
       <div className="row" style={{ justifyContent: "space-between", padding: "0 12px 14px" }} role="tablist" aria-label="Topic">
-        {FAMILIES.filter((f) => fams.includes(f.id)).map((f) => {
+        {fams.map((id) => FAM[id]).map((f) => {
           const on = f.id === cur, col = famColor(f.id, dark);
           return (
             <button key={f.id} role="tab" aria-selected={on} aria-label={f.label} onClick={() => pick(f.id)}
