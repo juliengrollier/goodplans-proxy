@@ -71,6 +71,34 @@ export default function Me(p) {
         </div>
       </Card>
 
+      {p.moodLab && (() => {
+        const st = p.moodLab.stats, rate = (o, n) => (n ? Math.round((100 * o) / n) + "%" : "–");
+        return (
+          <Card title="How your moods learn">
+            <div className="muted" style={{ fontSize: 13, lineHeight: 1.45, marginTop: -4 }}>Every event's activity, keywords, venue, area, price and time become points in a taste map built from {p.moodLab.events} events so far. Things that turn up together sit close; your saves and taps pull moods toward the parts of the map you like.</div>
+            <div className="row" style={{ gap: 8 }}>
+              {[["Shown", st.shown], ["Opened", st.opened + " · " + rate(st.opened, st.shown)], ["Saved from", st.saved]].map(([l, v]) => (
+                <div key={l} className="card-sm" style={{ flex: 1, padding: "10px 12px" }}><div className="muted" style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.8 }}>{l}</div><div className="disp" style={{ fontSize: 18 }}>{v}</div></div>
+              ))}
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.45 }}>Discoveries ("Because you like…"): <b>{st.adjShown}</b> shown, <b>{rate(st.adjOpened, st.adjShown)}</b> opened, <b>{st.adjSaved}</b> saves. <span className="muted">Last 14 days.</span></div>
+            {st.top.length > 0 && <div style={{ fontSize: 13, lineHeight: 1.5 }}><span style={{ fontWeight: 800 }}>Landing best: </span>{st.top.map((m) => m.title || m.key).join(" · ")}</div>}
+            {p.moodLab.map.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800 }}>Your taste map</span>
+                {p.moodLab.map.map(([a, ns]) => <div key={a} style={{ fontSize: 13, lineHeight: 1.4 }}><b>{a}</b> <span className="muted">→ {ns.join(", ")}</span></div>)}
+              </div>
+            )}
+            {p.moodLab.canTwo && (
+              <button className="card-sm" aria-pressed={!!p.moodLab.two} onClick={() => p.moodLab.setTwo(!p.moodLab.two)} style={{ border: p.moodLab.two ? "2px solid var(--navy)" : "2px solid transparent", padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start", textAlign: "left", color: "var(--ink)" }}>
+                <span style={{ width: 22, height: 22, borderRadius: 7, border: p.moodLab.two ? "none" : "2px solid var(--line)", background: p.moodLab.two ? "var(--navy)" : "transparent", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{p.moodLab.two && <Icon name="check" size={14} />}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>Moods for two<span className="muted" style={{ display: "block", fontSize: 12.5, fontWeight: 500 }}>Blend {p.moodLab.partner}'s taste in, favouring what you both like.</span></span>
+              </button>
+            )}
+          </Card>
+        );
+      })()}
+
       {axes && (
         <Card title="Your taste, dimension by dimension">
           <div className="muted" style={{ fontSize: 13, lineHeight: 1.45, marginTop: -4 }}>How the app reads you so far. Tap ‹ or › to nudge a bar.</div>

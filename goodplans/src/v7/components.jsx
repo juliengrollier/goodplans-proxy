@@ -416,7 +416,8 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {t.verb && <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.85 }}>{t.verb}</span>}
         <span className="disp" style={{ fontSize: 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
-        {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
+        {/^(Because|You both|Something different)/.test(t.why || "") && <span className="ell" style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3, padding: "2px 8px", borderRadius: 10, background: "rgba(255,255,255,.2)", alignSelf: "flex-start", maxWidth: "100%" }}>{t.why}</span>}
+        {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: /^(Because|You both|Something different)/.test(t.why || "") ? 1 : 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
       </span>
       <span className="row" style={{ justifyContent: "space-between", minHeight: 30 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>

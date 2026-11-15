@@ -99,7 +99,7 @@ export function hoodCards(visible, today, hid, hoodWeight = () => 0, seed = 0, h
     .sort((a, b) => b.fit - a.fit).slice(0, 6);
 }
 
-export function buildTiles({ clicks = {}, favs = [], visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
+export function buildTiles({ clicks = {}, favs = [], space = null, taste = null, tasteB = null, wOf, visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
   const hid = { xcats: filters.xcats || [], xsubs: filters.xsubs || [] };
   const quick = QUICK.map(([key, title, color, patch]) => ({ key, title, color, patch, n: applyFilters(visible, { ...EMPTY_FILTERS, ...patch, ...hid }, today).length })).filter((t) => t.n);
   const day = Math.floor(today.getTime() / 86400000);
@@ -116,7 +116,7 @@ export function buildTiles({ clicks = {}, favs = [], visible, today, filters, yo
   // Lead with the top mood, then alternate your picks and the other moods, then the rest of the pool and Book ahead
   // Variety: round-robin over three kinds (what suits this moment, your taste picks, fresh generated lists), each already best-first
   const rest = moods.filter((m) => m !== top);
-  const genAll = conceptTiles({ visible, today, hid, clicks, fb, favs, hoodOf: neighbourhoodOf }).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
+  const genAll = conceptTiles({ visible, today, hid, clicks, fb, favs, hoodOf: neighbourhoodOf, space, taste, tasteB, wOf }).map((t, i) => ({ ...t, color: MOOD_COLOR[(i + 3) % MOOD_COLOR.length] }));
   // Pattern per block of six: four generated moods, one archetype mood, one taste pick, so the specific things (pickleball, improv, pottery) lead
   const queues = { g: genAll.slice(), m: rest.slice(), p: [...pk, ...fill] };
   const order = top ? [top] : [];

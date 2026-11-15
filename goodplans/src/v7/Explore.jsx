@@ -92,7 +92,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
               </div>
               <h1 className="disp" style={{ margin: 0, fontSize: 30, lineHeight: 1.08 }}>{filters.list}</h1>
               {meta?.teaser && <div style={{ fontSize: 15, lineHeight: 1.45, marginTop: 8, color: "var(--ink2, var(--ink3))", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.teaser}</div>}
-              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 12, color: "var(--ink3)" }}>{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
+              {meta?.why && <div className="row" style={{ gap: 6, marginTop: 10, fontSize: 13, fontWeight: 800, color: col }}><Icon name="spark" size={14} />{meta.why}</div>}
+              <div style={{ fontSize: 13, fontWeight: 700, marginTop: meta?.why ? 6 : 12, color: "var(--ink3)" }}>{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
             </div>
             {mapEvs.length > 0 && home && <div style={{ paddingTop: 16 }}><AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} height={180} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></div>}
           </div>

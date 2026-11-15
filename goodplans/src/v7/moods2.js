@@ -12,29 +12,13 @@
 import { CATEGORIES, FAM } from "./taxonomy.js";
 import { daysUntil, runLen } from "../lib/core.js";
 import { isFree, startMinutes, isOutdoor, whenLabel } from "./engine.js";
+import { ACT } from "./activities.js";
+import { centroid, tasteSim, because, featureOfAct, featureOfCat, featureOfSub } from "./embed.js";
+import { togetherPoints } from "./learn.js";
+import { logMood } from "./moodlog.js";
 
 const CAT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 const SEEN_KEY = "gp_moodseen_v1";
-const NICHE = [
-  ["pickleball", /pickleball/], ["tennis & padel", /padel|\btennis\b(?!.*table)/], ["basketball", /basketball|hoops/], ["soccer", /soccer|futsal/], ["kickball & softball", /kickball|softball/], ["volleyball", /volleyball/],
-  ["bowling", /bowling/], ["ping pong", /ping ?pong|table tennis/], ["mini golf", /mini ?golf|putt-?putt/], ["axe throwing", /axe throw/], ["darts", /\bdarts\b/], ["pool & billiards", /billiards|pool (hall|league|tournament)/],
-  ["skee-ball & arcades", /skee|arcade|pinball/], ["VR", /virtual reality|\bvr\b/], ["escape rooms", /escape (room|game)/], ["trivia", /trivia|quiz night/], ["bingo", /bingo/], ["board games", /board game|game night|tabletop/],
-  ["chess", /\bchess\b/], ["mahjong", /mahjong/], ["poker", /poker/], ["D&D", /d&d|dungeons/], ["karaoke", /karaoke/],
-  ["improv", /improv/], ["stand-up", /stand-?up/], ["open mics", /open mic/], ["storytelling", /storytell|\bmoth\b/], ["drag", /\bdrag (show|brunch|bingo|night|queen)/], ["burlesque & cabaret", /burlesque|cabaret/], ["magic", /magic (show|night)|magician/],
-  ["beer gardens", /beer garden|biergarten|oktoberfest/], ["rooftops", /rooftop (bar|party|happy hour|lounge)/], ["wine", /wine (tasting|bar|class|night)|natural wine/], ["beer", /brewery|taproom|beer (tasting|fest)/], ["whiskey & spirits", /whisk|mezcal|tequila|\bsake\b/], ["cocktails", /cocktail/],
-  ["coffee", /coffee (tasting|crawl|class)|cupping/], ["cheese & chocolate", /cheese|chocolate/], ["dumplings", /dumpling/], ["pizza", /pizza/], ["noodles", /ramen|noodle/], ["tacos", /\btacos?\b/], ["brunch", /brunch/], ["food crawls", /food crawl|\bcrawl\b/],
-  ["supper clubs", /supper club|pop-?up dinner/], ["night markets", /night market|smorgasburg/], ["flea markets", /flea|thrift|vintage market/], ["record fairs", /record (fair|swap|show)/],
-  ["pottery", /pottery|ceramic|wheel throw/], ["painting nights", /paint(ing)? (class|night)|paint (and|&) sip|sip (and|&) paint/], ["life drawing", /life drawing/], ["printmaking", /printmaking|screen ?print|risograph/],
-  ["knitting & crochet", /knit|crochet|embroider/], ["cooking classes", /cooking class|pasta[- ]making|dumpling[- ]making|baking class/], ["woodworking & crafts", /woodwork|leather|jewelry making|candle making|terrarium/], ["flowers", /flower arrang|floral/],
-  ["run clubs", /run club|running club|group run/], ["races & 5Ks", /\b5k\b|\b10k\b|marathon|turkey trot/], ["group rides", /group ride|bike ride|critical mass/], ["climbing", /climb|boulder/], ["ice skating", /ice skat|\brink\b/],
-  ["roller skating", /roller (skat|disco|derby)/], ["kayaking", /kayak|paddle|canoe/], ["yoga", /yoga/], ["sound baths", /sound bath|breathwork|meditat/], ["pilates & barre", /pilates|barre/], ["hikes", /\bhik(e|ing)/], ["boxing & martial arts", /boxing|muay|jiu-?jitsu|karate|martial/],
-  ["swing dancing", /swing danc|lindy/], ["salsa & bachata", /salsa|bachata/], ["tango", /tango/], ["silent discos", /silent disco/], ["house & techno", /techno|house music|\brave\b/],
-  ["jazz", /\bjazz\b|bebop/], ["blues", /\bblues\b/], ["classical", /classical|orchestra|symphon|chamber music|string quartet/], ["opera", /\bopera\b/], ["ballet", /ballet|nutcracker/], ["folk & bluegrass", /folk|bluegrass/], ["hip-hop", /hip-?hop|\brap\b/],
-  ["punk & metal", /punk|metal|hardcore/], ["singer-songwriters", /singer-?songwriter|acoustic/], ["jam sessions", /jam session/], ["outdoor cinema", /rooftop (film|cinema)|outdoor (film|movie)|movie in the park/], ["horror films", /horror/], ["documentaries", /documentar/],
-  ["poetry", /poetry|\bpoets?\b/], ["book launches", /book launch|author talk/], ["zines", /\bzine/], ["history walks", /history walk|walking tour|tenement/], ["ghost tours", /ghost|haunted/], ["architecture", /architecture (tour|walk)|open house new york/], ["art openings", /opening reception|gallery opening/],
-  ["immersive theatre", /immersive/], ["puppets", /puppet/], ["circus", /circus|acrobat/], ["language exchanges", /language (exchange|cafe)|conversation (hour|club)/], ["mixers", /speed dating|mixer|singles/], ["volunteering", /volunteer|clean-?up|community garden/],
-  ["birdwatching", /bird(ing|watch| walk)/], ["stargazing", /stargaz|astronomy|planetarium/], ["holiday markets", /holiday market|christmas market|winter village/],
-];
 const TITLES = {
   play: ["{X}, anyone?", "Game on: {x}", "{X} this fortnight", "Your {x} fix"],
   move: ["Get moving: {x}", "Break a sweat: {x}", "Up and at it: {x}", "Sweat a little: {x}"],
@@ -58,7 +42,7 @@ const LENS = {
   wknd: { test: (e) => { const d = dow(e); return d === 0 || d === 6; }, t: { explore: "Weekend wanders", eat: "Weekend feasts", make: "Weekend projects", move: "Weekend workouts", play: "Weekend games", watch: "Weekend watch list", listen: "Weekend sounds", party: "Weekend blowouts", learn: "Weekend learning" }, teaser: "Saturday and Sunday" },
 };
 const LENS_ADJ = { late: "Late-night", early: "Morning", free: "Free", cheap: "Cheap", week: "Weeknight", wknd: "Weekend" };
-const LEVEL = { fam: 0.36, cat: 0.6, sub: 0.82, niche: 1, term: 0.92, cut: 0.7, lens: 0.62, rare: 0.85 };
+const LEVEL = { fam: 0.36, cat: 0.6, sub: 0.82, act: 1, term: 0.92, cut: 0.7, lens: 0.62, rare: 0.85 };
 const series = (l) => new Set(l.map((e) => String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24))).size;
 const CHILL = ["Slow down: {x}", "Unwind: {x}", "Deep breath: {x}", "Reset with {x}"];
 const NEUTRAL = ["{X}, anyone?", "{X} this fortnight", "All about {x}", "In the mood for {x}?"];
@@ -76,15 +60,26 @@ const major = (arr, f) => { const m = {}; arr.forEach((e) => { const k = f(e); i
 const jac = (a, b) => { let i = 0; for (const x of a) if (b.has(x)) i++; return i / (a.size + b.size - i || 1); };
 const readSeen = () => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || "{}"); } catch { return {}; } };
 // Impressions: counted once a day for the first tiles of Discover; only earlier days count, so today's grid stays put
-export function markSeen(keys, today) {
+export function markSeen(tiles, today) {
   const day = Math.floor(today.getTime() / 86400000), s = readSeen();
-  let ch = false; keys.forEach((k) => { const o = s[k] || { n: 0, d: 0 }; if (o.d !== day) { s[k] = { n: o.n + 1, d: day }; ch = true; } });
+  let ch = false; tiles.forEach((t) => { const k = t.key, o = s[k] || { n: 0, d: 0 }; if (o.d !== day) { s[k] = { n: o.n + 1, d: day }; ch = true; logMood("shown", k, t.adj, t.title); } });
   if (ch) try { localStorage.setItem(SEEN_KEY, JSON.stringify(s)); } catch { /* full */ }
 }
 // Normal approximation of a Beta draw (fine for ranking), seeded so the grid is stable through the day
 const betaDraw = (a, b, r) => { const m = a / (a + b), sd = Math.sqrt((a * b) / ((a + b) ** 2 * (a + b + 1))); const z = Math.sqrt(-2 * Math.log(r() || 1e-9)) * Math.cos(2 * Math.PI * r()); return Math.min(0.99, Math.max(0.01, m + sd * z)); };
 
-export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, clicks = {}, fb = {}, favs = [], hoodOf = () => null, now = new Date() }) {
+// The taste-model features that define a group: what a thumbs or a heart on it should teach
+function featsOf(c) {
+  if (c.kind === "act") return [featureOfAct(c.id)];
+  if (c.kind === "sub") { const [cat, sub] = c.id.split("|"); return [featureOfSub(cat, sub)]; }
+  if (c.kind === "cat") return [featureOfCat(c.id)];
+  if (c.kind === "term") return ["kw:" + c.id];
+  if (c.kind === "fam" || c.kind === "lens") return ["fam:" + (c.fam || c.id)];
+  if (c.kind === "cut") { const m = /^\w+-(act|sub|cat)-(.+)$/.exec(c.id); if (m) return featsOf({ kind: m[1], id: m[2] }); }
+  return [];
+}
+
+export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, clicks = {}, fb = {}, favs = [], hoodOf = () => null, now = new Date(), space = null, taste = null, tasteB = null, wOf = () => 0 }) {
   const ok = visible.filter((e) => daysUntil(e, today) <= 14 && daysUntil(e, today) >= 0 && !(hid.xcats || []).includes(e.cat) && !(hid.xsubs || []).includes(e.sub));
   const day = Math.floor(today.getTime() / 86400000), nowMin = now.getHours() * 60 + now.getMinutes();
   // Drop what is already over today
@@ -107,7 +102,8 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
   for (const [f, l] of byFam) if (l.length >= 4) add({ kind: "fam", id: f, fam: f, label: FAM_TITLE[f], list: l });
   for (const [c, l] of byCat) add({ kind: "cat", id: c, parent: "fam-" + CAT[c]?.fam, label: c.replace(/ & /g, " and ").toLowerCase().replace(/\band\b/g, "&"), list: l });
   for (const [k, l] of bySub) add({ kind: "sub", id: k, parent: "cat-" + k.split("|")[0], label: k.split("|")[1], list: l });
-  for (const [label, re] of NICHE) { const l = T.filter(([, t]) => re.test(t)).map(([e]) => e); if (l.length) add({ kind: "niche", id: label, label, list: l }); }
+  const byAct = new Map(); ok.forEach((e) => { if (e.act && ACT[e.act]) (byAct.get(e.act) || byAct.set(e.act, []).get(e.act)).push(e); });
+  for (const [id, l] of byAct) add({ kind: "act", id, label: ACT[id].label, list: l });
   // Emergent themes: keyword phrases and title words that cluster in one category, are not too common, and no curated activity already covers
   const df = new Map();
   for (const [e] of T) {
@@ -115,7 +111,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
     terms.forEach((t) => { if (t && !STOP.has(t) && !/^\d/.test(t) && t.length <= 24) (df.get(t) || df.set(t, []).get(t)).push(e); });
   }
   const hoodWords = new Set(ok.flatMap((e) => String(e.hood || "").toLowerCase().split(/[ ,/]+/)));
-  const curated = C.filter((c) => c.kind === "niche" || c.kind === "sub");
+  const curated = C.filter((c) => c.kind === "act" || c.kind === "sub");
   const terms = [];
   for (const [t, l] of df) {
     if (l.length < 2 || l.length > Math.max(6, N * 0.06) || hoodWords.has(t)) continue;
@@ -128,18 +124,18 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
   keptT.slice(0, 25).forEach((x) => add({ kind: "term", id: x.t, label: x.t, list: x.l }));
   // Lens cuts of big groups: "Weeknight improv", "Free comedy", "Late-night jazz"
   const tests = Object.fromEntries(Object.entries(LENS).map(([k, L]) => [k, L.test]));
-  for (const c of C.filter((c) => (c.kind === "cat" || c.kind === "sub" || c.kind === "niche") && c.list.length >= 5)) {
+  for (const c of C.filter((c) => (c.kind === "cat" || c.kind === "sub" || c.kind === "act") && c.list.length >= 5)) {
     for (const [lk, f] of Object.entries(tests)) { const l = c.list.filter(f); if (l.length >= 3 && l.length <= 0.7 * c.list.length) add({ kind: "cut", id: lk + "-" + c.kind + "-" + c.id, parent: c.kind + "-" + c.id, lens: lk, label: c.label, list: l }); }
   }
   // Family moments with hand-written names
   for (const [lk, L] of Object.entries(LENS)) for (const [fam, title] of Object.entries(L.t)) { const l = (byFam.get(fam) || []).filter(L.test); if (l.length >= 3) add({ kind: "lens", id: lk + "-" + fam, parent: "fam-" + fam, fam, fixedTitle: title, note: L.teaser, list: l }); }
   // One-offs: strong matches that belong to no group of three or more specific things
-  const grouped = new Set(C.filter((c) => (c.kind === "niche" || c.kind === "sub" || c.kind === "term") && c.list.length >= 3).flatMap((c) => [...c.ids]));
+  const grouped = new Set(C.filter((c) => (c.kind === "act" || c.kind === "sub" || c.kind === "term") && c.list.length >= 3).flatMap((c) => [...c.ids]));
   const lone = ok.filter((e) => !grouped.has(e.id) && runLen(e) <= 2 && (e.sc || 0) >= mu).sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 6);
   if (lone.length >= 2) add({ kind: "rare", id: "oneoffs", fixedTitle: "One-offs and oddities", note: "things you won't see twice this month", list: lone });
 
   // Same events twice: keep the most specific name
-  const rank = { niche: 6, term: 5, sub: 4, cut: 3, rare: 3, cat: 2, lens: 2, fam: 1 };
+  const rank = { act: 6, term: 5, sub: 4, cut: 3, rare: 3, cat: 2, lens: 2, fam: 1 };
   const bySig = new Map();
   for (const c of C) { const k = [...c.ids].sort().join(","); const o = bySig.get(k); if (!o || rank[c.kind] > rank[o.kind]) bySig.set(k, c); }
   const cands = [...bySig.values()].map((c) => ({ ...c, key: "gen-" + c.kind + "-" + c.id }));
@@ -162,7 +158,20 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
     const l = c.list, n = l.length;
     const fam = famOf(c), ncat = major(l, (e) => e.ncat)[0];
     const top = l.map((e) => (e.sc || 0) * (0.6 + 0.4 * evW(e))).sort((a, b) => b - a).slice(0, 3);
-    const fit = Math.min(1.2, ((top.reduce((s, x) => s + x, 0) + 2 * mu) / (top.length + 2)) / p90);
+    const fitSc = Math.min(1.2, ((top.reduce((s, x) => s + x, 0) + 2 * mu) / (top.length + 2)) / p90);
+    // Semantic fit: where this group sits in the taste space relative to you (and Theo, rewarding what you share)
+    c.feat = featsOf(c);
+    c.vec = space ? centroid(space, l, today) : null;
+    const cA = taste && c.vec ? tasteSim(taste, c.vec) : null, cB = tasteB && c.vec ? tasteSim(tasteB, c.vec) : null;
+    c.sem = cA == null ? null : cB == null ? cA : togetherPoints(cA, cB); c.cB = cB;
+    c.soon = Math.min(...l.map((e) => Math.max(0, daysUntil(e, today))));
+    const specific = c.kind === "act" || c.kind === "sub" || c.kind === "term" || (c.kind === "cut" && /-(act|sub)-/.test(c.id));
+    c.direct = c.feat.reduce((s, f) => s + wOf(f), 0) * (specific ? 1 : 0.3); c.specific = specific;
+    const semFit = c.sem == null ? null : Math.max(0, Math.min(1.15, (c.sem + 0.15) / 0.95));
+    const fit = semFit == null ? fitSc : 0.5 * fitSc + 0.5 * semFit;
+    c.semMul = semFit == null ? 1 : 0.75 + 0.5 * semFit; c.cA = cA;
+    // Discovery: close to what you like, but nothing you've engaged with directly yet
+    c.adj = c.sem != null && c.sem >= 0.45 && c.sem <= 0.88 && Math.abs(c.direct) < 0.08 && (c.kind === "act" || c.kind === "sub" || c.kind === "term");
     const moment = Math.max(...l.map(evW));
     const s = sig(c.key), fs = famStats[fam] || { w: 0, l: 0 };
     const prior = (1 + fs.w * 0.3) / (2 + (fs.w + fs.l) * 0.3); // family mean, weak
@@ -171,7 +180,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
     const size = (dn === 1 ? 0.5 : dn === 2 ? 0.74 : Math.min(1, Math.log2(dn + 1) / 2.3)) * (n > 24 ? 0.85 : 1);
     const novelty = runLen(l[0]) > 20 && share(l, (e) => runLen(e) > 20) > 0.7 ? 0.8 : 1; // long-running shows are less of a "find"
     // Engagement multiplies: a liked mood (θ≈0.9) is lifted ~45%, an ignored one (θ≈0.25) sinks ~30%; likes also lift the family
-    const rel = (0.68 * fit + 0.32 * moment) * (0.4 + 1.2 * theta) * LEVEL[c.kind] * size * (BOOST[fam] || 1) * novelty * (fb[c.key] < 0 ? 0.2 : 1);
+    const rel = (0.68 * fit + 0.32 * moment) * (0.4 + 1.2 * theta) * LEVEL[c.kind] * size * (BOOST[fam] || 1) * novelty * c.semMul * (c.adj ? 1.3 : 1) * (1 + 1.5 * Math.max(-0.4, Math.min(0.5, c.direct))) * (fb[c.key] < 0 ? 0.2 : 1);
     Object.assign(c, { fam, ncat, rel: moment === 0 ? 0 : rel, top: new Set(l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 10).map((e) => e.id)) });
   }
 
@@ -185,7 +194,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
       let red = 0; for (const o of chosen) { const j = jac(c.top, o.top); red = Math.max(red, j + (related(c, o) ? 0.35 : 0) + (c.ncat && c.ncat === o.ncat ? 0.12 : 0)); }
       const cov = 0.22 * (Math.sqrt((famN[c.fam] || 0) + 1) - Math.sqrt(famN[c.fam] || 0)) + 0.12 * (Math.sqrt(axisN[ax] * (ax === "moment" ? 2 : 1) + 1) - Math.sqrt(axisN[ax] * (ax === "moment" ? 2 : 1))) - 0.06 * (catN[c.ncat] || 0);
       const momentHeavy = ax === "moment" && axisN.moment + 1 > 0.34 * (chosen.length + 1) + 1;
-      const v = c.rel + cov - 0.6 * red - (momentHeavy ? 0.25 : 0);
+      const v = c.rel + cov - 0.8 * red - (momentHeavy ? 0.25 : 0);
       if (v > bv) { bv = v; bi = i; }
     }
     const c = pool.splice(bi, 1)[0]; chosen.push(c);
@@ -193,6 +202,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
   }
 
   // ── 5. Words: titles from what is true of most of the list
+  let diff = 0;
   return chosen.map((c) => {
     const l = c.list.slice().sort((a, b) => Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today)) || (sm(a) ?? 9999) - (sm(b) ?? 9999));
     const n = l.length, fam = c.fam;
@@ -218,6 +228,16 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
       : (c.note ? up1(c.note) + ". " : "") + "Next: " + lead + [n > 1 ? (series(l) === 1 ? (n - 1) + (n === 2 ? " other date" : " other dates") : (n - 1) + " more") : null, cost].filter(Boolean).map((x) => " · " + x).join("") + ".";
     const node = (MOMENT.has(c.kind) && c.kind !== "cut" ? FAM[fam]?.icon : null) || CAT[c.ncat]?.icon || FAM[fam]?.icon;
     const vk = c.ncat === "Comedy" ? "laugh" : c.ncat === "Yoga & Wellness" ? "chill" : VERB_OF_FAM[fam];
-    return { key: c.key, title, teaser, n, node, list: l, facet: c.kind === "fam" || c.kind === "lens" ? "fam:" : c.kind === "sub" ? "sub:" : "cat:", vk, fit: c.rel };
+    // Why this is here, in one line: discovery first, then your own history, then the moment
+    const self = [...c.feat, featureOfCat(c.ncat || "")];
+    const bc = c.adj && taste ? because(taste, c.vec, self) : null;
+    const nOpen = clicks[c.key]?.n || 0;
+    const why = bc ? (tasteB && c.cB > 0.4 ? "You both like " : "Because you like ") + bc.label
+      : nOpen >= 2 ? "You've opened this " + nOpen + " times"
+      : c.specific && c.direct > 0.2 ? "Right up your street"
+      : c.cA != null && c.cA < 0.1 && c.kind !== "fam" && (diff++ < 2) ? "Something different"
+      : c.soon === 0 ? "Happening today"
+      : c.kind === "rare" ? "Rare this month" : null;
+    return { key: c.key, title, teaser, why, n, node, list: l, f: c.feat.length ? c.feat : undefined, facet: c.feat.length ? undefined : "cat:", vk, fit: c.rel, adj: !!c.adj };
   });
 }
