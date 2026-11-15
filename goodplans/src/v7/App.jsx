@@ -493,7 +493,7 @@ export default function App() {
     onCityOpen: (ev) => { if (cityA) saveMood({ ...moodStore, aff: { ...(moodStore.aff || {}), [cityA.id]: ((moodStore.aff || {})[cityA.id] || 0) + 0.5 } }); openEvent(ev); },
   };
   // New York right now: three rows of one-card carousels (season and festivities, neighbourhoods, weather)
-  const hoodItems = useMemo(() => hoodCards(visible, today, { xcats: filters.xcats || [], xsubs: filters.xsubs || [] }), [visible, today, filters.xcats, filters.xsubs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hoodItems = useMemo(() => hoodCards(visible, today, { xcats: filters.xcats || [], xsubs: filters.xsubs || [] }, (e) => { const f = L.features(e, today).find((x) => x.startsWith("hood:")); return f ? L.weightOf(modelRef.current, f) : 0; }, Math.floor(today.getTime() / 86400000)), [visible, today, filters.xcats, filters.xsubs, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
   const view2 = (arr) => arr.map((m) => view("city", m, m.facts));
   // Each row holds three cards: its own kind first, then leftovers (other city themes, more neighbourhoods, generic ones)
   const genCards = useMemo(() => genericCards(visible, today), [visible, today]);

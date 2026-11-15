@@ -89,12 +89,12 @@ export function genericCards(visible, today) {
 
 // New York right now, neighbourhood row: where the most good stuff is this week
 const topCats = (l) => { const c = {}; l.forEach((e) => { const k = e.ncat || e.cat; if (k) c[k] = (c[k] || 0) + 1; }); const t = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k); return t.length ? "Mostly " + t.join(", ").toLowerCase() : "Busy this week"; };
-export function hoodCards(visible, today, hid) {
+export function hoodCards(visible, today, hid, hoodWeight = () => 0, seed = 0) {
   const m = new Map();
   const BORO = /^(manhattan|brooklyn|queens|the bronx|bronx|staten island|nyc|new york|new york city|citywide|various)$/i;
   visible.forEach((e) => { if (!e.hood || BORO.test(e.hood.trim()) || daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; if (!m.has(e.hood)) m.set(e.hood, []); m.get(e.hood).push(e); });
   return [...m.entries()].filter(([, l]) => l.length >= 2)
-    .map(([k, l]) => ({ id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: "Around " + k, sub: topCats(l), list: l, fit: l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 5).reduce((x, e) => x + (e.sc || 0), 0) }))
+    .map(([k, l]) => { const top = l.slice().sort((x, y) => (y.lp || 0) - (x.lp || 0)).slice(0, 5); const taste = top.reduce((x, e) => x + (e.lp || 0), 0) / top.length + 12 * hoodWeight(l[0]); const jitter = ((seed + k.length * 7) % 5) * 0.4; return { id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: "Around " + k, sub: topCats(l), list: l, fit: taste + jitter }; })
     .sort((a, b) => b.fit - a.fit).slice(0, 6);
 }
 

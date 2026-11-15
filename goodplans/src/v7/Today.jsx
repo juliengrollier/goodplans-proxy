@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, When, CardActions, PicOverlay } from "./components.jsx";
+import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
 import { ThemePhoto } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
@@ -215,7 +215,7 @@ function WhenTabs({ tabs, dark, today, onOpen, onMore }) {
         </div>
         <button className="chip" onClick={() => onMore(patch)} style={{ height: 32, flexShrink: 0 }} aria-label={"See all: " + label}>More <Icon name="chev" size={14} /></button>
       </div>
-      <div className="hscroll" key={active[0]}>{list.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+      <DotScroll key={active[0]}>{list.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
     </>
   );
 }
@@ -445,7 +445,7 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
       {!empty && mine.length > 0 && (
         <>
           <Head title={planToday.length ? "Your plans" : "Your next plans"} sub={planToday.length ? "What you saved for today, then what comes next." : "Nothing saved for today. Here is what is next."} />
-          <div className="hscroll">{mine.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+          <DotScroll>{mine.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
         </>
       )}
 
