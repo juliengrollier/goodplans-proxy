@@ -322,21 +322,47 @@ function AroundMap({ evs, home, dark, today, onOpen, onFull }) {
   );
 }
 
-function NYCard({ c, n, onTile }) {
+const NY_TINT = [["#7C2D12", "Season"], ["#1E3A8A", "Neighbourhood"], ["#0F766E", "Weather"]];
+function NYCard({ c, tint, onTile }) {
+  const [r, g, bl] = [parseInt(tint.slice(1, 3), 16), parseInt(tint.slice(3, 5), 16), parseInt(tint.slice(5, 7), 16)];
   return (
     <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list })}
-      style={{ flex: "0 0 " + (n > 1 ? "calc(100% - 36px)" : "100%"), scrollSnapAlign: "center", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 24, overflow: "hidden", display: "block" }}>
-      <ThemePhoto id={c.id} name={c.name || c.theme || ""} height={176} />
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,.05) 0%, rgba(10,12,30,.35) 45%, rgba(10,12,30,.88) 100%)" }} />
-      <div style={{ position: "absolute", left: 18, right: 18, bottom: 14, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
-        <span className="row" style={{ gap: 9, alignItems: "center" }}>
-          {c.icon && React.createElement(c.icon, { size: 22, strokeWidth: 2.2 })}
-          <span className="disp" style={{ fontSize: 23, lineHeight: 1.05, opacity: c.writing ? 0.85 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
+      style={{ flex: "0 0 100%", scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
+      <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={124} /></div>
+      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(${r},${g},${bl},.10) 0%, rgba(${r},${g},${bl},.35) 35%, rgba(8,10,26,.9) 100%)` }} />
+      <span style={{ position: "absolute", top: 10, right: 10, padding: "3px 10px", borderRadius: 12, background: "rgba(255,255,255,.2)", color: "#fff", fontSize: 12, fontWeight: 800, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>{c.list.length} {c.list.length > 1 ? "events" : "event"}</span>
+      <div style={{ position: "absolute", left: 14, right: 14, bottom: 11, color: "#fff", display: "flex", flexDirection: "column", gap: 2, textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>
+        <span className="row" style={{ gap: 8, alignItems: "center", minWidth: 0 }}>
+          {c.icon && React.createElement(c.icon, { size: 20, strokeWidth: 2.2, style: { flexShrink: 0 } })}
+          <span className="disp" style={{ fontSize: 20, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: c.writing ? 0.85 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
         </span>
-        {c.sub && <span style={{ fontSize: 14, lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.sub}</span>}
-        <span style={{ fontSize: 13, fontWeight: 800 }}>{c.list.length} {c.list.length > 1 ? "events" : "event"} ›</span>
+        {c.sub && <span style={{ fontSize: 13, lineHeight: 1.25, opacity: 0.92, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.sub}</span>}
       </div>
     </button>
+  );
+}
+
+// One row: a small label and page dots, then a one-card-at-a-time carousel (no edge of the next card)
+function NYRow({ row, ri, onTile }) {
+  const [i, setI] = useState(0);
+  const [tint, label] = NY_TINT[Math.min(ri, 2)];
+  const items = row.items.slice(0, 3);
+  return (
+    <div style={{ padding: "0 16px" }}>
+      <div className="row" style={{ justifyContent: "space-between", padding: "0 4px 6px", alignItems: "center" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{row.label || label}</span>
+        {items.length > 1 && (
+          <span className="row" style={{ gap: 5 }} aria-label={"Card " + (i + 1) + " of " + items.length}>
+            {items.map((_, k) => <span key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 3, background: k === i ? "var(--ink)" : "var(--ink3)", opacity: k === i ? 0.9 : 0.35, transition: "all .2s" }} />)}
+            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--ink3)", marginLeft: 2 }}>swipe ›</span>
+          </span>
+        )}
+      </div>
+      <div onScroll={(e) => { const w = e.currentTarget.clientWidth; setI(Math.max(0, Math.min(items.length - 1, Math.round(e.currentTarget.scrollLeft / (w + 12))))); }}
+        style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none", borderRadius: 20 }}>
+        {items.map((c) => <NYCard key={c.id} c={c} tint={tint} onTile={onTile} />)}
+      </div>
+    </div>
   );
 }
 
@@ -472,12 +498,8 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
       {!empty && nyRows.length > 0 && (
         <>
           <Head title="New York right now" sub="What the city is up to: swipe each row." />
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {nyRows.map((row, ri) => (
-              <div key={ri} className="hscroll" style={{ gap: 12, scrollSnapType: "x mandatory", padding: "0 16px" }}>
-                {row.slice(0, 3).map((c) => <NYCard key={c.id} c={c} n={row.length} onTile={onTile} />)}
-              </div>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {nyRows.map((row, ri) => <NYRow key={row.key} row={row} ri={row.slot} onTile={onTile} />)}
           </div>
         </>
       )}

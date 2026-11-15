@@ -498,7 +498,7 @@ export default function App() {
     cityHol.map((m) => view("city", m, m.facts)),
     hoodItems,
     cityWx.map((m) => view("city", m, m.facts)),
-  ].map((r) => r.filter((c) => c && c.list?.length)).filter((r) => r.length);
+  ].map((items, slot) => ({ key: "ny" + slot, slot, items: items.filter((c) => c && c.list?.length) })).filter((r) => r.items.length);
 
   // ── Claude keywords: tag the best-scored events that have none yet, 40 per call
   const tagBusy = useRef(false);
