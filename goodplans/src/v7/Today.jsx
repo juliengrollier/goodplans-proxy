@@ -58,7 +58,7 @@ function Forecast({ weather, today }) {
 }
 
 // Top picks for one family (Watch, Listen, …): tap an icon to switch. Order fixed per session, favourite families first.
-function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
+function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], onHideCat = () => {} }) {
   const counts = data.reduce((m, e) => ((m[e.fam] = (m[e.fam] || 0) + 1), m), {});
   const order = React.useRef(null);
   const avail = FAMILIES.map((f) => f.id).filter((id) => counts[id] >= 2);
@@ -69,20 +69,19 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
   }
   const fams = [...(order.current || []).filter((c) => avail.includes(c)), ...avail.filter((c) => !(order.current || []).includes(c))];
   const [fam, setFam] = React.useState(() => { try { return sessionStorage.getItem("gp_topfam") || null; } catch { return null; } });
-  const pick = (c) => { setFam(c); setCat(null); setX([]); try { sessionStorage.setItem("gp_topfam", c); } catch { /* private mode */ } };
+  const pick = (c) => { setFam(c); setCat(null); try { sessionStorage.setItem("gp_topfam", c); } catch { /* private mode */ } };
   const cur = fam && fams.includes(fam) ? fam : fams[0];
   const [cat, setCat] = React.useState(null); // optional category inside the family
-  const [xcats, setX] = React.useState([]); // categories hidden with ×
   if (!cur) return null;
   const inFam = data.filter((e) => e.fam === cur);
   const catN = inFam.reduce((m, e) => ((m[e.ncat] = (m[e.ncat] || 0) + 1), m), {});
-  const cats = CATEGORIES.filter((c) => c.fam === cur && catN[c.id]).sort((a, b) => catN[b.id] - catN[a.id]);
-  const hide = (id) => { setX(xcats.includes(id) ? xcats.filter((x) => x !== id) : [...xcats, id]); if (cat === id) setCat(null); };
+  const cats = CATEGORIES.filter((c) => c.fam === cur && (catN[c.id] || xcats.includes(c.id))).sort((a, b) => catN[b.id] - catN[a.id]);
+  const hide = (id) => { onHideCat(id); if (cat === id) setCat(null); };
   const curCat = cat && catN[cat] ? cat : null;
   const list = inFam.filter((e) => (!curCat || e.ncat === curCat) && !xcats.includes(e.ncat)).sort((a, b) => b.sc - a.sc).slice(0, 5);
   return (
     <>
-      <SectionHead title={"Top picks · " + (curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], xcats, when: "week" })} />
+      <SectionHead title={"Top picks · " + (curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], when: "week" })} />
       <div className="row" style={{ justifyContent: "space-between", padding: "0 12px 14px" }} role="tablist" aria-label="Topic">
         {FAMILIES.filter((f) => fams.includes(f.id)).map((f) => {
           const on = f.id === cur, col = famColor(f.id, dark);
@@ -99,7 +98,7 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore }) {
       </div>
       {cats.length > 1 && (
         <div className="hscroll" style={{ gap: 6, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="group" aria-label={FAM[cur].label + " categories"}>
-          {cats.map((c) => <CatChip key={c.id} c={c} n={catN[c.id]} on={curCat === c.id} off={xcats.includes(c.id)} dark={dark} onPick={() => setCat(curCat === c.id ? null : c.id)} onHide={() => hide(c.id)} />)}
+          {cats.map((c) => <CatChip key={c.id} c={c} n={catN[c.id] || 0} on={curCat === c.id} off={xcats.includes(c.id)} dark={dark} onPick={() => setCat(curCat === c.id ? null : c.id)} onHide={() => hide(c.id)} />)}
         </div>
       )}
       <div key={cur + (curCat || "")} style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18, minHeight: 300 }}>
@@ -190,7 +189,7 @@ function renderHighlights(text, ids, data, onOpen) {
   return out;
 }
 
-export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [showAllNow, setShowAllNow] = React.useState(false);
   const g = greeting(new Date());
   const w = weather?.byDate?.[isoDay(today)];
@@ -305,7 +304,7 @@ export default function Today({ data, sections, dark, today, home, locLabel, onO
 
 
 
-      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} onMore={onMore} />}
+      {!empty && <TopPicks data={data} dark={dark} today={today} onOpen={onOpen} eprof={eprof} onMore={onMore} xcats={hiddenCats} onHideCat={onHideCat} />}
 
       {book.length > 0 && (
         <>

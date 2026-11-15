@@ -62,8 +62,15 @@ window.fetch = async (input, init = {}) => {
   return new Response("", { status: 404 });
 };
 
-// Clear previous preview state so each open starts fresh, then label the page
-try { Object.keys(localStorage).filter((k) => k.startsWith("gp_")).forEach((k) => localStorage.removeItem(k)); } catch { /* storage blocked */ }
+// Start fresh once per preview build (so remembered filters and likes survive reopening the same version)
+try {
+  const ver = String(__PREVIEW_BUILD__);
+  if (localStorage.getItem("gp_preview_ver") !== ver) {
+    Object.keys(localStorage).filter((k) => k.startsWith("gp_")).forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem("gp_preview_ver", ver);
+  }
+  localStorage.removeItem("gp_events_v1"); // sample events always reload with fresh times
+} catch { /* storage blocked */ }
 window.addEventListener("DOMContentLoaded", () => {
   const b = document.createElement("div");
   b.textContent = "Preview · sample events";
