@@ -123,8 +123,33 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   );
 }
 
+// Top pick for now: the single event in a mood's list we're most sure you'd want today but haven't planned.
+// Confidence = your overall score + learned taste + how central it is to the mood + timing; anything uncertain is left out
+// (exploration picks, saved or clashing events, rain on outdoor plans, far trips, ended or unknown-time events late in the day).
+export function topPickNow(list, today, exclude = []) {
+  const now = nowMinutes(), n = list.length;
+  const A = topPickNow.ctx || {};
+  let best = null;
+  list.forEach((e, i) => {
+    if (exclude.includes(e.id) || e.explore || e.busy || e.rain || e.hidden) return;
+    if (A.isSaved?.(e.id) || A.thumbOf?.(e.id) === -1) return;
+    if (daysUntil(e, today) !== 0 || !evCovers(e, today)) return;
+    const sm = startMinutes(e), em = endMinutes(e);
+    if (sm != null && em == null && sm < now - 60) return;    // started over an hour ago
+    if (em != null && em < now + 45) return;                 // ends too soon to go
+    if (e.tt?.mins > 40) return;
+    let c = (e.sc || 0) + Math.max(0, e.lp || 0) * 0.6 + 12 * (1 - i / Math.max(1, n));
+    if (sm != null && sm >= now && sm - now <= 240) c += 6;  // starts in the next few hours
+    if (e.tt?.mins != null && e.tt.mins <= 20) c += 4;
+    if (sm == null) c -= 6;                                 // vague timing: less sure
+    if (!best || c > best.c) best = { e, c };
+  });
+  return best && best.c >= 55 ? best.e : null;
+}
+
 // A mood section: small label, Claude-written title and subtitle, 4 events, "Or:" chip, extra actions
-function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, children }) {
+function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, children, hero }) {
+  const rest = hero ? m.list.filter((e) => e.id !== hero.id) : m.list;
   return (
     <>
       <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
@@ -133,7 +158,8 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
         {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
       </div>
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-        {m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+        {hero && <HeroCard ev={hero} dark={dark} today={today} onOpen={onOpen} label="Top pick for now" />}
+        {rest.slice(0, hero ? 3 : 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
         {!m.list.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{other.title}</span></button>}
@@ -145,7 +171,8 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
 }
 
 // City pulse: what New York is up to. Navy banner card, then the related events as a list.
-function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
+function CityPulse({ m, other, onSwitch, onOpen, dark, today, hero }) {
+  const rest = hero ? m.list.filter((e) => e.id !== hero.id) : m.list;
   // Header with a navy icon badge; events listed below like the other sections
   return (
     <>
@@ -158,7 +185,8 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today }) {
         {m.sub && <div className="muted" style={{ fontSize: 14, lineHeight: 1.35 }}>{m.sub}</div>}
       </div>
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-        {m.list.length ? m.list.slice(0, 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
+        {hero && <HeroCard ev={hero} dark={dark} today={today} onOpen={onOpen} label="Top pick for today" />}
+        {m.list.length ? rest.slice(0, hero ? 3 : 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
           : <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
         {other && <button className="chip" style={{ height: 36, maxWidth: "100%", alignSelf: "flex-start" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
       </div>
@@ -210,6 +238,10 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
   const w = weather?.byDate?.[isoDay(today)];
   const { nowSoon, tonight, weekend, book, wildcard, total } = sections;
   const empty = !data.length;
+  const A = React.useContext(ActionsCtx);
+  topPickNow.ctx = A;
+  const youHero = you?.list ? topPickNow(you.list, today) : null;
+  const cityHero = city?.list ? topPickNow(city.list, today, youHero ? [youHero.id] : []) : null;
 
   return (
     <div>
@@ -287,7 +319,7 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
       )}
 
       {!empty && (you ? (
-        <MoodSection eyebrow="Mood meter" m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
+        <MoodSection eyebrow="Mood meter" hero={youHero} m={you} other={youOther} onSwitch={onYouSwitch} onOpen={onYouOpen} dark={dark} today={today}>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(true)}><Icon name="up" size={15} /> Nailed it</button>
           <button className="chip" style={{ height: 36 }} onClick={() => onYouFeedback(false)}><Icon name="down" size={15} /> Not quite</button>
           <button className="chip" style={{ height: 36 }} onClick={onSurprise}><Icon name="spark" size={15} /> Surprise me</button>
@@ -302,7 +334,7 @@ export default function Today({ goAsk, onGoAnswer = () => {}, together, setToget
         </>
       ))}
 
-      {!empty && city && <CityPulse m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
+      {!empty && city && <CityPulse hero={cityHero} m={city} other={cityOther} onSwitch={onCitySwitch} onOpen={onCityOpen} dark={dark} today={today} />}
 
       {!empty && <WhenTabs tabs={[
         ["tonight", freeUntil != null ? "While you're free" : "Tonight", tonight, { when: "tonight" }],
