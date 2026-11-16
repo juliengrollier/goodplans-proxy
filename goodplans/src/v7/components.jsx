@@ -260,6 +260,10 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
 export const actLabel = (ev) => { const l = (ev.act && ACT[ev.act]?.label) || ev.nsub || ev.sub || ev.ncat || ev.cat || ""; return l ? l[0].toUpperCase() + l.slice(1) : ""; };
 export const areaLabel = (ev) => neighbourhoodOf(ev) || (ev.hood ? String(ev.hood).split(",")[0].trim() : "");
 export const minsLabel = (ev) => (ev.tt?.mins != null ? Math.round(ev.tt.mins) + "\u2032" : "");
+export function TravelMini({ ev, size = 13 }) {
+  if (ev.tt?.mins == null) return null;
+  return <span className="row" style={{ gap: 2, color: "var(--ink3)", flexShrink: 0, whiteSpace: "nowrap" }}><Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={size} width={2.2} />{minsLabel(ev)}</span>;
+}
 export function shortWhen(ev, today) {
   const d = Math.max(0, daysUntil(ev, today)), st = startMinutes(ev), now = nowMinutes();
   const multi = ev.X && ev.X > ev.E;
@@ -274,18 +278,18 @@ export function shortWhen(ev, today) {
 
 export function PosterCard({ ev, dark, today, onOpen }) {
   const seenRef = useSeen(ev);
-  const area = areaLabel(ev), m = minsLabel(ev);
+  const area = areaLabel(ev);
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
       <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
-      <div className="row" style={{ gap: 5, justifyContent: "space-between", minWidth: 0 }}>
-        <span className="row" style={{ gap: 5, minWidth: 0 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 800, color: "var(--ink2)" }}>{actLabel(ev)}</span></span>
+      <div className="row" style={{ gap: 5, justifyContent: "space-between", minWidth: 0, height: 24 }}>
+        <span className="row" style={{ gap: 5, minWidth: 0 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 500, color: "var(--ink2)" }}>{actLabel(ev)}</span></span>
         <CardActions ev={ev} size={24} noSave />
       </div>
-      <div className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</div>
-      <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between" }}>
-        <span className="ell" style={{ minWidth: 0 }}><span style={{ fontWeight: 600 }}>{shortWhen(ev, today)}</span>{area ? <span style={{ color: "var(--ink3)" }}>{" · " + area}</span> : null}</span>
-        {m && <span style={{ color: "var(--ink3)", flexShrink: 0 }}>{m}</span>}
+      <div className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12, height: 35 }}>{ev.title}</div>
+      <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between", fontWeight: 400 }}>
+        <span className="ell" style={{ minWidth: 0 }}>{shortWhen(ev, today)}{area ? <span style={{ color: "var(--ink3)" }}>{" · " + area}</span> : null}</span>
+        <TravelMini ev={ev} size={12} />
       </div>
     </div>
   );
@@ -295,11 +299,12 @@ export function PosterCard({ ev, dark, today, onOpen }) {
 export function MiniCard({ ev, dark, today, onOpen }) {
   const area = areaLabel(ev);
   return (
-    <div {...tap(onOpen, ev)} style={{ width: 250, flexShrink: 0, display: "flex", gap: 10, alignItems: "center", cursor: "pointer", color: "var(--ink)" }}>
-      <div style={{ width: 76, height: 76, flexShrink: 0 }}><Media ev={ev} dark={dark} height={76} radius={16} hideTitle /></div>
-      <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-        <span className="disp clamp2" style={{ fontSize: 15, lineHeight: 1.12 }}>{ev.title}</span>
-        <span className="ell" style={{ fontSize: 12.5 }}><span style={{ fontWeight: 600 }}>{shortWhen(ev, today)}</span>{area ? <span style={{ color: "var(--ink3)" }}>{" · " + area}</span> : null}</span>
+    <div {...tap(onOpen, ev)} style={{ width: "calc(100vw - 32px)", maxWidth: 420, flexShrink: 0, display: "flex", gap: 12, cursor: "pointer", color: "var(--ink)" }}>
+      <div style={{ width: 76, height: 76, flexShrink: 0, position: "relative" }}><Media ev={ev} dark={dark} height={76} radius={16} hideTitle /></div>
+      <div style={{ flex: 1, minWidth: 0, height: 76, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <span className="row" style={{ gap: 5, minWidth: 0 }}><CatBullet ev={ev} size={15} dark={dark} /><span className="ell" style={{ fontSize: 12, color: "var(--ink2)" }}>{actLabel(ev)}</span></span>
+        <span className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</span>
+        <span className="row" style={{ gap: 6, fontSize: 12.5, justifyContent: "space-between", minWidth: 0 }}><span className="ell" style={{ minWidth: 0 }}>{shortWhen(ev, today)}{area ? <span style={{ color: "var(--ink3)" }}>{" · " + area}</span> : null}</span><TravelMini ev={ev} size={12} /></span>
       </div>
     </div>
   );
