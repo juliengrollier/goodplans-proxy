@@ -59,6 +59,14 @@ export function Keywords({ ev, max = 3, size = "sm", oneLine }) {
 let KW_DF = {};
 export const setKeywordDf = (events) => { const df = {}; events.forEach((e) => new Set((e.kw || []).map((k) => String(k).toLowerCase())).forEach((k) => { df[k] = (df[k] || 0) + 1; })); KW_DF = df; };
 const KW_JUNK = /^(nyc|new york|brooklyn|manhattan|queens|free|event|events|other|misc|general|live|night|show|fun|social|outdoor|indoor|family-friendly|all ages|21\+|late night)$/i;
+// The most precise word for what the event is: its rarest specific keyword (e.g. "glassblowing"), else the activity, sub-type, category
+export function preciseLabel(ev) {
+  const t = (ev.title || "").toLowerCase(), cat = String(ev.ncat || ev.cat || "").toLowerCase();
+  const kws = (ev.kw || []).map((k) => String(k).trim()).filter((k) => k && k.length <= 18 && !KW_JUNK.test(k) && k.toLowerCase() !== cat && !/\b(night|show|class|event|party|session|series)s?$/i.test(k));
+  const best = kws.sort((a, b) => (KW_DF[a.toLowerCase()] || 1) - (KW_DF[b.toLowerCase()] || 1) || a.length - b.length)[0];
+  const l = best || (ev.act && ACT[ev.act]?.label) || ev.nsub || ev.ncat || ev.cat || "";
+  return l ? l[0].toUpperCase() + l.slice(1) : "";
+}
 export function KeywordLine({ ev, size = 12 }) {
   const t = (ev.title || "").toLowerCase(), cat = String(ev.ncat || ev.cat || "").toLowerCase();
   const kws = (ev.kw || []).map((k) => String(k).trim()).filter((k) => k && !KW_JUNK.test(k) && k.toLowerCase() !== cat && !t.includes(k.toLowerCase()));
@@ -495,7 +503,8 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
   return (
     <div role="button" tabIndex={0} onClick={t.open} onKeyDown={(e) => { if (e.key === "Enter") t.open(); }}
       style={{ width: compact ? 168 : undefined, flexShrink: compact ? 0 : undefined, borderRadius: 20, padding: "14px 14px 8px 14px", background: t.color, color: "#fff", textAlign: "left", minHeight: 132, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden", cursor: "pointer", opacity: fb === -1 ? 0.5 : 1 }}>
-      <span style={{ position: "absolute", right: -6, top: -6, opacity: 0.22 }} aria-hidden="true">
+      {onFav && <button aria-label={fav ? "Remove from favorites" : "Add to favorites"} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ position: "absolute", top: 6, right: 6, zIndex: 1, width: 30, height: 30, borderRadius: 15, border: "none", background: "transparent", color: "#fff", opacity: fav ? 1 : 0.7, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={17} fill={fav ? "currentColor" : "none"} /></button>}
+      <span style={{ position: "absolute", right: -6, top: onFav ? 14 : -6, opacity: 0.22 }} aria-hidden="true">
         {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
       </span>
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -510,7 +519,6 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
           <span className="row" style={{ gap: 0, marginRight: -6 }}>
             <button aria-label="More like this" aria-pressed={fb === 1} style={ib(fb === 1)} onClick={act(() => onFb(t, 1))}><Icon name="up" size={16} /></button>
             <button aria-label="Less like this" aria-pressed={fb === -1} style={ib(fb === -1)} onClick={act(() => onFb(t, -1))}><Icon name="down" size={16} /></button>
-            {onFav && <button aria-label={fav ? "Remove from your moods" : "Add to your moods"} aria-pressed={fav} style={ib(fav)} onClick={act(() => onFav(t))}><Icon name="heart" size={17} fill={fav ? "currentColor" : "none"} /></button>}
           </span>
         )}
       </span>

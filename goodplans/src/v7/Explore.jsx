@@ -138,7 +138,12 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
             </div>
             {mapEvs.length > 0 && home && <><div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "30px 16px 26px" }} /><div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Happening next</div><AroundMap legend evs={mapEvs.slice(0, 12)} home={home} dark={dark} today={today} onOpen={onOpen} height={200} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></>}
             <div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "30px 16px 26px" }} />
-            <div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Coming up</div>
+            <div className="row" style={{ padding: "0 16px 12px 20px", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Coming up</span>
+              <span className="row" role="group" aria-label="Group by" style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)" }}>
+                {[["cat", "Category"], ["day", "Date"]].map(([k, l]) => <button key={k} aria-pressed={groupBy === k} onClick={() => setGroupBy(k)} style={{ height: 26, padding: "0 11px", borderRadius: 12, border: "none", background: groupBy === k ? "var(--card)" : "transparent", color: groupBy === k ? "var(--ink)" : "var(--ink3)", fontSize: 12.5, fontWeight: 700, boxShadow: groupBy === k ? "0 1px 3px rgba(0,0,0,.12)" : "none" }}>{l}</button>)}
+              </span>
+            </div>
           </div>
         );
       })()}
@@ -194,7 +199,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       {view === "all" && fromTile && alsoLike.length > 0 && (
         <div style={{ marginTop: 30 }}>
           <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 3 }}><h2>You may also like</h2><span className="muted" style={{ fontSize: 14 }}>Activities close to this one.</span></div>
-          <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}</DotScroll>
+          <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} fav={moodFav.includes(t.key)} onFav={onMoodFav} />)}</DotScroll>
         </div>
       )}
       {view !== "all" && (
