@@ -1,90 +1,59 @@
-// Onboarding v5: swipe deck. Right = love, left = meh, skip = no opinion. 12 cards, then straight to Home.
-import React, { useMemo, useRef, useState } from "react";
+// Onboarding v6: one page. Your name, then "I'd rather…" rows of three; one tap per row. Then straight to Home.
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
-import { Moon, Tag, Users } from "lucide";
-import { START, VIBES, DECK_SIZE, profileFrom, meetFrom } from "./quiz.js";
+import { ROWS, profileFrom, meetFrom } from "./quiz.js";
 import { ACT } from "./activities.js";
 import { CATEGORIES, FAM, LIcon } from "./taxonomy.js";
-import { getSpace, cos } from "./embed.js";
 import { Icon } from "./icons.jsx";
 
 const CATI = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
-const VIBE_ICON = { late: Moon, free: Tag, meet: Users };
-const VIBE_COLOR = { late: "#4338CA", free: "#0F766E", meet: "#DB2777" };
-
-// Next card: a "how you go out" card at its slot; otherwise alternate between a close neighbour of what you loved
-// and the next card of the spread that isn't close to anything you said meh to
-function nextCard(i, ans, seen) {
-  const vk = Object.keys(VIBES).find((k) => VIBES[k].at === i);
-  if (vk) return { vibe: vk };
-  const sp = getSpace(), v = (id) => sp.vec.get("act:" + id);
-  const loves = Object.entries(ans.acts).filter(([, x]) => x > 0).map(([k]) => k), mehs = Object.entries(ans.acts).filter(([, x]) => x < 0).map(([k]) => k);
-  const near = (id, set) => Math.max(0, ...set.map((o) => cos(v(id), v(o))));
-  const actTurn = i - Object.values(VIBES).filter((x) => x.at < i).length;
-  if (loves.length && actTurn % 2 === 1) {
-    let best = null, bs = 0.3;
-    for (const id of Object.keys(ACT)) { if (seen.has(id) || !v(id)) continue; const s = near(id, loves) - 0.6 * near(id, mehs); if (s > bs) { bs = s; best = id; } }
-    if (best) return { act: best };
-  }
-  const pick = START.find((id) => !seen.has(id) && near(id, mehs) < 0.7) || START.find((id) => !seen.has(id));
-  return { act: pick };
-}
+const ROW_COLOR = { when: "#4338CA", spend: "#0F766E", who: "#DB2777" };
 
 export default function Quiz({ onDone, onClose, dark }) {
-  const [ans, setAns] = useState({ acts: {}, vibe: {} });
-  const [i, setI] = useState(0);
-  const [seen] = useState(() => new Set());
-  const [dx, setDx] = useState(0), [fly, setFly] = useState(0);
-  const x0 = useRef(null), dxr = useRef(0);
-  const card = useMemo(() => { const c = nextCard(i, ans, seen); if (c.act) seen.add(c.act); return c; }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
-  const loves = Object.values(ans.acts).filter((x) => x > 0).length;
-
-  const finish = (a) => onDone(a, profileFrom(a), meetFrom(a));
-  const decide = (val) => {
-    if (fly) return;
-    const a = card.vibe ? { ...ans, vibe: { ...ans.vibe, [card.vibe]: val } } : val ? { ...ans, acts: { ...ans.acts, [card.act]: val } } : ans;
-    setAns(a); setFly(val || 0.001);
-    setTimeout(() => { setFly(0); setDx(0); if (i + 1 >= DECK_SIZE) finish(a); else setI(i + 1); }, 230);
+  const [rows, setRows] = useState({});
+  const [name, setName] = useState(() => { try { return localStorage.getItem("gp_name_v1") || ""; } catch { return ""; } });
+  const n = Object.keys(rows).length;
+  const tap = (r, i) => { const x = { ...rows }; if (x[r] === i) delete x[r]; else x[r] = i; setRows(x); };
+  const finish = () => {
+    try { if (name.trim()) localStorage.setItem("gp_name_v1", name.trim()); } catch { /* private */ }
+    const ans = { rows }; onDone(ans, profileFrom(ans), meetFrom(ans));
   };
-  const down = (e) => { x0.current = e.clientX; dxr.current = 0; e.currentTarget.setPointerCapture?.(e.pointerId); };
-  const move = (e) => { if (x0.current != null) { dxr.current = e.clientX - x0.current; setDx(dxr.current); } };
-  const up = () => { if (x0.current == null) return; x0.current = null; const d = dxr.current; dxr.current = 0; if (d > 90) decide(1); else if (d < -90) decide(-1); else setDx(0); };
-
-  const a = card.act && ACT[card.act], c = a && CATI[a.ncat], fam = c && FAM[c.fam];
-  const col = card.vibe ? VIBE_COLOR[card.vibe] : fam ? (dark ? fam.dark : fam.light) : "#475569";
-  const label = card.vibe ? VIBES[card.vibe].label : a ? a.label[0].toUpperCase() + a.label.slice(1) : "";
-  const sub = card.vibe ? VIBES[card.vibe].sub : c ? c.id : "";
-  const node = card.vibe ? VIBE_ICON[card.vibe] : c?.icon;
-  const off = fly ? (fly > 0.5 ? 600 : fly < -0.5 ? -600 : 0) : dx;
-  const wrap = { position: "fixed", inset: 0, zIndex: 80, background: "var(--bg)", color: "var(--ink)", display: "flex", flexDirection: "column", padding: "calc(16px + env(safe-area-inset-top)) 20px calc(22px + env(safe-area-inset-bottom))", overflow: "hidden", touchAction: "none" };
-  const round = (bg, fg, sz) => ({ width: sz, height: sz, borderRadius: sz / 2, border: "none", background: bg, color: fg, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 18px rgba(20,24,51,.18)" });
-
+  const wrap = { position: "fixed", inset: 0, zIndex: 80, background: "var(--bg)", color: "var(--ink)", overflowY: "auto", padding: "calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))" };
   return createPortal(
     <div style={wrap} role="dialog" aria-label="Get to know you">
-      <div className="row" style={{ gap: 12, alignItems: "center" }}>
-        <div className="row" style={{ flex: 1, gap: 4 }}>{Array.from({ length: DECK_SIZE }, (_, k) => <span key={k} style={{ flex: 1, height: 5, borderRadius: 3, background: k < i ? "var(--navy)" : "var(--chip)" }} />)}</div>
-        <button className="chip" onClick={() => (loves >= 3 ? finish(ans) : onClose())} style={{ height: 34 }}>{loves >= 3 ? "Done" : "Later"}</button>
-      </div>
-      <h1 className="disp" style={{ margin: "22px 0 4px", fontSize: 28, lineHeight: 1.1 }}>{card.vibe ? "And how do you go out?" : loves ? "How about this?" : "Would you go?"}</h1>
-      <div className="muted" style={{ fontSize: 14 }}>Swipe right if yes, left if not.</div>
+      <div className="row" style={{ justifyContent: "flex-end" }}><button className="chip" onClick={onClose} style={{ height: 34 }}>Later</button></div>
+      <h1 className="disp" style={{ margin: "10px 4px 6px", fontSize: 30, lineHeight: 1.08 }}>Quick one: what's your style?</h1>
+      <div className="muted" style={{ margin: "0 4px 18px", fontSize: 14.5 }}>Tap what you'd rather do in each row. Skip any you can't choose.</div>
 
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "18px 0" }}>
-        <div key={i} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-          style={{ position: "relative", width: "100%", maxWidth: 340, aspectRatio: "3 / 4", maxHeight: "52vh", borderRadius: 32, background: col, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: 24, textAlign: "center", cursor: "grab", userSelect: "none",
-            transform: `translateX(${off}px) rotate(${off / 18}deg)`, transition: x0.current != null ? "none" : "transform .23s ease", boxShadow: "0 18px 40px rgba(20,24,51,.22)" }}>
-          <span style={{ position: "absolute", top: 20, left: 20, padding: "4px 12px", borderRadius: 10, border: "3px solid #fff", fontWeight: 900, fontSize: 18, letterSpacing: 1, opacity: Math.max(0, Math.min(1, off / 90)), transform: "rotate(-12deg)" }}>YES</span>
-          <span style={{ position: "absolute", top: 20, right: 20, padding: "4px 12px", borderRadius: 10, border: "3px solid #fff", fontWeight: 900, fontSize: 18, letterSpacing: 1, opacity: Math.max(0, Math.min(1, -off / 90)), transform: "rotate(12deg)" }}>NAH</span>
-          <span style={{ width: 110, height: 110, borderRadius: 55, background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>{node && <LIcon node={node} size={56} color="#fff" stroke={1.8} />}</span>
-          <span className="disp" style={{ fontSize: 34, lineHeight: 1.05 }}>{label}</span>
-          <span style={{ fontSize: 15, fontWeight: 700, opacity: 0.85 }}>{sub}</span>
-        </div>
+      <label style={{ display: "block", margin: "0 4px 22px" }}>
+        <span style={{ display: "block", fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>What should we call you?</span>
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your first name" autoComplete="given-name" style={{ width: "100%" }} />
+      </label>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {ROWS.map((r) => (
+          <div key={r.id}>
+            <div style={{ margin: "0 4px 7px", fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink3)" }}>I'd rather…</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
+              {r.opts.map((o, i) => {
+                const a = o.act && ACT[o.act], c = a && CATI[a.ncat], fam = c && FAM[c.fam];
+                const col = ROW_COLOR[r.id] || (fam ? (dark ? fam.dark : fam.light) : "#475569");
+                const on = rows[r.id] === i, dim = rows[r.id] != null && !on;
+                return (
+                  <button key={o.l} aria-pressed={on} onClick={() => tap(r.id, i)}
+                    style={{ position: "relative", minHeight: 84, border: "none", borderRadius: 16, padding: "10px 8px", background: on ? col : "var(--card)", color: on ? "#fff" : "var(--ink)", opacity: dim ? 0.5 : 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, textAlign: "center", transition: "background .15s, opacity .15s, transform .1s", transform: on ? "scale(1.03)" : "none" }}>
+                    {c && <span style={{ width: 28, height: 28, borderRadius: 14, background: on ? "rgba(255,255,255,.22)" : col, display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={c.icon} size={15} color="#fff" /></span>}
+                    <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.18 }}>{o.l}</span>
+                    {on && <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 6, display: "flex" }}><Icon name="check" size={14} /></span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="row" style={{ justifyContent: "center", alignItems: "center", gap: 22 }}>
-        <button aria-label="Nah" onClick={() => decide(-1)} style={round("var(--card)", "var(--ink)", 64)}><Icon name="close" size={26} /></button>
-        <button aria-label="Skip" onClick={() => decide(0)} style={{ border: "none", background: "none", color: "var(--ink3)", fontWeight: 800, fontSize: 14, padding: 8 }}>Not sure</button>
-        <button aria-label="Yes" onClick={() => decide(1)} style={round(col, "#fff", 64)}><Icon name="heart" size={26} fill="currentColor" /></button>
-      </div>
+      <button className="pill pill-dark" onClick={finish} disabled={n < 3} style={{ width: "100%", height: 52, marginTop: 24, opacity: n >= 3 ? 1 : 0.45 }}>{n >= 3 ? "Show me good plans" : "Pick at least 3 rows"}</button>
     </div>,
     document.body
   );
