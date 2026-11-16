@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { INTENTS, INTENT, intentEvents, intentCount, blend } from "./intents.js";
+import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods } from "./intents.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
@@ -371,15 +371,14 @@ function NYRow({ row, ri, onTile }) {
 // In the mood for…: one or several intentions; the pick reshapes "Best for you right now" and opens a full mood page
 function IntentChips({ data, today, sel, put }) {
   const counts = React.useMemo(() => Object.fromEntries(INTENTS.map((i) => [i.id, intentCount(data, i.id, today)])), [data, today]);
-  const lab = { padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" };
   return (
-    <div style={{ margin: "4px 0 18px" }}>
-      <div className="row" style={{ ...lab, justifyContent: "space-between" }}><span>In the mood for…</span>{sel.length > 0 && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
-      <div className="row" style={{ padding: "0 16px", gap: 7, flexWrap: "wrap" }}>
-        {INTENTS.map((it) => { const on = sel.includes(it.id); return (
-          <button key={it.id} aria-pressed={on} onClick={() => put(on ? sel.filter((x) => x !== it.id) : [...sel, it.id])} disabled={!counts[it.id] && !on}
-            className="chip" style={{ height: 38, gap: 7, padding: "0 13px 0 11px", fontSize: 14, background: on ? it.color : undefined, borderColor: on ? it.color : undefined, color: on ? "#fff" : undefined, opacity: !counts[it.id] && !on ? 0.4 : 1 }}>
-            {React.createElement(it.icon, { size: 16, strokeWidth: 2.2, color: on ? "#fff" : it.color })}{it.label}
+    <div style={{ margin: "2px 0 0" }}>
+      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>In the mood for…</span>{sel.length > 0 && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
+      <div className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }}>
+        {INTENTS.filter((it) => counts[it.id] || sel.includes(it.id)).map((it) => { const on = sel.includes(it.id); return (
+          <button key={it.id} aria-pressed={on} onClick={() => put(on ? sel.filter((x) => x !== it.id) : [...sel, it.id])}
+            className="chip" style={{ height: 32, flexShrink: 0, gap: 6, padding: "0 11px 0 9px", fontSize: 13, background: on ? it.color : undefined, borderColor: on ? it.color : undefined, color: on ? "#fff" : undefined }}>
+            {React.createElement(it.icon, { size: 14, strokeWidth: 2.3, color: on ? "#fff" : it.color })}{it.label}
           </button>
         ); })}
       </div>
@@ -391,7 +390,17 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
   const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]"); } catch { return []; } });
   const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
   const intentAll = React.useMemo(() => intentEvents(data || [], intentSel, today), [data, intentSel, today]);
-  const intentTitle = intentSel.map((id) => INTENT[id].label).join(" + ");
+  const intentTitle = joinMoods(intentSel);
+  const [discN, setDiscN] = useState(6);
+  const discover = React.useMemo(() => {
+    const gens = (tiles?.all || []).filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length);
+    return gens.map((t) => {
+      const fit = intentSel.length ? t.list.reduce((a, e) => a + Math.min(1, blend(e, intentSel)), 0) / t.list.length : 1;
+      if (fit < 0.5) return null;
+      const b = (intentSel.length ? bestIntent(t.list, intentSel) : null) || bestIntent(t.list);
+      return b ? { ...t, title: t.short || t.title, verb: b.label, color: b.color } : { ...t, title: t.short || t.title };
+    }).filter(Boolean);
+  }, [tiles, intentSel]);
   const intentWithin = React.useMemo(() => { const m = {}; intentAll.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 10); }, [intentAll]);
   // Best for you right now: what is still to come today (or on now), else tomorrow, by your score, sooner first on ties
   const bestNow = React.useMemo(() => {
@@ -486,14 +495,6 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
         </>
       )}
 
-      {/* 3. Around you right now: a map of what is on or starting nearby */}
-      {!empty && mapEvs.length > 0 && (
-        <>
-          <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
-          {mapEvs.length > 0 && <AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
-        </>
-      )}
-
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
       {!empty && tiles && (
         <>
@@ -503,11 +504,12 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
               {tiles.quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
             </div>
           )}
-          <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
           {bestNow.length > 0 ? (
             <div style={{ margin: "0 0 18px" }}>
               <div className="ell" style={{ padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Best for you right now{intentSel.length ? " · " + intentTitle : ""}</div>
               <DotScroll key={intentSel.join("+")}>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
+              <div style={{ height: 14 }} />
+              <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
               {intentSel.length > 0 && intentWithin.length > 1 && (
                 <div className="hscroll" style={{ gap: 7, padding: "16px 16px 0" }}>
                   {intentWithin.map(([id, l]) => (
@@ -526,9 +528,35 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
                 </div>
               )}
             </div>
-          ) : intentSel.length > 0 ? (
-            <div className="muted" style={{ padding: "0 20px 18px", fontSize: 14 }}>Nothing fits {intentTitle.toLowerCase()} in the next two weeks.</div>
-          ) : null}
+          ) : (
+            <div style={{ margin: "0 0 18px" }}>
+              <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
+              {intentSel.length > 0 && <div className="muted" style={{ padding: "10px 20px 0", fontSize: 14 }}>Nothing fits {intentTitle.toLowerCase()} in the next two weeks.</div>}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 4b. Discover: activity tiles that fit the picked moods (or your taste), labelled and coloured by the mood they fit */}
+      {!empty && discover.length > 0 && (
+        <>
+          <Head title="Discover" sub={intentSel.length ? "Activities for " + intentTitle.toLowerCase() + ", picked for you." : "Activities you might like, from what you enjoy."} />
+          <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {discover.slice(0, discN).map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}
+          </div>
+          {discover.length > discN && (
+            <div style={{ padding: "12px 16px 0" }}>
+              <button className="btn" onClick={() => setDiscN(discN + 6)} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>More activities</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 3. Around you right now: a map of what is on or starting nearby */}
+      {!empty && mapEvs.length > 0 && (
+        <>
+          <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
+          {mapEvs.length > 0 && <AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
         </>
       )}
 

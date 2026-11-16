@@ -6,12 +6,14 @@ import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
 import { startMinutes, whenLabel } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
+import { neighbourhoodOf } from "./tiles.js";
 import { AroundMap } from "./Today.jsx";
 
 export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
-  const [style, setStyle] = useState("carousel"); // carousel: one row per category; list: one long list
+  const [style, setStyle] = useState("carousel");
+  const [groupBy, setGroupBy] = useState("cat"); // cat | day | area // carousel: one row per category; list: one long list
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
@@ -28,17 +30,22 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
   const soonest = (a, b) => (Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today))) || ((startMinutes(a) ?? 9999) - (startMinutes(b) ?? 9999));
   const results = useMemo(() => { const base = applyFilters(scored, filters, today); return collapseSeries(fromTile ? [...base].sort(soonest) : sortEvents(base, sort)); }, [scored, filters, sort, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
-  const catGroups = useMemo(() => {
-    const by = new Map();
-    results.slice(0, 160).forEach((e) => { if (fromTile && act.isSaved(e.id)) return; const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
-    return [...by.entries()];
-  }, [results, fromTile, act]);
-  const groups = useMemo(() => {
-    if (!fromTile) return null;
-    const by = new Map();
-    results.slice(0, limit).forEach((e) => { if (act.isSaved(e.id)) return; const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
-    return [...by.entries()];
-  }, [results, fromTile, limit, act]);
+  // Grouping: by category (default), by day (soonest first) or by neighbourhood (biggest first)
+  const keyOf = (e) => {
+    if (groupBy === "day") { const d = Math.max(0, daysUntil(e, today)); return [d === 0 ? "Today" : d === 1 ? "Tomorrow" : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }), d]; }
+    if (groupBy === "area") { const a = neighbourhoodOf(e) || (e.hood ? String(e.hood).split(",")[0].trim() : "") || "Elsewhere"; return [a, 0]; }
+    return [e.ncat || e.cat || "Other", 0];
+  };
+  const groupUp = (list) => {
+    const by = new Map(), ord = {};
+    list.forEach((e) => { const [k, o] = keyOf(e); if (!by.has(k)) { by.set(k, []); ord[k] = o; } by.get(k).push(e); });
+    let out = [...by.entries()];
+    if (groupBy === "day") out = out.sort((a, b) => ord[a[0]] - ord[b[0]]).map(([k, l]) => [k, l.slice().sort((x, y) => (startMinutes(x) ?? 9999) - (startMinutes(y) ?? 9999))]);
+    if (groupBy === "area") out = out.sort((a, b) => (a[0] === "Elsewhere") - (b[0] === "Elsewhere") || b[1].length - a[1].length);
+    return out;
+  };
+  const catGroups = useMemo(() => groupUp(results.slice(0, 160).filter((e) => !(fromTile && act.isSaved(e.id)))), [results, fromTile, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => (fromTile ? groupUp(results.slice(0, limit).filter((e) => !act.isSaved(e.id))) : null), [results, fromTile, limit, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Regulars: series learned from the feed (weekly, every other week, monthly, varying) plus the city's yearly events.
   // The When filter doesn't apply here; the other filters do.
@@ -109,6 +116,12 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
           </span>
         )}
       </div>
+      {view === "all" && (
+        <div className="row" style={{ padding: "0 16px 10px", gap: 6, alignItems: "center" }} role="group" aria-label="Group by">
+          <span className="muted" style={{ fontSize: 12.5, fontWeight: 800, marginRight: 2 }}>Group by</span>
+          {[["cat", "Category"], ["day", "Day"], ["area", "Area"]].map(([k, l]) => <button key={k} aria-pressed={groupBy === k} className={"chip" + (groupBy === k ? " on" : "")} style={{ height: 30, fontSize: 13 }} onClick={() => setGroupBy(k)}>{l}</button>)}
+        </div>
+      )}
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 8, marginBottom: 14 }}>
           <div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
@@ -121,8 +134,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
         <div style={{ display: "flex", flexDirection: "column", gap: 30, paddingTop: 12 }}>
           {catGroups.map(([cat, list]) => (
             <div key={cat}>
-              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "2px 20px 12px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><CatBullet ev={list[0]} size={24} dark={dark} /><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
-              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard hideCat key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
+              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "2px 20px 12px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}>{groupBy === "cat" ? <CatBullet ev={list[0]} size={24} dark={dark} /> : <span style={{ display: "flex", color: "var(--ink2)" }}><Icon name={groupBy === "day" ? "cal" : "pin"} size={20} /></span>}<span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
+              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard hideCat={groupBy === "cat"} key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
             </div>
           ))}
           {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}

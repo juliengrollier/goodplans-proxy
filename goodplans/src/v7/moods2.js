@@ -207,7 +207,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
     const l = c.list.slice().sort((a, b) => Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today)) || (sm(a) ?? 9999) - (sm(b) ?? 9999));
     const n = l.length, fam = c.fam;
     const fFree = share(l, isFree), fLate = share(l, LENS.late.test), [hood, fHood] = major(l, hoodOf);
-    let title = c.fixedTitle;
+    let title = c.fixedTitle, plain = null;
     if (!title) {
       const mods = [];
       if (c.lens) mods.push(LENS_ADJ[c.lens]);
@@ -216,6 +216,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
       let base = mods.length ? mods[0] + " " + lowFirst(c.label) : null;
       if (!base && hood && fHood >= 0.7 && new Set(l.map((e) => e.venue)).size >= 2 && c.kind !== "fam") base = up1(c.label) + " in " + hood;
       if (c.lens === "cheap") base = up1(c.label) + " under $20";
+      plain = up1(base || c.label);
       if (!base) { const pure = share(l, (e) => e.fam === fam) >= 0.75; const b = c.ncat === "Yoga & Wellness" ? CHILL : pure ? TITLES[fam] || NEUTRAL : NEUTRAL; base = b[(hash(c.key) + day) % b.length].replace("{X}", up1(c.label)).replace("{x}", lowFirst(c.label)); }
       title = up1(base);
     }
@@ -239,6 +240,6 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
       : c.cA != null && c.cA < 0.1 && c.kind !== "fam" && (diff++ < 2) ? "Something different"
       : c.soon === 0 ? "Happening today"
       : c.kind === "rare" ? "Rare this month" : null;
-    return { key: c.key, title, teaser, why, n, node, list: l, f: c.feat.length ? c.feat : undefined, facet: c.feat.length ? undefined : "cat:", vk, fit: c.rel, adj: !!c.adj };
+    return { key: c.key, title, short: plain || title, teaser, why, n, node, list: l, f: c.feat.length ? c.feat : undefined, facet: c.feat.length ? undefined : "cat:", vk, fit: c.rel, adj: !!c.adj };
   });
 }

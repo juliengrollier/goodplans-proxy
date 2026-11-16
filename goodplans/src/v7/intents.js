@@ -54,3 +54,14 @@ export function intentEvents(events, ids, today) {
     .filter(Boolean).sort((a, b) => b[1] - a[1]).map(([e]) => e);
 }
 export const intentCount = (events, id, today) => events.filter((e) => { const d = daysUntil(e, today); return d >= 0 && d <= 14 && member(e, id) >= 0.45; }).length;
+// The intention a list fits best (for labelling and colouring activity tiles in mood terms)
+export function bestIntent(list, only) {
+  let best = null, bv = 0;
+  for (const it of only && only.length ? only.map((id) => INTENT[id]) : INTENTS) { const v = list.slice(0, 12).reduce((a, e) => a + Math.min(1, member(e, it.id)), 0) / Math.min(12, list.length || 1); if (v > bv) { bv = v; best = it; } }
+  return best;
+}
+// "Unwind", "Unwind and have fun", "Unwind, have fun and connect"
+export function joinMoods(ids) {
+  const l = ids.map((id, i) => (i ? INTENT[id].label.toLowerCase() : INTENT[id].label));
+  return l.length <= 1 ? l.join("") : l.slice(0, -1).join(", ") + " and " + l[l.length - 1];
+}
