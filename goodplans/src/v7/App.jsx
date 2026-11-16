@@ -513,8 +513,9 @@ export default function App() {
     const used = new Set();
     const take = (arr, n) => arr.filter((c) => c && c.list?.length && !used.has(c.id)).slice(0, n).map((c) => (used.add(c.id), c));
     const rest = () => [...cityR.all.filter((x) => x.list.length >= 2).map((m) => view("city", m, m.facts)), ...genCards];
-    const hol = view2(cityHol), wx = view2(cityWx), hood = hoodItems;
-    const rows = [hol, hood, wx].map((own, slot) => { const got = take(own, 3); return { key: "ny" + slot, slot, items: got }; });
+    const hol = view2(cityHol), hood = hoodItems;
+    // Two rows: season and neighbourhoods (the weather row was dropped)
+    const rows = [hol, hood].map((own, slot) => { const got = take(own, 3); return { key: "ny" + slot, slot, items: got }; });
     rows.forEach((r, i) => { if (r.items.length < 3) r.items.push(...take(i === 1 ? [...hoodItems, ...rest()] : rest(), 3 - r.items.length)); });
     return rows.filter((r) => r.items.length);
   })();
@@ -796,7 +797,7 @@ export default function App() {
     const t = { ...tasteRef.current, priceSens: Math.max(tasteRef.current.priceSens || 0, price), farSens: Math.max(tasteRef.current.farSens || 0, far) };
     tasteRef.current = t; saveTaste(t);
     const qz = { answers: ans, profile: prof, v: Q.QUIZ_VERSION, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
-    setShowQuiz(false); toast("Nice to meet you, " + prof.name.replace(/^The /, ""));
+    setShowQuiz(false); setTab("today"); window.scrollTo(0, 0); { let nm = ""; try { nm = localStorage.getItem("gp_name_v1") || ""; } catch { /* private */ } toast("Nice to meet you" + (nm ? ", " + nm : "") + ". Here are your good plans."); }
     if (wantMeet != null) setTimeout(() => setMeetOn(wantMeet), 0);
   };
 
@@ -929,7 +930,7 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
+        {tab === "today" && <Today userName={(() => { try { return localStorage.getItem("gp_name_v1") || who || ""; } catch { return who || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}

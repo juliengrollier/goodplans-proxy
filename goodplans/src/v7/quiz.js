@@ -1,65 +1,65 @@
-// Onboarding v3: three screens instead of nine.
-// 1. Activities: 24 concrete things spread across the whole taste map, each marked Love or Meh (neutral by default).
-//    One tap teaches an activity, its category and its family at once, and "not for me" teaches what to keep away.
-// 2. Closer in: neighbours of what you loved, pulled from the taste map (embed.js), to sharpen within your interests.
-// 3. Three one-tap questions: when, who with, budget. Rooms and distance are learned from behaviour instead.
-// Answers seed the taste model at "first guess" strength; real behaviour overrides them within days.
+// Onboarding v7: one page, six rows of three outings, one tap per row (tap again to clear).
+// Each activity row spans different corners of the taste map, so a handful of taps places you on it; the pick is a
+// love, the two you passed over a gentle "less than that". The last rows cover time of day, budget and company.
 import { ACT } from "./activities.js";
 
-export const QUIZ_VERSION = 4;
-// Chosen to cover the map: every family, quiet and loud, seated and active, cheap and dressy
-export const START = ["standup", "improv", "jazz", "indie", "classical", "techno", "salsa", "karaoke", "trivia", "board-games", "bowling", "pickleball",
-  "run-club", "climbing", "yoga", "pottery", "cooking-class", "wine", "beer-garden", "market-food", "museum", "walking-tour", "repertory", "book-talks"];
-
-export const PROFILE = [
-  { id: "tod", q: "When do you usually go out?", opts: [
-    { l: "Daytime", f: { "tod:morning": 0.4, "tod:afternoon": 0.6, "tod:late": -0.3 } },
-    { l: "Evenings", f: { "tod:evening": 0.7 } },
-    { l: "Late nights", f: { "tod:late": 0.7, "tod:evening": 0.3, "dim:audience=21+": 0.2 } },
+export const QUIZ_VERSION = 7;
+// Six rows, three outings each. Every option carries several signals at once (activity, family, energy, time,
+// company, price, novelty), and each row contrasts different axes, so six taps cover the whole profile:
+//  1 energy & time · 2 hands vs head vs play · 3 body & outdoors · 4 company · 5 money & polish · 6 novelty
+export const ROWS = [
+  { id: "night", axis: "Energy", opts: [
+    { l: "Late-night DJ set", acts: ["techno", "dj-party"], f: { "fam:party": 0.4, "tod:late": 0.6, "dim:energy=wild": 0.5, "dim:crowd=big": 0.2 } },
+    { l: "Sunday jazz brunch", acts: ["jazz", "brunch"], f: { "fam:listen": 0.3, "tod:morning": 0.3, "tod:afternoon": 0.3, "dim:energy=calm": 0.4 } },
+    { l: "Comedy after work", acts: ["standup", "improv"], f: { "fam:watch": 0.3, "tod:evening": 0.5, "dim:tone=fun": 0.5 } },
   ] },
-  { id: "who", q: "Usually with…", opts: [
-    { l: "Myself", f: { "dim:social=solo-friendly": 0.7 } }, { l: "A date", f: { "dim:social=date": 0.7, "dim:tone=romantic": 0.2 } },
-    { l: "Friends", f: { "dim:social=group": 0.7 } }, { l: "New people", f: { "dim:mode=mingle": 0.9, "dim:social=solo-friendly": 0.2 }, meet: true },
+  { id: "doing", axis: "Doing", opts: [
+    { l: "Pottery class", acts: ["pottery", "painting-class"], f: { "fam:make": 0.5, "dim:mode=take-part": 0.6 } },
+    { l: "Museum late night", acts: ["museum-late", "museum"], f: { "fam:explore": 0.4, "fam:learn": 0.2, "dim:tone=thoughtful": 0.4, "dim:noise=quiet": 0.2 } },
+    { l: "Bar trivia", acts: ["trivia", "board-games"], f: { "fam:play": 0.5, "dim:social=group": 0.3, "price:free": 0.2 } },
   ] },
-  { id: "spend", q: "What do you like to spend on a ticket?", opts: [
-    { l: "Free if I can", f: { "price:free": 0.7, "price:high": -0.5 }, price: 2 },
-    { l: "Under $20", f: { "price:cheap": 0.5, "price:free": 0.3, "price:high": -0.3 }, price: 1 },
-    { l: "Whatever, if it's great", f: { "price:high": 0.3, "price:mid": 0.2 } },
+  { id: "body", axis: "Moving", opts: [
+    { l: "Pickup pickleball", acts: ["pickleball", "volleyball"], f: { "fam:move": 0.5, "dim:body=active": 0.6, "dim:mode=mingle": 0.2 } },
+    { l: "Yoga in the park", acts: ["yoga", "meditation"], f: { "dim:setting=outdoor": 0.5, "dim:energy=calm": 0.5, "tod:morning": 0.3 } },
+    { l: "Walking food tour", acts: ["food-tour", "walking-tour"], f: { "fam:eat": 0.4, "fam:explore": 0.3, "dim:setting=outdoor": 0.3 } },
+  ] },
+  { id: "who", axis: "Company", opts: [
+    { l: "Supper club with strangers", acts: ["supper-club"], f: { "dim:mode=mingle": 0.8, "fam:eat": 0.3 }, meet: true },
+    { l: "A film on my own", acts: ["repertory", "documentary"], f: { "dim:social=solo-friendly": 0.7, "fam:watch": 0.3, "dim:noise=quiet": 0.2 } },
+    { l: "Karaoke with friends", acts: ["karaoke", "dive-bar"], f: { "dim:social=group": 0.7, "dim:noise=loud": 0.3 } },
+  ] },
+  { id: "spend", axis: "Spend", opts: [
+    { l: "Free concert outdoors", acts: ["folk", "outdoor-film"], f: { "price:free": 0.7, "price:high": -0.4, "dim:setting=outdoor": 0.4 }, price: 2 },
+    { l: "$10 basement show", acts: ["indie", "open-mic-music"], f: { "price:cheap": 0.6, "dim:crowd=intimate": 0.5, "dim:polish=diy": 0.4, "dim:scene=underground": 0.3 }, price: 1 },
+    { l: "A big Broadway night", acts: ["broadway", "musicals"], f: { "price:high": 0.5, "dim:polish=polished": 0.4, "dim:scene=mainstream": 0.3 } },
+  ] },
+  { id: "new", axis: "Novelty", opts: [
+    { l: "Something weird and new", acts: ["immersive-art", "murder-mystery"], f: { "dim:novelty=weird": 0.7, "len:oneoff": 0.4 } },
+    { l: "A classic I'll love", acts: ["classical", "opera"], f: { "dim:novelty=classic": 0.6, "dim:polish=polished": 0.2 } },
+    { l: "Learn a new skill", acts: ["cooking-class", "dance-class"], f: { "dim:mode=take-part": 0.5, "fam:learn": 0.3, "dim:tone=thoughtful": 0.2 } },
   ] },
 ];
 
 const slug = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9&+/= -]/g, "").trim().slice(0, 40);
-export const picked = (a) => (Array.isArray(a) ? a : a == null ? [] : [a]);
-const loves = (ans) => [...Object.entries(ans.acts || {}), ...Object.entries(ans.more || {})].filter(([, v]) => v > 0).map(([k]) => k);
-export const meetFrom = (ans) => picked(ans.who).some((i) => PROFILE[1].opts[i]?.meet);
+export const meetFrom = (ans) => ROWS.some((r) => r.opts[ans.rows?.[r.id]]?.meet);
 
 export function weightsFrom(ans) {
-  const w = {}; let price = 0, far = 0;
+  const w = {}; let price = 0;
   const add = (f, x) => { w[f] = (w[f] || 0) + x; };
-  const acts = (o, s) => { const es = Object.entries(o || {}); const nL = es.filter(([, v]) => v > 0).length || 1;
-    es.forEach(([id, v]) => { const a = ACT[id]; if (!a) return; const k = v > 0 ? s / Math.sqrt(nL) * 1.6 : -s;
-      add("act:" + id, 0.9 * k); add("cat:" + slug(a.ncat), (v > 0 ? 0.3 : 0.08) * k); }); };
-  acts(ans.acts, 1); acts(ans.more, 0.85);
-  PROFILE.forEach((q) => { const ks = picked(ans[q.id]); if (!ks.length) return; const k = 1 / Math.sqrt(ks.length);
-    ks.forEach((i) => { const o = q.opts[i]; if (!o) return; Object.entries(o.f).forEach(([f, x]) => add(f, x * k)); price = Math.max(price, o.price || 0); far = Math.max(far, o.far || 0); }); });
-  return { weights: w, price, far };
+  for (const r of ROWS) {
+    const k = ans.rows?.[r.id]; if (k == null) continue;
+    r.opts.forEach((o, i) => {
+      const on = i === k;
+      (o.acts || []).forEach((id, j) => { if (!ACT[id]) return; const x = (on ? 1 : -0.18) * (j ? 0.6 : 1); add("act:" + id, 0.9 * x); add("cat:" + slug(ACT[id].ncat), (on ? 0.3 : 0.05) * x); });
+      if (on) { Object.entries(o.f || {}).forEach(([f, x]) => add(f, x)); if (o.price) price = o.price; }
+    });
+  }
+  return { weights: w, price, far: 0 };
 }
 
-const up = (x) => x[0].toUpperCase() + x.slice(1);
 export function profileFrom(ans) {
-  const L = loves(ans).map((id) => ACT[id]).filter(Boolean);
-  const pk = (id) => picked(ans[id]).map((i) => PROFILE.find((q) => q.id === id)?.opts[i]?.l).filter(Boolean);
-  const tod = pk("tod"), who = pk("who");
-  const time = tod.includes("Late nights") ? "Late-Night" : tod.includes("Daytime") ? "Daytime" : "Evening";
-  const fams = {}; L.forEach((a) => { const f = { Comedy: "Laugher", Concerts: "Listener", "Clubs & DJs": "Dancer", "Dance Socials": "Dancer", "Arts & Crafts": "Maker", "Cooking & Cocktails": "Maker", "Pickup Sports": "Mover", Running: "Mover", "Climbing & Skating": "Mover", "Yoga & Wellness": "Mover", "Museums & Galleries": "Explorer", Tours: "Explorer", "Books & Readings": "Curious Mind", Film: "Cinephile" }[a.ncat] || (/Trivia|Board|Bar Games|Karaoke/.test(a.ncat) ? "Player" : /Tastings|Bars|Food/.test(a.ncat) ? "Taster" : "Enthusiast"); fams[f] = (fams[f] || 0) + 1; });
-  const kinds = Object.entries(fams).sort((a, b) => b[1] - a[1]);
-  const kind = kinds.length > 2 && kinds[0][1] < 3 ? "All-Rounder" : kinds[0]?.[0] || "Explorer";
-  const lines = [];
-  if (L.length) lines.push("Into " + L.slice(0, 3).map((a) => a.label).join(", ") + (L.length > 3 ? " and " + (L.length - 3) + " more" : ""));
-  const r = [...tod.map((x) => x.toLowerCase()), ...who.map((x) => (x === "Myself" ? "happy solo" : "with " + x.toLowerCase()))]; if (r.length) lines.push(up(r.join(" · ")));
-  const sp = pk("spend")[0];
-  if (sp) lines.push({ "Free if I can": "Free first", "Under $20": "Cheap and cheerful", "Whatever, if it's great": "Pays for quality" }[sp]);
-  return { name: "The " + time + " " + kind, lines: lines.slice(0, 3) };
+  const loves = ROWS.map((r) => r.opts[ans.rows?.[r.id]]).filter((o) => o?.acts).map((o) => ACT[o.acts[0]]).filter(Boolean);
+  return { name: "You", lines: loves.length ? ["Into " + loves.slice(0, 3).map((a) => a.label).join(", ")] : [] };
 }
 
 export const QUIZ_KEY = "gp_quiz_v1";
