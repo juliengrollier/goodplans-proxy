@@ -8,7 +8,7 @@ import { isFree, priceNum, startMinutes, nowMinutes } from "./engine.js";
 import { matchV, evCovers, evStart, evEnd, eHour } from "../lib/core.js";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
 
-export const EMPTY_FILTERS = { fam: null, cats: [], xcats: [], subs: [], xsubs: [], when: "today", price: "any", dist: "any", mood: null, noClash: false, q: "", ids: [], list: null };
+export const EMPTY_FILTERS = { fam: null, cats: [], xcats: [], subs: [], xsubs: [], when: "any", price: "any", dist: "any", mood: null, noClash: false, q: "", ids: [], list: null };
 
 const OPTS = {
   when: [["today", "Today"], ["now", "Now & soon"], ["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"], ["week", "Next 7 days"], ["any", "Any time"]],

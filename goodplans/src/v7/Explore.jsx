@@ -9,6 +9,8 @@ import { daysUntil } from "../lib/core.js";
 import { neighbourhoodOf } from "./tiles.js";
 import { moodProfile, primaryIntent } from "./intents.js";
 import { ACT } from "./activities.js";
+import { CATEGORIES } from "./taxonomy.js";
+const CATI = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 import { AroundMap } from "./Today.jsx";
 
 export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
@@ -120,8 +122,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
               {meta?.kind === "hood" && greatFor.length > 0 && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 7 }}>Great for</div>
-                  <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                    {greatFor.map(([id, l]) => <button key={id} className="chip" style={{ height: 32, fontSize: 13.5 }} onClick={() => onTile({ key: "hood-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1) + " in " + filters.list, list: l, color: col, icon: meta.icon, teaser: "Soonest first.", verb: filters.list, group: "day" })}>{ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span></button>)}
+                  <div className="hscroll" style={{ gap: 6, margin: "0 -20px", padding: "0 20px" }}>
+                    {greatFor.map(([id, l]) => { const it = primaryIntent(l[0]); const cc = it?.color || col; const ci = CATI[ACT[id].ncat]?.icon; return <button key={id} style={{ height: 36, flexShrink: 0, padding: "0 13px 0 10px", borderRadius: 18, border: "none", background: cc, color: "#fff", fontSize: 13.5, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }} onClick={() => onTile({ key: "hood-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1) + " in " + filters.list, list: l, color: col, icon: meta.icon, teaser: "Soonest first.", verb: filters.list, group: "day" })}>{ci && <LIcon node={ci} size={15} color="#fff" />}{ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1)}<span style={{ opacity: 0.75 }}>{l.length}</span></button>; })}
                   </div>
                 </div>
               )}

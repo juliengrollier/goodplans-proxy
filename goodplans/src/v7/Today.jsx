@@ -3,7 +3,7 @@ import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMood
 import { markSeen } from "./moods2.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { HeroCard, CompactCard, PosterCard, MiniCard, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
+import { HeroCard, CompactCard, PosterCard, MiniCard, TravelMini, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
 import { ThemePhoto } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
@@ -12,7 +12,7 @@ import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay, w
 import { DAYS, MONTHS, evCovers, evStart, CATS, daysUntil, isImprecise } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
 import { Travel, catLabel } from "./components.jsx";
-import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, LIcon, CatChip } from "./taxonomy.js";
+import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, evColor, LIcon, CatChip } from "./taxonomy.js";
 import { User, Users, Maximize2 } from "lucide";
 
 function greeting(d) {
@@ -309,7 +309,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
   return (
     <div style={{ padding: "0 16px" }}>
       <div style={{ position: "relative" }}>
-        <LeafletMap events={evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color : undefined} />
+        <LeafletMap events={evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color || evColor(e, dark) : undefined} />
         <button onClick={onFull} aria-label="Open the full map" style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
         {ev && (
           <div role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 4, background: "var(--card)", borderRadius: 20, padding: 8, display: "flex", gap: 10, boxShadow: "0 8px 24px rgba(20,24,51,.35)", cursor: "pointer" }}>
@@ -328,10 +328,10 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
         <div style={{ display: "flex", flexDirection: "column", marginTop: 10 }}>
           {evs.map((e, k) => { const it = primaryIntent(e); return (
             <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
-              <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, background: it?.color || "var(--navy)", color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>
+              <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, background: it?.color || evColor(e, dark), color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>
               <CatBullet ev={e} size={18} dark={dark} />
               <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span style={{ color: "var(--ink2)" }}>{" · " + actLabel(e)}</span></span>
-              <span style={{ fontSize: 12.5, color: "var(--ink3)", flexShrink: 0 }}>{minsLabel(e)}</span>
+              <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
             </button>
           ); })}
         </div>
@@ -341,11 +341,11 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
 }
 
 const NY_TINT = [["#7C2D12", "Season"], ["#1E3A8A", "Neighbourhood"], ["#0F766E", "Weather"]];
-function NYCard({ c, tint, label, onTile, height = 150, half }) {
+function NYCard({ c, tint, label, onTile, height = 150, half, full }) {
   const [r, g, bl] = [parseInt(tint.slice(1, 3), 16), parseInt(tint.slice(3, 5), 16), parseInt(tint.slice(5, 7), 16)];
   return (
     <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.facts || c.sub, verb: label, intro: c.intro, kind: c.kind })}
-      style={{ flex: half ? "0 0 calc((100vw - 44px) / 2)" : "0 0 100%", width: half ? "calc((100vw - 44px) / 2)" : "100%", flexShrink: 0, scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
+      style={{ flex: half ? "0 0 calc((100vw - 44px) / 2)" : full ? "0 0 calc(100vw - 32px)" : "0 0 100%", width: half ? "calc((100vw - 44px) / 2)" : full ? "calc(100vw - 32px)" : "100%", flexShrink: 0, scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
       <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={height} /></div>
       <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(${r},${g},${bl},.10) 0%, rgba(${r},${g},${bl},.35) 35%, rgba(8,10,26,.9) 100%)` }} />
       <span style={{ position: "absolute", top: 10, right: 10, padding: "3px 10px", borderRadius: 12, background: "rgba(255,255,255,.2)", color: "#fff", fontSize: 12, fontWeight: 800, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>{c.list.length} {c.list.length > 1 ? "events" : "event"}</span>
@@ -363,7 +363,7 @@ function NYCard({ c, tint, label, onTile, height = 150, half }) {
 // One row: a small label and page dots, then a one-card-at-a-time carousel (no edge of the next card)
 function NYRow({ row, ri, onTile }) {
   const [tint, label] = NY_TINT[Math.min(ri, 2)];
-  if (ri === 0) { const c = row.items[0]; return c ? <div style={{ padding: "0 16px" }}><NYCard c={c} tint={tint} label={label} onTile={onTile} height={190} /></div> : null; }
+  if (ri === 0) return <DotScroll>{row.items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={label} onTile={onTile} height={230} full />)}</DotScroll>;
   return <DotScroll>{row.items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={label} onTile={onTile} height={150} half />)}</DotScroll>;
 }
 
@@ -378,7 +378,7 @@ function IntentChips({ data, today, sel, put }) {
       <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>In the mood for…</span>{sel.length > 0 && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
       <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }}>
         {[...INTENTS.filter((it) => sel.includes(it.id)), ...INTENTS.filter((it) => !sel.includes(it.id) && counts[it.id])].map((it) => { const on = sel.includes(it.id); return (
-          <button key={it.id} aria-pressed={on} onClick={() => put(on ? sel.filter((x) => x !== it.id) : [...sel, it.id])}
+          <button key={it.id} aria-pressed={on} onClick={() => put(on ? [] : [it.id])}
             className="chip" style={{ height: 32, flexShrink: 0, gap: 6, padding: "0 11px 0 9px", fontSize: 13, background: on ? it.color : undefined, borderColor: on ? it.color : undefined, color: on ? "#fff" : undefined }}>
             {React.createElement(it.icon, { size: 14, strokeWidth: 2.3, color: on ? "#fff" : it.color })}{it.label}
           </button>
@@ -389,7 +389,7 @@ function IntentChips({ data, today, sel, put }) {
 }
 
 export default function Today({ userName = "", tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
-  const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]"); } catch { return []; } });
+  const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]").slice(0, 1); } catch { return []; } });
   const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
   const intentAll = React.useMemo(() => intentEvents(data || [], intentSel, today), [data, intentSel, today]);
   const intentTitle = joinMoods(intentSel);
@@ -511,26 +511,24 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
         </>
       )}
 
-      {/* 1. This week at a glance: one short row per day */}
-      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
-
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
       {!empty && tiles && (
         <>
           <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Best picks for your next outing." />
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
+          {intentSel.length > 0 && intentWithin.length > 0 && (() => { const M = INTENT[intentSel[0]]; return (
+            <div className="hscroll" style={{ gap: 6, padding: "10px 16px 0" }}>
+              {intentWithin.map(([id, l]) => (
+                <button key={id} onClick={() => onTile({ key: "intent-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1), list: l, color: M.color, icon: M.icon, teaser: "Within " + intentTitle.toLowerCase() + ", soonest first.", verb: intentTitle })}
+                  style={{ height: 30, flexShrink: 0, padding: "0 11px", borderRadius: 15, border: "1.5px solid " + M.color + "66", background: M.color + "14", color: M.color, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+                  {ACT[id].label}<span style={{ opacity: 0.65, fontWeight: 800 }}>{l.length}</span>
+                </button>
+              ))}
+            </div>
+          ); })()}
           {bestNow.length > 0 ? (
-            <div style={{ margin: "26px 0 18px" }}>
+            <div style={{ margin: "22px 0 18px" }}>
               <DotScroll key={intentSel.join("+")}>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
-              {intentSel.length > 0 && intentWithin.length > 1 && (
-                <div className="hscroll" style={{ gap: 7, padding: "22px 16px 0" }}>
-                  {intentWithin.map(([id, l]) => (
-                    <button key={id} className="chip" style={{ height: 34, flexShrink: 0, fontSize: 13.5 }} onClick={() => onTile({ key: "intent-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1), list: l, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Within " + intentTitle.toLowerCase() + ", soonest first.", verb: intentTitle })}>
-                      {ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
               {intentSel.length === 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
                   <button onClick={() => onTile({ key: "top-picks", title: "Top picks", list: topAll, color: "#1F2A5C", teaser: "The best of the next two weeks, ranked by your taste.", verb: "For you", group: "day" })}
@@ -554,6 +552,18 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
         </>
       )}
 
+
+      {/* You may like: activity tiles leaning to the picked mood, one row; the last card loads more */}
+      {!empty && discover.length > 0 && (
+        <>
+          <Head title="You may like" sub="Activities we think you'd like." />
+          <DotScroll key={"yml-" + intentSel.join()}>
+            {[...discover.slice(0, discN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />),
+              ...(discover.length > discN ? [<button key="more" onClick={() => setDiscN(discN + 6)} style={{ width: 120, flexShrink: 0, borderRadius: 20, border: "1.5px dashed var(--line, rgba(128,128,128,.4))", background: "transparent", color: "var(--ink2)", fontWeight: 800, fontSize: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="plus" size={20} />More</button>] : [])]}
+          </DotScroll>
+        </>
+      )}
+
       {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
       {!empty && nyRows.length > 0 && (
         <>
@@ -564,20 +574,9 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
         </>
       )}
 
-      {/* 4b. Discover: activity tiles that fit the picked moods (or your taste), labelled and coloured by the mood they fit */}
-      {!empty && discover.length > 0 && (
-        <>
-          <Head title="Discover" sub="Things we think you'd like." />
-          <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {discover.slice(0, discN).map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
-          </div>
-          {discover.length > discN && (
-            <div style={{ padding: "12px 16px 0" }}>
-              <button className="btn" onClick={() => setDiscN(discN + 6)} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>More activities</button>
-            </div>
-          )}
-        </>
-      )}
+      {/* 1. This week at a glance: one short row per day */}
+      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
+
 
 
       {!empty && (

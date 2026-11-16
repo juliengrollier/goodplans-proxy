@@ -515,8 +515,8 @@ export default function App() {
     const rest = () => [...cityR.all.filter((x) => x.list.length >= 2).map((m) => view("city", m, m.facts)), ...genCards];
     const hol = view2(cityHol), hood = hoodItems;
     // Two rows: season and neighbourhoods (the weather row was dropped)
-    const rows = [hol, hood].map((own, slot) => { const got = take(own, slot ? 6 : 1); return { key: "ny" + slot, slot, items: got }; });
-    rows.forEach((r, i) => { const want = i ? 2 : 1; if (r.items.length < want) r.items.push(...take(i === 1 ? [...hoodItems, ...rest()] : rest(), want - r.items.length)); });
+    const rows = [hol, hood].map((own, slot) => { const got = take(own, slot ? 6 : 3); return { key: "ny" + slot, slot, items: got }; });
+    rows.forEach((r, i) => { const want = i ? 2 : 2; if (r.items.length < want) r.items.push(...take(i === 1 ? [...hoodItems, ...rest()] : rest(), want - r.items.length)); });
     return rows.filter((r) => r.items.length);
   })();
 
