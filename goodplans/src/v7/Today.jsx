@@ -3,7 +3,7 @@ import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMood
 import { markSeen } from "./moods2.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
+import { HeroCard, CompactCard, PosterCard, MiniCard, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
 import { ThemePhoto } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
@@ -18,7 +18,7 @@ import { User, Users, Maximize2 } from "lucide";
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
   const part = h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
-  const blurb = h >= 21 ? "Still time to go out. Let's see what's on." : h >= 17 ? "Let's find something good for tonight." : day === "Sat" || day === "Sun" ? "Let's find what's good around you this weekend." : "Let's find what's good around you today.";
+  const blurb = h >= 17 ? "Let's find what's around for you tonight." : "Let's find what's around for you today.";
   return { line: (day === "Sat" ? "Saturday" : day === "Sun" ? "Sunday" : day === "Fri" ? "Friday" : ["Monday", "Tuesday", "Wednesday", "Thursday"][d.getDay() - 1]) + " " + part, blurb };
 }
 
@@ -303,13 +303,13 @@ function Glance({ highlights, data, onOpen, quick = [], onTile }) {
 }
 
 // Around you right now: a live map of what is on or starting nearby; tap a pin for a preview, or go full size
-export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320 }) {
+export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320, legend }) {
   const [sel, setSel] = React.useState(null);
   const ev = evs.find((e) => e.id === sel) || null;
   return (
     <div style={{ padding: "0 16px" }}>
       <div style={{ position: "relative" }}>
-        <LeafletMap events={evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} />
+        <LeafletMap events={evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color : undefined} />
         <button onClick={onFull} aria-label="Open the full map" style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
         {ev && (
           <div role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 4, background: "var(--card)", borderRadius: 20, padding: 8, display: "flex", gap: 10, boxShadow: "0 8px 24px rgba(20,24,51,.35)", cursor: "pointer" }}>
@@ -324,25 +324,37 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
           </div>
         )}
       </div>
+      {legend && (
+        <div style={{ display: "flex", flexDirection: "column", marginTop: 10 }}>
+          {evs.map((e, k) => { const it = primaryIntent(e); return (
+            <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
+              <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, background: it?.color || "var(--navy)", color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>
+              <CatBullet ev={e} size={18} dark={dark} />
+              <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span style={{ color: "var(--ink2)" }}>{" · " + actLabel(e)}</span></span>
+              <span style={{ fontSize: 12.5, color: "var(--ink3)", flexShrink: 0 }}>{minsLabel(e)}</span>
+            </button>
+          ); })}
+        </div>
+      )}
     </div>
   );
 }
 
 const NY_TINT = [["#7C2D12", "Season"], ["#1E3A8A", "Neighbourhood"], ["#0F766E", "Weather"]];
-function NYCard({ c, tint, label, onTile }) {
+function NYCard({ c, tint, label, onTile, height = 150, half }) {
   const [r, g, bl] = [parseInt(tint.slice(1, 3), 16), parseInt(tint.slice(3, 5), 16), parseInt(tint.slice(5, 7), 16)];
   return (
-    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.facts || c.sub, verb: label })}
-      style={{ flex: "0 0 100%", scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
-      <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={150} /></div>
+    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.facts || c.sub, verb: label, intro: c.intro, kind: c.kind })}
+      style={{ flex: half ? "0 0 calc((100vw - 44px) / 2)" : "0 0 100%", width: half ? "calc((100vw - 44px) / 2)" : "100%", flexShrink: 0, scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
+      <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={height} /></div>
       <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(${r},${g},${bl},.10) 0%, rgba(${r},${g},${bl},.35) 35%, rgba(8,10,26,.9) 100%)` }} />
       <span style={{ position: "absolute", top: 10, right: 10, padding: "3px 10px", borderRadius: 12, background: "rgba(255,255,255,.2)", color: "#fff", fontSize: 12, fontWeight: 800, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>{c.list.length} {c.list.length > 1 ? "events" : "event"}</span>
       <div style={{ position: "absolute", left: 14, right: 14, bottom: 11, color: "#fff", display: "flex", flexDirection: "column", gap: 2, textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>
         <span className="row" style={{ gap: 8, alignItems: "center", minWidth: 0 }}>
           {c.icon && React.createElement(c.icon, { size: 20, strokeWidth: 2.2, style: { flexShrink: 0 } })}
-          <span className="disp" style={{ fontSize: 20, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: c.writing ? 0.85 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
+          <span className="disp" style={{ fontSize: half ? 16.5 : 21, lineHeight: 1.1, whiteSpace: half ? "normal" : "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: c.writing ? 0.85 : 1 }}>{String(c.title || "").replace(/[.!]+$/, "")}</span>
         </span>
-        {c.sub && <span style={{ fontSize: 13, lineHeight: 1.25, opacity: 0.92, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.sub}</span>}
+        {c.sub && !half && <span style={{ fontSize: 13, lineHeight: 1.25, opacity: 0.92, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.sub}</span>}
       </div>
     </button>
   );
@@ -350,25 +362,9 @@ function NYCard({ c, tint, label, onTile }) {
 
 // One row: a small label and page dots, then a one-card-at-a-time carousel (no edge of the next card)
 function NYRow({ row, ri, onTile }) {
-  const [i, setI] = useState(0);
   const [tint, label] = NY_TINT[Math.min(ri, 2)];
-  const items = row.items.slice(0, 3);
-  return (
-    <div style={{ padding: "0 16px" }}>
-      <div className="row" style={{ justifyContent: "space-between", padding: "0 4px 6px", alignItems: "center" }}>
-        <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{row.label || label}</span>
-        {items.length > 1 && (
-          <span className="row" style={{ gap: 5 }} aria-label={"Card " + (i + 1) + " of " + items.length}>
-            {items.map((_, k) => <span key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 3, background: k === i ? "var(--ink)" : "var(--ink3)", opacity: k === i ? 0.9 : 0.35, transition: "all .2s" }} />)}
-          </span>
-        )}
-      </div>
-      <div onScroll={(e) => { const w = e.currentTarget.clientWidth; setI(Math.max(0, Math.min(items.length - 1, Math.round(e.currentTarget.scrollLeft / (w + 12))))); }}
-        style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none", borderRadius: 20 }}>
-        {items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={row.label || label} onTile={onTile} />)}
-      </div>
-    </div>
-  );
+  if (ri === 0) { const c = row.items[0]; return c ? <div style={{ padding: "0 16px" }}><NYCard c={c} tint={tint} label={label} onTile={onTile} height={190} /></div> : null; }
+  return <DotScroll>{row.items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={label} onTile={onTile} height={150} half />)}</DotScroll>;
 }
 
 
@@ -397,6 +393,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
   const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
   const intentAll = React.useMemo(() => intentEvents(data || [], intentSel, today), [data, intentSel, today]);
   const intentTitle = joinMoods(intentSel);
+  const topAll = React.useMemo(() => (data || []).filter((e) => { const d = daysUntil(e, today); return d >= 0 && d <= 14; }).slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 60), [data, today]);
   const [discN, setDiscN] = useState(6);
   // Discover: the activities you're most likely to want now. Picked moods lift what fits them; they don't filter.
   const discover = React.useMemo(() => {
@@ -495,14 +492,14 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
         </div>
       )}
 
-      {/* 1. Your plans, compact: the next two, then a link to the rest */}
+      {/* 1. Your plans, compact: square pictures, title, time and area, as a carousel */}
       {!empty && mine.length > 0 && (
-        <div style={{ padding: "18px 16px 0" }}>
-          <div className="row" style={{ padding: "0 4px 10px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>
+        <div style={{ paddingTop: 18 }}>
+          <div className="row" style={{ padding: "0 20px 10px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>
             <span>{planToday.length ? "Your plans today" : "Your next plans"}</span>
-            {mine.length > 2 && <button onClick={() => setTab("plans")} style={{ border: "none", background: "none", padding: 0, fontSize: 12, fontWeight: 800, letterSpacing: 0.4, textTransform: "none", color: "var(--ink2)" }}>All {mine.length}</button>}
+            <button onClick={() => setTab("plans")} style={{ border: "none", background: "none", padding: 0, fontSize: 12, fontWeight: 800, letterSpacing: 0.4, textTransform: "none", color: "var(--ink2)" }}>All plans</button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{mine.slice(0, 2).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+          <DotScroll>{mine.map((ev) => <MiniCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
         </div>
       )}
 
@@ -510,7 +507,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
       {!empty && mapEvs.length > 0 && (
         <>
           <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
-          {mapEvs.length > 0 && <AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
+          {mapEvs.length > 0 && <AroundMap legend evs={mapEvs.slice(0, 9)} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
         </>
       )}
 
@@ -520,7 +517,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
       {!empty && tiles && (
         <>
-          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Pick what you're in the mood for. Your taste ranks the rest." />
+          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Best picks for your next outing." />
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
           {bestNow.length > 0 ? (
             <div style={{ margin: "26px 0 18px" }}>
@@ -532,6 +529,12 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
                       {ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span>
                     </button>
                   ))}
+                </div>
+              )}
+              {intentSel.length === 0 && (
+                <div style={{ padding: "18px 16px 0" }}>
+                  <button onClick={() => onTile({ key: "top-picks", title: "Top picks", list: topAll, color: "#1F2A5C", teaser: "The best of the next two weeks, ranked by your taste.", verb: "For you", group: "day" })}
+                    className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}>Explore top picks</button>
                 </div>
               )}
               {intentSel.length > 0 && (
@@ -554,8 +557,8 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
       {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
       {!empty && nyRows.length > 0 && (
         <>
-          <Head title="New York right now" sub="What the city is up to: swipe each row." />
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Head title="New York right now" sub="What the city is up to." />
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {nyRows.map((row, ri) => <NYRow key={row.key} row={row} ri={row.slot} onTile={onTile} />)}
           </div>
         </>
@@ -564,7 +567,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
       {/* 4b. Discover: activity tiles that fit the picked moods (or your taste), labelled and coloured by the mood they fit */}
       {!empty && discover.length > 0 && (
         <>
-          <Head title="Discover" sub={intentSel.length ? "What you're most likely to want, leaning " + intentTitle.toLowerCase() + "." : "What you're most likely to want right now."} />
+          <Head title="Discover" sub="Things we think you'd like." />
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {discover.slice(0, discN).map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
           </div>

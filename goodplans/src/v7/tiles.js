@@ -78,6 +78,45 @@ const NEIGH = [
   ["Jackson Heights", 40.7557, -73.8831, 1.0, /jackson heights/i], ["Ridgewood", 40.7043, -73.9018, 1.0, /ridgewood/i], ["Mott Haven", 40.8089, -73.9229, 1.2, /mott haven|south bronx/i],
   ["Sunset Park", 40.645, -74.01, 1.1, /sunset park/i], ["Morningside Heights", 40.81, -73.9626, 0.7, /morningside heights|columbia university/i], ["East Harlem", 40.7957, -73.9389, 0.9, /east harlem|spanish harlem/i],
 ];
+// One-line character of each area, shown at the top of its page
+export const NEIGH_INTRO = {
+  "Midtown": "The city at full volume: theatres, big stages and landmark plazas, busiest after work and before shows.",
+  "Hell's Kitchen": "Pre-theatre dinners, gay bars and late kitchens on Ninth Avenue, a step from Broadway.",
+  "Chelsea": "Gallery land between the High Line and the Hudson, with openings most Thursdays and a polished, arty crowd.",
+  "Flatiron & Gramercy": "Union Square's markets and comedy rooms on one side, quiet leafy blocks on the other.",
+  "Murray Hill": "A relaxed, after-work kind of neighbourhood with pubs, karaoke and easy dinners.",
+  "West Village": "Crooked streets, tiny jazz and comedy basements, and cafés made for lingering.",
+  "East Village": "Scrappy and creative: dive bars, poetry, punk history and cheap eats until late.",
+  "Lower East Side": "Small music venues, galleries and bars packed into old tenement streets, best after dark.",
+  "SoHo & Nolita": "Shopping by day, design and small galleries, with wine bars tucked between boutiques.",
+  "Chinatown": "Dumplings, bakeries and karaoke, plus a fast-growing gallery scene on its edges.",
+  "Tribeca": "Quiet, polished streets with film culture, waterfront paths and upscale dining.",
+  "Financial District": "Old New York history and the waterfront, livelier around the Seaport and on weekends.",
+  "Upper West Side": "Lincoln Center, the museums and two parks: classical, cultured and easygoing.",
+  "Upper East Side": "Museum Mile and calm, elegant blocks, with talks, concerts and gallery evenings.",
+  "Harlem": "Jazz, soul food and gospel heritage, with a proud music and arts scene.",
+  "Washington Heights": "Hilltop parks, the Cloisters and a lively Dominican food and music culture.",
+  "Williamsburg": "Bars, music venues, vintage and waterfront views; the classic Brooklyn night out.",
+  "Greenpoint": "Calmer and creative, with Polish bakeries, wine bars, record shops and riverside parks.",
+  "Bushwick": "Warehouse parties, DIY venues and street art; it gets going late.",
+  "Bed-Stuy": "Brownstone blocks with neighbourhood bars, community events and a strong Black arts scene.",
+  "DUMBO": "Cobblestones under the bridges, waterfront parks, and some of the best skyline views in the city.",
+  "Downtown Brooklyn": "Brooklyn Heights promenade, theatres and the busy civic heart of the borough.",
+  "Fort Greene": "Leafy and cultural, around BAM and the park: film, dance and long brunches.",
+  "Park Slope": "Family-friendly brownstones by Prospect Park, with indie bookstores and small venues.",
+  "Prospect Heights": "Between the Brooklyn Museum and the park, with buzzy restaurants and natural wine bars.",
+  "Gowanus & Carroll Gardens": "Canal-side makers, climbing gyms, bowling and old-school Italian Brooklyn.",
+  "Coney Island": "Boardwalk, rides and beach culture, with summer shows and winter plunges.",
+  "Astoria": "Greek tavernas, beer gardens and the Museum of the Moving Image; easygoing and social.",
+  "Long Island City": "Waterfront parks with Manhattan views, contemporary art spaces and breweries.",
+  "Flushing": "One of the city's great food destinations, with malls, markets and Asian night eats.",
+  "Jackson Heights": "Global street food and markets in one of the world's most diverse neighbourhoods.",
+  "Ridgewood": "Laid-back bars, record stores and venues on the Brooklyn–Queens border.",
+  "Mott Haven": "The South Bronx's art and hip-hop heritage, with new galleries and waterfront spaces.",
+  "Sunset Park": "Industry City's makers and food halls, plus a big view from the park on the hill.",
+  "Morningside Heights": "Campus energy around Columbia, with talks, cathedral concerts and cheap eats.",
+  "East Harlem": "Latin music, murals and El Barrio's cultural institutions along Museum Mile's north end.",
+};
 const kmBetween = (a, b) => { const dy = (a[0] - b[0]) * 111, dx = (a[1] - b[1]) * 84.1; return Math.sqrt(dx * dx + dy * dy); };
 // Coordinates decide when the event has a precise address; otherwise the source's own area label, matched by whole name only
 export const neighbourhoodOf = (e) => {
@@ -95,7 +134,7 @@ export function hoodCards(visible, today, hid, hoodWeight = () => 0, seed = 0, h
   const m = new Map();
   visible.forEach((e) => { if (daysUntil(e, today) > 7 || hid.xcats.includes(e.cat) || hid.xsubs.includes(e.sub)) return; const k = neighbourhoodOf(e); if (!k || k === mine) return; if (!m.has(k)) m.set(k, []); m.get(k).push(e); });
   return [...m.entries()].filter(([, l]) => l.length >= 3)
-    .map(([k, l]) => { const top = l.slice().sort((x, y) => (y.lp || 0) - (x.lp || 0)).slice(0, 5); const taste = top.reduce((x, e) => x + (e.lp || 0), 0) / top.length + 12 * hoodWeight(l[0]); const jitter = ((seed + k.length * 7) % 5) * 0.4; return { id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: k, sub: topCats(l), list: l, fit: taste + jitter }; })
+    .map(([k, l]) => { const top = l.slice().sort((x, y) => (y.lp || 0) - (x.lp || 0)).slice(0, 5); const taste = top.reduce((x, e) => x + (e.lp || 0), 0) / top.length + 12 * hoodWeight(l[0]); const jitter = ((seed + k.length * 7) % 5) * 0.4; return { id: "hood-" + k.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: k, icon: MapPin, title: k, sub: topCats(l), intro: NEIGH_INTRO[k], kind: "hood", list: l, fit: taste + jitter }; })
     .sort((a, b) => b.fit - a.fit).slice(0, 6);
 }
 

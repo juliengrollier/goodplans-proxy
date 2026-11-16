@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { Glyph, Icon, glyphSvgString } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
 import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
-import { whenLabel, isFree, weatherBadge } from "./engine.js";
+import { whenLabel, isFree, weatherBadge, startMinutes, endMinutes, nowMinutes, fmtClock } from "./engine.js";
+import { ACT } from "./activities.js";
+import { daysUntil } from "../lib/core.js";
 import { useEventImage, dropImage } from "./images.js";
 import { neighbourhoodOf } from "./tiles.js";
 
@@ -198,7 +200,7 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
           <span className="ell" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink2)" }}>{catLabel(ev)}</span>
         </div>
         <div className="disp clamp2" style={{ fontSize: 23, lineHeight: 1.1 }}>{ev.title}</div>
-        <Snippet ev={ev} />
+
         <div className="row" style={{ gap: 10, fontSize: 14, minWidth: 0 }}>
           <When text={whenLabel(ev, today)} plain /><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} size={14} /></span>
           <span style={{ marginLeft: "auto", flexShrink: 0 }}><CardActions ev={ev} noSave /></span>
@@ -227,7 +229,7 @@ export function DotScroll({ children, className = "hscroll", style }) {
     <>
       <div ref={ref} className={className} style={style} onScroll={onScroll}>{children}</div>
       {n > 1 && (
-        <div className="row" style={{ justifyContent: "center", gap: 5, padding: "14px 0 0" }} aria-hidden="true">
+        <div className="row" style={{ justifyContent: "center", gap: 5, padding: "20px 0 0" }} aria-hidden="true">
           {Array.from({ length: shown }, (_, k) => <span key={k} style={{ width: k === at ? 16 : 6, height: 6, borderRadius: 3, background: "var(--ink)", opacity: k === at ? 0.85 : 0.22, transition: "all .2s" }} />)}
         </div>
       )}
@@ -243,7 +245,7 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet ev={ev} size={16} dark={dark} />{catLabel(ev)}</span>}
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
-        <Snippet ev={ev} lines={2} size={12.5} />
+
         <span className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}>
           <span style={{ whiteSpace: "nowrap" }}><When text={when || whenLabel(ev, today)} plain />{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} /></span>
         </span>
@@ -254,23 +256,51 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
 }
 
 // Home card (one style everywhere on Home): picture, category, title, one-line hook, when and how far, Free, actions
-export function PosterCard({ ev, dark, today, onOpen, hideCat }) {
+// Card helpers: the activity (most specific thing we know), a short time, the area, and travel minutes as 12′
+export const actLabel = (ev) => { const l = (ev.act && ACT[ev.act]?.label) || ev.nsub || ev.sub || ev.ncat || ev.cat || ""; return l ? l[0].toUpperCase() + l.slice(1) : ""; };
+export const areaLabel = (ev) => neighbourhoodOf(ev) || (ev.hood ? String(ev.hood).split(",")[0].trim() : "");
+export const minsLabel = (ev) => (ev.tt?.mins != null ? Math.round(ev.tt.mins) + "\u2032" : "");
+export function shortWhen(ev, today) {
+  const d = Math.max(0, daysUntil(ev, today)), st = startMinutes(ev), now = nowMinutes();
+  const multi = ev.X && ev.X > ev.E;
+  if (d === 0) {
+    if (st != null && st <= now && ((endMinutes(ev) ?? st + 120) > now)) return "On now";
+    if (st != null) return fmtClock(st);
+    return multi ? "Until " + new Date(ev.X + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Today";
+  }
+  const day = d === 1 ? "Tmrw" : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "short" });
+  return day + (st != null ? " " + fmtClock(st) : "");
+}
+
+export function PosterCard({ ev, dark, today, onOpen }) {
   const seenRef = useSeen(ev);
-  const w = whenLabel(ev, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, ""); // the end date is on the event page; the card keeps one short line
+  const area = areaLabel(ev), m = minsLabel(ev);
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
-      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} />
-        {hideCat && <span style={{ position: "absolute", right: 6, bottom: 6, padding: "0 3px", borderRadius: 16, background: "rgba(10,12,30,.55)", color: "#fff", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}><span className="onpic"><CardActions ev={ev} size={26} noSave /></span></span>}
+      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
+      <div className="row" style={{ gap: 5, justifyContent: "space-between", minWidth: 0 }}>
+        <span className="row" style={{ gap: 5, minWidth: 0 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 800, color: "var(--ink2)" }}>{actLabel(ev)}</span></span>
+        <CardActions ev={ev} size={24} noSave />
       </div>
-      {!hideCat && (
-        <div className="row" style={{ gap: 5, justifyContent: "space-between", minWidth: 0 }}>
-          <span className="row" style={{ gap: 5, minWidth: 0 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell muted" style={{ fontSize: 11.5, fontWeight: 700 }}>{ev.ncat || ev.cat}</span></span>
-          <CardActions ev={ev} size={24} noSave />
-        </div>
-      )}
       <div className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12 }}>{ev.title}</div>
-      <KeywordLine ev={ev} />
-      <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between" }}><span className="ell" style={{ minWidth: 0 }}><When text={w} plain /></span><span style={{ fontWeight: 400, color: "var(--ink3)", flexShrink: 0 }}><Travel tt={ev.tt} muted size={12} /></span></div>
+      <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between" }}>
+        <span className="ell" style={{ minWidth: 0 }}><span style={{ fontWeight: 600 }}>{shortWhen(ev, today)}</span>{area ? <span style={{ color: "var(--ink3)" }}>{" · " + area}</span> : null}</span>
+        {m && <span style={{ color: "var(--ink3)", flexShrink: 0 }}>{m}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Compact plan card: square picture the size of the picks tiles, title, short time and area
+export function MiniCard({ ev, dark, today, onOpen }) {
+  const area = areaLabel(ev);
+  return (
+    <div {...tap(onOpen, ev)} style={{ width: 250, flexShrink: 0, display: "flex", gap: 10, alignItems: "center", cursor: "pointer", color: "var(--ink)" }}>
+      <div style={{ width: 76, height: 76, flexShrink: 0 }}><Media ev={ev} dark={dark} height={76} radius={16} hideTitle /></div>
+      <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+        <span className="disp clamp2" style={{ fontSize: 15, lineHeight: 1.12 }}>{ev.title}</span>
+        <span className="ell" style={{ fontSize: 12.5 }}><span style={{ fontWeight: 600 }}>{shortWhen(ev, today)}</span>{area ? <span style={{ color: "var(--ink3)" }}>{" · " + area}</span> : null}</span>
+      </div>
     </div>
   );
 }
@@ -338,7 +368,7 @@ function loadLeaflet() {
   return leafletPromise;
 }
 
-export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger, hideHome }) {
+export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger, hideHome, numbered, pinColor }) {
   const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef("");
   const [err, setErr] = useState(null);
   const [hint, setHint] = useState(false);
@@ -382,7 +412,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
     }
     // Clustering: pins closer than ~42px on screen merge into a count bubble; tapping it zooms to its pins
     const groups = [];
-    if (events.length > 6) {
+    if (events.length > 6 && !numbered) {
       for (const ev of events) {
         if (ev.id === selectedId || !Array.isArray(ev.coord)) { groups.push([ev]); continue; }
         const p = m.latLngToLayerPoint(ev.coord);
@@ -390,7 +420,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
         if (g) g.push(ev); else { const ng = [ev]; ng.p = p; groups.push(ng); }
       }
     }
-    const singles = events.length > 6 ? groups.filter((g) => g.length === 1).map((g) => g[0]) : events;
+    const singles = events.length > 6 && !numbered ? groups.filter((g) => g.length === 1).map((g) => g[0]) : events;
     groups.filter((g) => g.length > 1).forEach((g) => {
       const lat = g.reduce((a, e) => a + e.coord[0], 0) / g.length, lon = g.reduce((a, e) => a + e.coord[1], 0) / g.length, sz = g.length > 20 ? 50 : g.length > 8 ? 44 : 38;
       const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${dark ? "#FBF7EF" : "#1B1F3B"};color:${dark ? "#1B1F3B" : "#fff"};font-weight:800;font-size:${sz > 40 ? 15 : 14}px;border:3px solid ${dark ? "#1B1F3B" : "#fff"}">${g.length}</div>`;
@@ -399,8 +429,9 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       mk.addTo(layerRef.current);
     });
     singles.forEach((ev) => {
-      const c = evColor(ev, dark), sel = ev.id === selectedId, sz = sel ? 44 : 34;
-      const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${lIconString(evNode(ev), sel ? 20 : 16)}</div>`;
+      const c = (pinColor && pinColor(ev)) || evColor(ev, dark), sel = ev.id === selectedId, sz = numbered ? (sel ? 34 : 28) : sel ? 44 : 34;
+      const inner = numbered ? `<span style="color:#fff;font-weight:800;font-size:${sel ? 15 : 13}px">${events.indexOf(ev) + 1}</span>` : lIconString(evNode(ev), sel ? 20 : 16);
+      const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${inner}</div>`;
       const mk = L.marker(ev.coord, { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }), interactive: !!onPick });
       if (onPick) mk.on("click", () => onPick(ev));
       mk.addTo(layerRef.current);
