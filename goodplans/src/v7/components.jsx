@@ -286,9 +286,9 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
   const top = area && (act + " · " + area).length <= 24 ? act + " · " + area : act; // the area only when it fits
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: fluid ? "100%" : 168, minWidth: 0, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
-      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
+      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={fluid ? 200 : 140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
       <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 400, color: "var(--ink2)" }}>{top}</span></span>
-      <div className="disp ell" style={{ fontSize: 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
+      <div className="disp ell" style={{ fontSize: fluid ? 18 : 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
       <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between", fontWeight: 400 }}>
         <span className="ell" style={{ minWidth: 0, color: "var(--ink3)" }}>{shortWhen(ev, today)}</span>
         <TravelMini ev={ev} size={12} />
