@@ -20,7 +20,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
   useEffect(() => { if (first.current) { first.current = false; return; } if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: "smooth" }); }, [filters, sort]);
 
   const listTile = filters.list ? (tiles?.every || tiles?.lists || []).find((t) => t.title === filters.list) : null;
-  const more = filters.list && tiles ? (tiles.all || tiles.lists).filter((t) => t.title !== filters.list).slice(0, 8) : [];
+  const more = []; // moods were replaced by intentions on Home
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
   // Repeated dates of the same series collapse into one card ("+N more dates")
   // Opened from a Home tile: soonest first (then grouped by category below); otherwise the chosen sort
@@ -101,7 +101,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       })()}
       <div className="row" style={{ padding: "20px 16px 12px", gap: 6 }} role="tablist">
         <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
-        <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Regulars · {nReg}</button>
+        <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Recurring · {nReg}</button>
         {view === "all" && (
           <span className="row" style={{ marginLeft: "auto", gap: 4 }} role="group" aria-label="Layout">
             <button className={"chip" + (style === "carousel" ? " on" : "")} aria-pressed={style === "carousel"} aria-label="Carousels" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("carousel")}><Icon name="rows" size={16} /></button>
@@ -154,7 +154,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
               <button key={k} role="tab" aria-selected={freq === k} className={"chip" + (freq === k ? " on" : "")} style={{ height: 30 }} onClick={() => setFreq(k)}>{l}</button>
             ))}
           </div>
-          {!nReg && <div className="card" style={{ padding: 20, fontSize: 15 }}>No regulars yet. A series shows up here once it appears on two dates with a pattern (weekly, every other week, monthly), or says "every Tuesday". The app keeps them between refreshes.</div>}
+          {!nReg && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing recurring yet. A series shows up here once it appears on two dates with a pattern (weekly, every other week, monthly), or says "every Tuesday". The app keeps them between refreshes.</div>}
           {regGroups.map(([label, list]) => (
             <React.Fragment key={label}>
               <div className="disp" style={{ fontSize: 19, padding: "8px 4px 0" }}>{label}</div>

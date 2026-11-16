@@ -355,6 +355,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
         ref.current.addEventListener("touchmove", (e) => { if (e.touches.length === 1) { setHint(true); clearTimeout(t); t = setTimeout(() => setHint(false), 1300); } }, { passive: true });
       }
       setTimeout(() => m.invalidateSize(), 120);
+      m.on("zoomend", () => drawRef.current && drawRef.current());
       draw();
     }).catch(() => setErr("Map could not load"));
     return () => { alive = false; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; tileRef.current = null; } };
@@ -379,7 +380,25 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       fitted.current = fk;
       setTimeout(() => { try { m.invalidateSize(); if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [34, 34], maxZoom: 16 }); } catch { /* unmounted */ } }, 250);
     }
-    events.forEach((ev) => {
+    // Clustering: pins closer than ~42px on screen merge into a count bubble; tapping it zooms to its pins
+    const groups = [];
+    if (events.length > 6) {
+      for (const ev of events) {
+        if (ev.id === selectedId || !Array.isArray(ev.coord)) { groups.push([ev]); continue; }
+        const p = m.latLngToLayerPoint(ev.coord);
+        const g = groups.find((g) => g.length && g[0].id !== selectedId && g.p && g.p.distanceTo(p) < 42);
+        if (g) g.push(ev); else { const ng = [ev]; ng.p = p; groups.push(ng); }
+      }
+    }
+    const singles = events.length > 6 ? groups.filter((g) => g.length === 1).map((g) => g[0]) : events;
+    groups.filter((g) => g.length > 1).forEach((g) => {
+      const lat = g.reduce((a, e) => a + e.coord[0], 0) / g.length, lon = g.reduce((a, e) => a + e.coord[1], 0) / g.length, sz = g.length > 20 ? 50 : g.length > 8 ? 44 : 38;
+      const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${dark ? "#FBF7EF" : "#1B1F3B"};color:${dark ? "#1B1F3B" : "#fff"};font-weight:800;font-size:${sz > 40 ? 15 : 14}px;border:3px solid ${dark ? "#1B1F3B" : "#fff"}">${g.length}</div>`;
+      const mk = L.marker([lat, lon], { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }) });
+      mk.on("click", () => m.fitBounds(L.latLngBounds(g.map((e) => e.coord)), { padding: [40, 40], maxZoom: 17 }));
+      mk.addTo(layerRef.current);
+    });
+    singles.forEach((ev) => {
       const c = evColor(ev, dark), sel = ev.id === selectedId, sz = sel ? 44 : 34;
       const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${lIconString(evNode(ev), sel ? 20 : 16)}</div>`;
       const mk = L.marker(ev.coord, { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }), interactive: !!onPick });
@@ -387,6 +406,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       mk.addTo(layerRef.current);
     });
   };
+  const drawRef = useRef(null); drawRef.current = draw;
   useEffect(() => { draw(); }); // redraw on every render (cheap: few dozen markers)
   useEffect(() => { if (mapRef.current && !fit) mapRef.current.setView(home, mapRef.current.getZoom()); }, [home[0], home[1]]);
   return (

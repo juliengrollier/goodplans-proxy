@@ -37,6 +37,16 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
   const onTouchStart = (e) => { y0.current = sheetRef.current?.scrollTop <= 0 ? e.touches[0].clientY : null; };
   const onTouchEnd = (e) => { if (y0.current != null && e.changedTouches[0].clientY - y0.current > 110) onClose(); y0.current = null; };
   const wb = weatherBadge(ev);
+  const [ctxOpen, setCtxOpen] = useState(false);
+  // Recurrence: the pattern, the next session, and the last date when the listing has one ("Monthly · next Sun, Nov 16 · until Nov 30")
+  const recLine = (() => {
+    const fd = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const multi = ev.X && ev.X > ev.E, t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const pat = ev.recurring ? ev.recLabel || "Recurring" : ev.moreDates ? "Several dates" : multi ? "Ongoing" : null;
+    if (!pat) return null;
+    const nx = new Date(ev.E + "T12:00:00"); const next = nx < t0 ? t0 : nx;
+    return [pat, "next " + fd(next), multi ? "until " + new Date(ev.X + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null].filter(Boolean).join(" · ");
+  })();
 
   return (
     <div className="sheet" role="dialog" aria-label={ev.title} ref={sheetRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -62,9 +72,9 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         <h1 className="disp" style={{ margin: 0, fontSize: 32, lineHeight: 1.02 }}>{ev.title}</h1>
         <div style={{ fontSize: 15, color: "var(--ink2)" }}>{ev.venue}</div>
         <div style={{ marginTop: 4 }}><Keywords ev={ev} max={5} size="lg" /></div>
-        {ev.recurring && (
+        {recLine && (
           <div className="row" style={{ gap: 6, fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>
-            <Icon name="refresh" size={15} /> {ev.recLabel || "Recurring"}{ev.recurring === "synthetic" ? " · not in the latest feed, check before going" : ""}
+            <Icon name="refresh" size={15} /> {recLine}{ev.recurring === "synthetic" ? " · not in the latest feed, check before going" : ""}
           </div>
         )}
         {ev.desc && <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--ink2)" }}>{ev.desc}</p>}
@@ -80,6 +90,27 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         ))}
       </div>
 
+      {coord && (
+        <div style={{ padding: "22px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="row" style={{ justifyContent: "space-between", padding: "0 4px" }}>
+            <span className="disp" style={{ fontSize: 20 }}>Where</span>
+            <a href={"https://www.google.com/maps/search/?api=1&query=" + coord[0] + "," + coord[1]} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} className="row" style={{ gap: 5, fontSize: 13, fontWeight: 800 }}>Open in Maps <Icon name="link" size={14} /></a>
+          </div>
+          <LeafletMap events={[ev]} home={coord} dark={dark} height={220} interactive twoFinger rounded hideHome selectedId={ev.id} zoom={15} />
+          <div className="muted" style={{ fontSize: 13, padding: "0 4px" }}>{ev.venue}</div>
+        </div>
+      )}
+
+      {(stations.length > 0 || ev.busy || ev.calChecked || ev.wx) && (
+        <div style={{ padding: "18px 0 0" }}>
+          <button aria-expanded={ctxOpen} onClick={() => setCtxOpen(!ctxOpen)} className="row" style={{ width: "calc(100% - 32px)", margin: "0 16px", padding: "12px 14px", borderRadius: 16, border: "none", background: "var(--chip)", color: "var(--ink)", gap: 10, textAlign: "left" }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Weather, transit &amp; calendar</span>
+              <span className="ell muted" style={{ display: "block", fontSize: 12.5 }}>{[ev.wx ? fmtT(ev.wx.hi) + ", " + ev.wx.pmax + "% rain" : null, stations[0] && ev.tt?.mode === "transit" ? stations[0].n : null, ev.busy ? "Calendar clash" : ev.calChecked ? "Free in your calendar" : null].filter(Boolean).join(" · ")}</span>
+            </span>
+            <span style={{ display: "flex", transform: ctxOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span>
+          </button>
+          {ctxOpen && (<div>
       {stations.length > 0 && ev.tt?.mode === "transit" && (
         <div className="row" style={{ margin: "10px 20px 0", gap: 8, flexWrap: "wrap", fontSize: 13, fontWeight: 700 }}>
           <span className="muted">Nearest station: {stations[0].n}</span>
@@ -102,14 +133,7 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         </div>
       )}
 
-      {coord && (
-        <div style={{ padding: "22px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div className="row" style={{ justifyContent: "space-between", padding: "0 4px" }}>
-            <span className="disp" style={{ fontSize: 20 }}>Where</span>
-            <a href={"https://www.google.com/maps/search/?api=1&query=" + coord[0] + "," + coord[1]} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} className="row" style={{ gap: 5, fontSize: 13, fontWeight: 800 }}>Open in Maps <Icon name="link" size={14} /></a>
-          </div>
-          <LeafletMap events={[ev]} home={coord} dark={dark} height={220} interactive twoFinger rounded hideHome selectedId={ev.id} zoom={15} />
-          <div className="muted" style={{ fontSize: 13, padding: "0 4px" }}>{ev.venue}</div>
+          </div>)}
         </div>
       )}
 
