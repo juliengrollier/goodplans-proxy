@@ -515,8 +515,8 @@ export default function App() {
     const rest = () => [...cityR.all.filter((x) => x.list.length >= 2).map((m) => view("city", m, m.facts)), ...genCards];
     const hol = view2(cityHol), hood = hoodItems;
     // Two rows: season and neighbourhoods (the weather row was dropped)
-    const rows = [hol, hood].map((own, slot) => { const got = take(own, 3); return { key: "ny" + slot, slot, items: got }; });
-    rows.forEach((r, i) => { if (r.items.length < 3) r.items.push(...take(i === 1 ? [...hoodItems, ...rest()] : rest(), 3 - r.items.length)); });
+    const rows = [hol, hood].map((own, slot) => { const got = take(own, slot ? 6 : 1); return { key: "ny" + slot, slot, items: got }; });
+    rows.forEach((r, i) => { const want = i ? 2 : 1; if (r.items.length < want) r.items.push(...take(i === 1 ? [...hoodItems, ...rest()] : rest(), want - r.items.length)); });
     return rows.filter((r) => r.items.length);
   })();
 
@@ -851,7 +851,9 @@ export default function App() {
   };
   const [listMeta, setListMeta] = useState(null);
   const openTile = (t) => {
-    setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: t.teaser, verb: t.verb, why: t.why });
+    // Default grouping from where you came: one activity → by day; a mood, a moment or an area → by category
+    const group = t.group || (/^(gen-(act|sub|term|cut)|intent-act)-/.test(t.key || "") || t.key === "weekend" || t.key === "week" ? "day" : "cat");
+    setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: t.teaser, verb: t.verb, why: t.why, group, intro: t.intro, kind: t.kind });
     if (/^(mood|pick|gen)-/.test(t.key || "") && t.list) { moodSession.current = { key: t.key, ids: new Set(t.list.map((e) => e.id)), at: Date.now(), adj: !!t.adj, title: t.title }; logMood("opened", t.key, !!t.adj, t.title); }
     if (t.f && /^gen-/.test(t.key || "")) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.08); putModel(m); } // opening is a light vote
     if (/^(mood|pick|gen)-/.test(t.key || "")) { const c = { ...moodClicks, [t.key]: { n: (moodClicks[t.key]?.n || 0) + 1, at: Date.now() } }; setMoodClicks(c); try { localStorage.setItem("gp_moodclicks_v1", JSON.stringify(c)); } catch { /* full */ } if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } } }

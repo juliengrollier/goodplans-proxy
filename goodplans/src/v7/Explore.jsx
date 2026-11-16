@@ -8,13 +8,15 @@ import { startMinutes, whenLabel } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 import { neighbourhoodOf } from "./tiles.js";
 import { moodProfile, primaryIntent } from "./intents.js";
+import { ACT } from "./activities.js";
 import { AroundMap } from "./Today.jsx";
 
 export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
   const [style, setStyle] = useState("carousel");
-  const [groupBy, setGroupBy] = useState("cat"); // cat | day | area // carousel: one row per category; list: one long list
+  const [groupBy, setGroupBy] = useState(listMeta?.group || "cat"); // cat | day | area, defaulting from where you came
+  useEffect(() => { setGroupBy(listMeta?.group || "cat"); }, [filters.list]); // eslint-disable-line react-hooks/exhaustive-deps // carousel: one row per category; list: one long list
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
@@ -43,6 +45,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       .reduce((acc, x) => { const [t] = x, c = t.list[0]?.ncat, n = acc.filter(([u]) => u.list[0]?.ncat === c).length; const dup = acc.some(([u]) => { const ids2 = new Set(u.list.map((e) => e.id)); return t.list.filter((e) => ids2.has(e.id)).length / t.list.length > 0.5; }); if (acc.length < 30 && n < 3 && !dup) acc.push(x); return acc; }, [])
       .map(([t]) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
   }, [filters.list, results, tiles]);
+  const greatFor = useMemo(() => { const m = {}; results.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).sort((a, b) => b[1].length - a[1].length).slice(0, 6); }, [results]);
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
   // Grouping: by category (default), by day (soonest first) or by neighbourhood (biggest first)
   const keyOf = (e) => {
@@ -112,7 +115,16 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
                 </span>
               </div>
               <h1 className="disp" style={{ margin: 0, fontSize: 30, lineHeight: 1.08 }}>{filters.list}</h1>
-              {meta?.teaser && <div style={{ fontSize: 15, lineHeight: 1.45, marginTop: 8, color: "var(--ink2, var(--ink3))", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.teaser}</div>}
+              {meta?.kind === "hood" && meta.intro ? <div style={{ fontSize: 15, lineHeight: 1.5, marginTop: 8, color: "var(--ink2, var(--ink3))" }}>{meta.intro}</div>
+                : meta?.teaser && <div style={{ fontSize: 15, lineHeight: 1.45, marginTop: 8, color: "var(--ink2, var(--ink3))", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.teaser}</div>}
+              {meta?.kind === "hood" && greatFor.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 7 }}>Great for</div>
+                  <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                    {greatFor.map(([id, l]) => <button key={id} className="chip" style={{ height: 32, fontSize: 13.5 }} onClick={() => onTile({ key: "hood-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1) + " in " + filters.list, list: l, color: col, icon: meta.icon, teaser: "Soonest first.", verb: filters.list, group: "day" })}>{ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span></button>)}
+                  </div>
+                </div>
+              )}
               {meta?.why && <div className="row" style={{ gap: 6, marginTop: 10, fontSize: 13, fontWeight: 800, color: col }}><Icon name="spark" size={14} />{meta.why}</div>}
               <div style={{ fontSize: 13, fontWeight: 700, marginTop: meta?.why ? 6 : 12, color: "var(--ink3)" }}>{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
             </div>
