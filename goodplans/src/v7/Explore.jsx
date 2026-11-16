@@ -30,6 +30,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
   const soonest = (a, b) => (Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today))) || ((startMinutes(a) ?? 9999) - (startMinutes(b) ?? 9999));
   const results = useMemo(() => { const base = applyFilters(scored, filters, today); return collapseSeries(fromTile ? [...base].sort(soonest) : sortEvents(base, sort)); }, [scored, filters, sort, today]); // eslint-disable-line react-hooks/exhaustive-deps
   // You may also like: activities with the closest mood profile to this list, not mostly the same events, not this one
+  const [alsoN, setAlsoN] = useState(6);
+  useEffect(() => setAlsoN(6), [filters.list]);
   const alsoLike = useMemo(() => {
     if (!filters.list || !results.length || !tiles?.all) return [];
     const mine = moodProfile(results), ids = new Set(results.map((e) => e.id));
@@ -38,7 +40,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       .map((t) => { const ov = t.list.filter((e) => ids.has(e.id)).length / t.list.length; return [t, cosv(mine, moodProfile(t.list)) - ov, ov]; })
       .filter(([, , ov]) => ov < 0.5).sort((a, b) => b[1] - a[1])
       // Variety: at most two per category, and no two lists sharing most of their events
-      .reduce((acc, x) => { const [t] = x, c = t.list[0]?.ncat, n = acc.filter(([u]) => u.list[0]?.ncat === c).length; const dup = acc.some(([u]) => { const ids2 = new Set(u.list.map((e) => e.id)); return t.list.filter((e) => ids2.has(e.id)).length / t.list.length > 0.5; }); if (acc.length < 6 && n < 2 && !dup) acc.push(x); return acc; }, [])
+      .reduce((acc, x) => { const [t] = x, c = t.list[0]?.ncat, n = acc.filter(([u]) => u.list[0]?.ncat === c).length; const dup = acc.some(([u]) => { const ids2 = new Set(u.list.map((e) => e.id)); return t.list.filter((e) => ids2.has(e.id)).length / t.list.length > 0.5; }); if (acc.length < 30 && n < 3 && !dup) acc.push(x); return acc; }, [])
       .map(([t]) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
   }, [filters.list, results, tiles]);
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
@@ -171,8 +173,13 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
         <div style={{ marginTop: 30 }}>
           <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 3 }}><h2>You may also like</h2><span className="muted" style={{ fontSize: 14 }}>Activities close to this one.</span></div>
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {alsoLike.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
+            {alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
           </div>
+          {alsoLike.length > alsoN && (
+            <div style={{ padding: "12px 16px 0" }}>
+              <button className="btn" onClick={() => setAlsoN(alsoN + 6)} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>More activities</button>
+            </div>
+          )}
         </div>
       )}
       {view !== "all" && (
