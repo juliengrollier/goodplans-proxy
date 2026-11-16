@@ -9,7 +9,7 @@ import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord, isImprecise } from
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
-export default function EventSheet({ tiles, onTile = () => {}, ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], onOpen, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
+export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav, ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], onOpen, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
   const [nfm, setNfm] = useState(false);
   const thumb = taste.thumbs[ev.id] || 0;
   const followed = !!taste.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()];
@@ -126,7 +126,7 @@ export default function EventSheet({ tiles, onTile = () => {}, ev, dark, today, 
       {alsoLike.length > 0 && (
         <div style={{ paddingTop: 26 }}>
           <div className="disp" style={{ fontSize: 20, padding: "0 20px 12px" }}>You may also like</div>
-          <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} />)}</DotScroll>
+          <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fav={favs.includes(t.key)} onFav={onFav} />)}</DotScroll>
         </div>
       )}
 

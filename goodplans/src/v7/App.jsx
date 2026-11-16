@@ -3,6 +3,7 @@ import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
 import { markSeen } from "./moods2.js";
+import { INTENT } from "./intents.js";
 import { setKeywordDf } from "./components.jsx";
 import { logMood, moodStats } from "./moodlog.js";
 import { actOf } from "./activities.js";
@@ -845,12 +846,29 @@ export default function App() {
   const favMood = (t) => {
     if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } }
     const on = moodFav.includes(t.key); learnTile(t, on ? -0.5 : 0.5);
-    const f = on ? moodFav.filter((k) => k !== t.key) : [...moodFav, t.key].slice(-8); // first in, first out: the oldest favourite makes room
+    const f = on ? moodFav.filter((k) => k !== t.key) : [...moodFav, t.key].slice(-30); // first in, first out: the oldest favourite makes room
     setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
     toast(on ? "Removed from your moods" : "Added to your moods");
   };
   const [listMeta, setListMeta] = useState(null);
+  // ── View history: every move between tabs and lists remembers where you were, so "back" retraces your steps
+  const [viewStack, setViewStack] = useState([]);
+  const pushView = () => setViewStack((st) => [...st.slice(-29), { tab, filters, listMeta, y: window.scrollY }]);
+  const popView = () => {
+    const v = viewStack[viewStack.length - 1]; if (!v) return;
+    setViewStack((st) => st.slice(0, -1));
+    setTab(v.tab); setFilters(v.filters); setListMeta(v.listMeta);
+    setTimeout(() => window.scrollTo(0, v.y || 0), 40);
+  };
+  // Reordering moods teaches a little: the first three lean the taste towards their categories and families
+  const learnIntentOrder = (order) => {
+    let m = modelRef.current;
+    order.slice(0, 3).forEach((id, i) => { const it = INTENT[id]; if (!it) return; const w = 0.08 - i * 0.02; (it.cats || []).forEach((c) => { m = L.nudge(m, L.catFeature(c), w); }); (it.fams || []).forEach((f) => { m = L.nudge(m, "fam:" + f, w); }); });
+    putModel(m, true);
+  };
+  const navTab = (t) => { if (t !== tab) pushView(); setTab(t); window.scrollTo(0, 0); };
   const openTile = (t) => {
+    pushView();
     // Default grouping from where you came: one activity → by day; a mood, a moment or an area → by category
     const group = t.group || (/^(gen-(act|sub|term|cut)|intent-act)-/.test(t.key || "") || t.key === "weekend" || t.key === "week" ? "day" : "cat");
     // A plain description of the page, never a list of event titles
@@ -872,8 +890,8 @@ export default function App() {
   };
   // Map-only "Around you right now": open the full Map tab on the same pins
   // Closing a mood page: filters back to default, then Home at the "For you" section
-  const closeList = () => { setFilters({ ...EMPTY_FILTERS, xcats: filters.xcats || [], xsubs: filters.xsubs || [] }); setTab("today"); setTimeout(() => { const el = document.getElementById("for-you"); if (el) el.scrollIntoView(); else window.scrollTo(0, 0); }, 60); };
-  const openFullMap = (ids, title) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
+  const closeList = () => { setViewStack([]); setFilters({ ...EMPTY_FILTERS, xcats: filters.xcats || [], xsubs: filters.xsubs || [] }); setTab("today"); setTimeout(() => { const el = document.getElementById("for-you"); if (el) el.scrollIntoView(); else window.scrollTo(0, 0); }, 60); };
+  const openFullMap = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
   // ── Taste chart in Me: each dimension as an axis; a nudge moves it a notch
   const axes = useMemo(() => ({
     axes: L.AXES.map(([dim, loL, lo, hiL, hi]) => ({ dim, loL, lo, hiL, hi, v: L.axisScore(modelRef.current, dim, lo, hi) })),
@@ -891,7 +909,8 @@ export default function App() {
     // ── Phone "back" gesture: each open layer (a tab other than Today, the event page, a dialog, the quiz) is one history entry,
   // so back closes the top layer first and only leaves the app from Today with nothing open.
   const layers = [];
-  if (tab !== "today") layers.push(() => { setTab("today"); window.scrollTo(0, 0); });
+  viewStack.forEach(() => layers.push(popView));
+  if (!viewStack.length && tab !== "today") layers.push(() => { setTab("today"); window.scrollTo(0, 0); });
   if (showFree) layers.push(() => setShowFree(false));
   if (surprise) layers.push(() => setSurprise(null));
   if (openEv) layers.push(() => setOpenEv(null));
@@ -941,7 +960,7 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today userName={(() => { try { return localStorage.getItem("gp_name_v1") || who || ""; } catch { return who || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={setTab}
+        {tab === "today" && <Today onIntentOrder={learnIntentOrder} userName={(() => { try { return localStorage.getItem("gp_name_v1") || who || ""; } catch { return who || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={navTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
@@ -957,10 +976,10 @@ export default function App() {
           locSt={locSt} onRetryGPS={() => locate(true)} />}
       </div>
 
-      <TabBar tab={tab} setTab={(t) => { setTab(t); window.scrollTo(0, 0); }} plansCount={plansCount} />
+      <TabBar tab={tab} setTab={navTab} plansCount={plansCount} />
 
       {showQuiz && <Quiz dark={dark} initial={quiz?.v === Q.QUIZ_VERSION ? quiz.answers || {} : {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
-      {sheetEv && <EventSheet tiles={tileSet} onTile={(t) => { setOpenEv(null); openTile(t); }} ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
+      {sheetEv && <EventSheet favs={moodFav} onFav={favMood} tiles={tileSet} onTile={(t) => { setOpenEv(null); openTile(t); }} ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
       {showFree && <FreeUntilDialog freeUntil={effFree} autoFree={autoFree} onClose={() => setShowFree(false)}
