@@ -111,17 +111,18 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
         <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Recurring · {nReg}</button>
         {view === "all" && (
           <span className="row" style={{ marginLeft: "auto", gap: 4 }} role="group" aria-label="Layout">
+            <span className="chip" style={{ height: 32, padding: 0, position: "relative", gap: 0 }}>
+              <select aria-label="Group by" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ appearance: "none", WebkitAppearance: "none", border: "none", background: "transparent", color: "inherit", font: "inherit", fontSize: 13, fontWeight: 800, height: "100%", padding: "0 26px 0 12px" }}>
+                <option value="cat">Category</option><option value="day">Day</option><option value="area">Area</option>
+              </select>
+              <span style={{ position: "absolute", right: 8, top: 8, pointerEvents: "none", display: "flex" }}><Icon name="chevdown" size={15} /></span>
+            </span>
             <button className={"chip" + (style === "carousel" ? " on" : "")} aria-pressed={style === "carousel"} aria-label="Carousels" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("carousel")}><Icon name="rows" size={16} /></button>
             <button className={"chip" + (style === "list" ? " on" : "")} aria-pressed={style === "list"} aria-label="List" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("list")}><Icon name="list" size={16} /></button>
           </span>
         )}
       </div>
-      {view === "all" && (
-        <div className="row" style={{ padding: "0 16px 10px", gap: 6, alignItems: "center" }} role="group" aria-label="Group by">
-          <span className="muted" style={{ fontSize: 12.5, fontWeight: 800, marginRight: 2 }}>Group by</span>
-          {[["cat", "Category"], ["day", "Day"], ["area", "Area"]].map(([k, l]) => <button key={k} aria-pressed={groupBy === k} className={"chip" + (groupBy === k ? " on" : "")} style={{ height: 30, fontSize: 13 }} onClick={() => setGroupBy(k)}>{l}</button>)}
-        </div>
-      )}
+
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 8, marginBottom: 14 }}>
           <div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>

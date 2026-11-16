@@ -272,7 +272,7 @@ function Tile({ t }) {
 }
 
 // This week at a glance: one short row per day or moment, easy to skim
-function Glance({ highlights, data, onOpen }) {
+function Glance({ highlights, data, onOpen, quick = [], onTile }) {
   const [all, setAll] = React.useState(false);
   const segs = (highlights.text || "").split(/\s*▫️?\s*/).map((x) => x.trim()).filter(Boolean);
   const rows = segs.length > 1 ? segs : [highlights.text];
@@ -293,7 +293,12 @@ function Glance({ highlights, data, onOpen }) {
           })}
           {(rows.length > 2 || !all) && <button onClick={() => setAll(!all)} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: 0, fontSize: 12.5, fontWeight: 700, color: "var(--ink3)" }}>{all ? "Show less" : "Show more"}</button>}
         </div>
-      ) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>Writing your week's highlights…</p>}
+      ) : highlights.status === "loading" ? <p className="muted" style={{ margin: 0, fontSize: 13 }}>Writing your week's highlights…</p> : null}
+      {quick.length > 0 && (
+        <div style={{ margin: "16px -4px 0", display: "grid", gridTemplateColumns: "repeat(" + quick.length + ", 1fr)", gap: 8 }}>
+          {quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -394,12 +399,19 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
   const [discN, setDiscN] = useState(6);
   const discover = React.useMemo(() => {
     const gens = (tiles?.all || []).filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length);
-    return gens.map((t) => {
+    const out = gens.map((t) => {
       const fit = intentSel.length ? t.list.reduce((a, e) => a + Math.min(1, blend(e, intentSel)), 0) / t.list.length : 1;
       if (fit < 0.5) return null;
       const b = (intentSel.length ? bestIntent(t.list, intentSel) : null) || bestIntent(t.list);
       return b ? { ...t, title: t.short || t.title, verb: b.label, color: b.color } : { ...t, title: t.short || t.title };
     }).filter(Boolean);
+    // Always at least six: top up with your best other activities, then other lists, each labelled by its best mood
+    const have = new Set(out.map((t) => t.key));
+    for (const t of [...gens, ...(tiles?.all || []).filter((t) => t.list?.length && !/^gen-(act|sub|term|cut)-/.test(t.key))]) {
+      if (out.length >= 6) break; if (have.has(t.key)) continue; have.add(t.key);
+      const b = bestIntent(t.list); out.push(b ? { ...t, title: t.short || t.title, verb: b.label, color: b.color } : t);
+    }
+    return out;
   }, [tiles, intentSel]);
   const intentWithin = React.useMemo(() => { const m = {}; intentAll.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 10); }, [intentAll]);
   // Best for you right now: what is still to come today (or on now), else tomorrow, by your score, sooner first on ties
@@ -485,7 +497,7 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
       )}
 
       {/* 1. This week at a glance: one short row per day */}
-      {!empty && (highlights?.text || highlights?.status === "loading") && <Glance highlights={highlights} data={data} onOpen={onOpen} />}
+      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
 
       {/* 2. Your plans: saved only. Today first, then what is next, in the same row */}
       {!empty && mine.length > 0 && (
@@ -495,23 +507,25 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
         </>
       )}
 
+      {/* 3. Around you right now: a map of what is on or starting nearby */}
+      {!empty && mapEvs.length > 0 && (
+        <>
+          <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
+          {mapEvs.length > 0 && <AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
+        </>
+      )}
+
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
       {!empty && tiles && (
         <>
-          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Pick a moment, or what you're in the mood for." />
-          {tiles.quick.length > 0 && (
-            <div style={{ padding: "0 16px 10px", display: "grid", gridTemplateColumns: "repeat(" + tiles.quick.length + ", 1fr)", gap: 8 }}>
-              {tiles.quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
-            </div>
-          )}
+          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Pick what you're in the mood for. Your taste ranks the rest." />
+          <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
           {bestNow.length > 0 ? (
-            <div style={{ margin: "0 0 18px" }}>
+            <div style={{ margin: "26px 0 18px" }}>
               <div className="ell" style={{ padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Best for you right now{intentSel.length ? " · " + intentTitle : ""}</div>
               <DotScroll key={intentSel.join("+")}>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
-              <div style={{ height: 14 }} />
-              <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
               {intentSel.length > 0 && intentWithin.length > 1 && (
-                <div className="hscroll" style={{ gap: 7, padding: "16px 16px 0" }}>
+                <div className="hscroll" style={{ gap: 7, padding: "22px 16px 0" }}>
                   {intentWithin.map(([id, l]) => (
                     <button key={id} className="chip" style={{ height: 34, flexShrink: 0, fontSize: 13.5 }} onClick={() => onTile({ key: "intent-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1), list: l, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Within " + intentTitle.toLowerCase() + ", soonest first.", verb: intentTitle })}>
                       {ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span>
@@ -520,7 +534,7 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
                 </div>
               )}
               {intentSel.length > 0 && (
-                <div style={{ padding: "14px 16px 0" }}>
+                <div style={{ padding: "18px 16px 0" }}>
                   <button onClick={() => onTile({ key: "intent-" + intentSel.join("+"), title: intentTitle, list: intentAll, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Everything that fits over the next two weeks, ranked by your taste.", verb: "In the mood for" })}
                     className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: INTENT[intentSel[0]].color, color: "#fff", fontWeight: 800, fontSize: 14.5 }}>
                     {React.createElement(INTENT[intentSel[0]].icon, { size: 17, strokeWidth: 2.2 })} Explore {intentTitle.toLowerCase()} · {new Set(intentAll.map((e) => String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24))).size}
@@ -530,8 +544,7 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
             </div>
           ) : (
             <div style={{ margin: "0 0 18px" }}>
-              <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
-              {intentSel.length > 0 && <div className="muted" style={{ padding: "10px 20px 0", fontSize: 14 }}>Nothing fits {intentTitle.toLowerCase()} in the next two weeks.</div>}
+              {intentSel.length > 0 && <div className="muted" style={{ padding: "14px 20px 0", fontSize: 14 }}>Nothing fits {intentTitle.toLowerCase()} in the next two weeks.</div>}
             </div>
           )}
         </>
@@ -549,14 +562,6 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
               <button className="btn" onClick={() => setDiscN(discN + 6)} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>More activities</button>
             </div>
           )}
-        </>
-      )}
-
-      {/* 3. Around you right now: a map of what is on or starting nearby */}
-      {!empty && mapEvs.length > 0 && (
-        <>
-          <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
-          {mapEvs.length > 0 && <AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
         </>
       )}
 
