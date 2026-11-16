@@ -128,13 +128,21 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
                 </div>
               )}
               {meta?.why && <div className="row" style={{ gap: 6, marginTop: 10, fontSize: 13, fontWeight: 800, color: col }}><Icon name="spark" size={14} />{meta.why}</div>}
-              <div style={{ fontSize: 13, fontWeight: 700, marginTop: meta?.why ? 6 : 12, color: "var(--ink3)" }}>{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: meta?.why ? 6 : 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink3)", minWidth: 0 }} className="ell">{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
+                <span style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+                  <select aria-label="Group by" value={groupBy} onChange={(ev) => setGroupBy(ev.target.value)} style={{ appearance: "none", WebkitAppearance: "none", border: "none", background: "transparent", color: "var(--ink2)", font: "inherit", fontSize: 13, fontWeight: 800, padding: "4px 20px 4px 0" }}>
+                    <option value="cat">By category</option><option value="day">By day</option><option value="area">By area</option>
+                  </select>
+                  <span style={{ position: "absolute", right: 0, top: 5, pointerEvents: "none", display: "flex", color: "var(--ink2)" }}><Icon name="chevdown" size={14} /></span>
+                </span>
+              </div>
             </div>
-            {mapEvs.length > 0 && home && <div style={{ paddingTop: 16 }}><AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} height={180} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></div>}
+            {mapEvs.length > 0 && home && <div style={{ paddingTop: 16 }}><AroundMap legend evs={mapEvs.slice(0, 12)} home={home} dark={dark} today={today} onOpen={onOpen} height={200} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></div>}
           </div>
         );
       })()}
-      <div className="row" style={{ padding: "20px 16px 12px", gap: 6 }} role="tablist">
+      {!filters.list && <div className="row" style={{ padding: "20px 16px 12px", gap: 6 }} role="tablist">
         <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
         <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Recurring · {nReg}</button>
         {view === "all" && (
@@ -149,7 +157,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
             <button className={"chip" + (style === "list" ? " on" : "")} aria-pressed={style === "list"} aria-label="List" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("list")}><Icon name="list" size={16} /></button>
           </span>
         )}
-      </div>
+      </div>}
 
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 8, marginBottom: 14 }}>
@@ -186,14 +194,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       {view === "all" && fromTile && alsoLike.length > 0 && (
         <div style={{ marginTop: 30 }}>
           <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 3 }}><h2>You may also like</h2><span className="muted" style={{ fontSize: 14 }}>Activities close to this one.</span></div>
-          <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
-          </div>
-          {alsoLike.length > alsoN && (
-            <div style={{ padding: "12px 16px 0" }}>
-              <button className="btn" onClick={() => setAlsoN(alsoN + 6)} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>More activities</button>
-            </div>
-          )}
+          <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}</DotScroll>
         </div>
       )}
       {view !== "all" && (
