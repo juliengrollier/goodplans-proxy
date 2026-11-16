@@ -197,6 +197,51 @@ export function calPayload(ev, today) {
 }
 export function startMinutes(ev) { return timeRange(ev)?.s ?? null; }
 export function endMinutes(ev) { return timeRange(ev)?.e ?? null; }
+// How long things usually last when the listing gives no end (minutes)
+const SEATED = /film|screening|movie|comedy|stand-?up|improv|theat|play\b|musical|opera|ballet|dance perf|lecture|talk|reading|panel|conversation|book launch|q&a|concert hall|recital|symphony|orchestra/i;
+function typicalLength(ev) {
+  const t = [ev.title, ev.sub, ev.nsub, ...(ev.kw || []), ...(ev.tags || [])].join(" ");
+  if (/market|fair|festival|flea|bazaar/i.test(t)) return 360;
+  if (/party|dj|club|dance night/i.test(t)) return 240;
+  if (/tour|walk/i.test(t)) return 100;
+  if (/class|workshop/i.test(t)) return 120;
+  const c = ev.ncat || ev.cat || "";
+  return ({ Film: 120, Comedy: 90, Music: 150, Nightlife: 240, "Talk & Learn": 90, "Food & Drink": 180, Family: 120, Sports: 150, Outdoors: 120, "Art & Culture": 120 })[c] || 120;
+}
+// The window an event is open today: listed times, else a typical length, else usual opening hours (est: true)
+export function eventWindow(ev) {
+  const r = timeRange(ev);
+  if (r?.s != null) return { s: r.s, e: r.e != null ? r.e : r.s + typicalLength(ev), est: r.e == null };
+  const t = [ev.title, ev.sub, ev.nsub, ev.venue, ...(ev.kw || [])].join(" ");
+  if (/market|fair|flea/i.test(t)) return { s: 10 * 60, e: 17 * 60, est: true };
+  if (/park|garden|outdoor|trail/i.test(t)) return { s: 8 * 60, e: 18 * 60, est: true };
+  if (/bar|club|night/i.test(t)) return { s: 18 * 60, e: 24 * 60, est: true };
+  return { s: 11 * 60, e: 18 * 60, est: true }; // galleries, museums, installations
+}
+// Latest arrival that's still worth it: seated shows by 10 min after start, everything else with ≥30 min left
+export function lastEntry(ev) {
+  const w = eventWindow(ev);
+  const t = [ev.title, ev.sub, ev.nsub, ev.ncat, ...(ev.kw || [])].join(" ");
+  if (!(ev.X && ev.X !== ev.E) && SEATED.test(t) && !/festival|market/i.test(t)) return Math.min(w.s + 10, w.e - 15);
+  return w.e - Math.min(30, Math.max(15, (w.e - w.s) * 0.25));
+}
+// Could you still get there in time from home, by the fastest way (walk or subway)? Days after today always yes
+export function canMake(ev, today, now = nowMinutes()) {
+  if (!evCovers(ev, today)) return true;
+  return now + (ev.tt?.mins ?? 20) <= lastEntry(ev);
+}
+// Today is its last day and you can no longer make it in time
+export function missed(ev, today, now = nowMinutes()) {
+  if (!evCovers(ev, today)) return false;
+  if (ev.X && ev.X !== ev.E && ev.X > isoDay(today)) return false;
+  return !canMake(ev, today, now);
+}
+// Over for good: past the (listed or estimated) end today, or a run whose last day is behind us
+export function hasEnded(ev, today, now = nowMinutes()) {
+  if (!evCovers(ev, today)) return false;
+  if (ev.X && ev.X !== ev.E && ev.X > isoDay(today)) return false;
+  return now >= eventWindow(ev).e;
+}
 export const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 export const fmtClock = (mins) => {
   const h = Math.floor(mins / 60) % 24, m = mins % 60, ap = h >= 12 ? "PM" : "AM", h12 = h % 12 || 12;

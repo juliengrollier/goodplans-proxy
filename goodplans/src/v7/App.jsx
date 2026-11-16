@@ -32,7 +32,7 @@ const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
   LES, TASTE_KEY, emptyTaste, applyReaction, calPayload, toggleFollow, effectiveProf, scoreEvent, buildToday,
-  fetchWeather, fitsFree, isOver, fmtT, UNIT_KEY, getUnit, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
+  fetchWeather, fitsFree, isOver, missed, hasEnded, fmtT, UNIT_KEY, getUnit, nowMinutes, isoDay, safeCoord, floorDay, evActive, seriesKey, tasteSummary, whenLabel,
 } from "./engine.js";
 import {
   DP, SK_P, SK_F, SK_B, DEFAULT_SUBS, sg, ss, daysUntil, CATS, DAYS,
@@ -409,9 +409,11 @@ export default function App() {
     s.calChecked = calStatus === "ok"; return s;
   }, [eprof, beh, today, home, taste, weather, busySlots, calStatus]);
 
+  // Gone: thumbed down, over, or today and you couldn't get there in time any more. A saved plan stays until it has ended.
+  const gone = (e) => e.hidden || !evActive(e, today) || (favs[e.id] ? hasEnded(e, today) : missed(e, today));
   // Regulars view: one card per remembered series, its next date when known
   const regulars = useMemo(() => Object.values(rec).map((r) => {
-    const live = scored.filter((e) => e.recKey === r.key && !e.hidden && !isOver(e, today)).sort((x, y) => (x.E < y.E ? -1 : 1))[0];
+    const live = scored.filter((e) => e.recKey === r.key && !gone(e)).sort((x, y) => (x.E < y.E ? -1 : 1))[0];
     if (live) return { ev: live, r };
     const E = nextDate(r, today);
     const ev = scoreOne({ ...r.ev, id: "rec-" + r.key.replace(/[^a-z0-9]+/gi, "-") + "-" + (E || "x"), E: E || r.dates?.[r.dates.length - 1] || isoDay(today), recurring: "synthetic", recKey: r.key, recLabel: patternLabel(r) });
@@ -427,7 +429,7 @@ export default function App() {
   }, [busySlots, calStatus, today, tick]);
   const effFree = freeUntil != null && freeUntil > nowMinutes() ? freeUntil : null;
 
-  const visible = useMemo(() => scored.filter((e) => !e.hidden && evActive(e, today) && !isOver(e, today)), [scored, today]);
+  const visible = useMemo(() => scored.filter((e) => !gone(e)), [scored, today, tick, favs]); // eslint-disable-line react-hooks/exhaustive-deps
   // Yearly NYC events as standing regulars (nyc.js), scored like any event
   const annual = useMemo(() => annualItems(today, visible).map((e) => scoreOne(e)).filter((e) => !e.hidden), [today, visible, scoreOne]);
   // The week's top picks: shown on Today and used as the only source for the "don't miss" paragraph, so the text never mentions something that is not on screen
@@ -435,7 +437,7 @@ export default function App() {
     const seen = new Set();
     return visible.filter((e) => daysUntil(e, today) <= 6).filter((e) => { const k = seriesKey(e); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 10);
   }, [visible, today]);
-  const sections = useMemo(() => buildToday(scored.filter((e) => !isOver(e, today)), { today, freeUntil: effFree, eprof }), [scored, today, effFree, eprof]);
+  const sections = useMemo(() => buildToday(visible, { today, freeUntil: effFree, eprof }), [visible, today, effFree, eprof]);
   const weekPicks = useMemo(() => {
     const shown = new Set([...sections.nowSoon, ...sections.tonight, ...sections.weekend].map((e) => e.id));
     return weekPool.filter((e) => !shown.has(e.id)).slice(0, 5);
