@@ -824,8 +824,6 @@ export default function App() {
   }, [tab, space, tasteMe, moodsTwo, partnerModel]); // eslint-disable-line react-hooks/exhaustive-deps
   const tileSet = useMemo(() => buildTiles({ space, taste: tasteMe, tasteB: tasteTheo, wOf: (f) => L.weightOf(modelRef.current, f), clicks: moodClicks, favs: moodFav, visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
     [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark, moodFb, space, tasteMe, tasteTheo]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Impressions: the first generated moods on show count once a day, so ignored ones slowly give way
-  useEffect(() => { const ks = (tileSet.all || []).filter((t) => /^gen-/.test(t.key) && !moodFav.includes(t.key)).slice(0, 8); if (ks.length) markSeen(ks, today); }, [tileSet]); // eslint-disable-line react-hooks/exhaustive-deps
   // Thumbs and hearts on mood tiles teach the taste model (picks: their features; archetype moods: the You store)
   const learnTile = (t, d) => {
     if (t.f) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.3 * d); putModel(m, true); }

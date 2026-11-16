@@ -101,7 +101,9 @@ export function hoodCards(visible, today, hid, hoodWeight = () => 0, seed = 0, h
 
 export function buildTiles({ clicks = {}, favs = [], space = null, taste = null, tasteB = null, wOf, visible, today, filters, youR, youA, youTitle, picks = [], pool = [], book = [], meet, fb = {}, dark }) {
   const hid = { xcats: filters.xcats || [], xsubs: filters.xsubs || [] };
-  const quick = QUICK.map(([key, title, color, patch]) => ({ key, title, color, patch, n: applyFilters(visible, { ...EMPTY_FILTERS, ...patch, ...hid }, today).length })).filter((t) => t.n);
+  const hr = new Date().getHours();
+  const QK = [hr < 17 ? ["today", "Today", "#0D9488", { when: "today" }] : QUICK[0], ...QUICK.slice(1)];
+  const quick = QK.map(([key, title, color, patch]) => ({ key, title, color, patch, n: applyFilters(visible, { ...EMPTY_FILTERS, ...patch, ...hid }, today).length })).filter((t) => t.n);
   const day = Math.floor(today.getTime() / 86400000);
   const mk = (a, i) => ({
     key: "mood-" + a.id, id: a.id, title: (youA && a.id === youA.id && youTitle) || a.titles?.[day % a.titles.length] || a.label,

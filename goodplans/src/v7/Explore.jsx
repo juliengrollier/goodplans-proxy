@@ -7,6 +7,7 @@ import { collapseSeries } from "./dedupe.js";
 import { startMinutes, whenLabel } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 import { neighbourhoodOf } from "./tiles.js";
+import { moodProfile, primaryIntent } from "./intents.js";
 import { AroundMap } from "./Today.jsx";
 
 export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
@@ -22,13 +23,24 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
   useEffect(() => { if (first.current) { first.current = false; return; } if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: "smooth" }); }, [filters, sort]);
 
   const listTile = filters.list ? (tiles?.every || tiles?.lists || []).find((t) => t.title === filters.list) : null;
-  const more = []; // moods were replaced by intentions on Home
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
   // Repeated dates of the same series collapse into one card ("+N more dates")
   // Opened from a Home tile: soonest first (then grouped by category below); otherwise the chosen sort
   const fromTile = !!filters.list;
   const soonest = (a, b) => (Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today))) || ((startMinutes(a) ?? 9999) - (startMinutes(b) ?? 9999));
   const results = useMemo(() => { const base = applyFilters(scored, filters, today); return collapseSeries(fromTile ? [...base].sort(soonest) : sortEvents(base, sort)); }, [scored, filters, sort, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  // You may also like: activities with the closest mood profile to this list, not mostly the same events, not this one
+  const alsoLike = useMemo(() => {
+    if (!filters.list || !results.length || !tiles?.all) return [];
+    const mine = moodProfile(results), ids = new Set(results.map((e) => e.id));
+    const cosv = (a, b) => { let d = 0, na = 0, nb = 0; a.forEach((x, i) => { d += x * b[i]; na += x * x; nb += b[i] * b[i]; }); return na && nb ? d / Math.sqrt(na * nb) : 0; };
+    return tiles.all.filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length && (t.short || t.title) !== filters.list)
+      .map((t) => { const ov = t.list.filter((e) => ids.has(e.id)).length / t.list.length; return [t, cosv(mine, moodProfile(t.list)) - ov, ov]; })
+      .filter(([, , ov]) => ov < 0.5).sort((a, b) => b[1] - a[1])
+      // Variety: at most two per category, and no two lists sharing most of their events
+      .reduce((acc, x) => { const [t] = x, c = t.list[0]?.ncat, n = acc.filter(([u]) => u.list[0]?.ncat === c).length; const dup = acc.some(([u]) => { const ids2 = new Set(u.list.map((e) => e.id)); return t.list.filter((e) => ids2.has(e.id)).length / t.list.length > 0.5; }); if (acc.length < 6 && n < 2 && !dup) acc.push(x); return acc; }, [])
+      .map(([t]) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
+  }, [filters.list, results, tiles]);
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
   // Grouping: by category (default), by day (soonest first) or by neighbourhood (biggest first)
   const keyOf = (e) => {
@@ -155,10 +167,12 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
           {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>Show more</button>}
         </div>
       ) : null}
-      {view === "all" && more.length > 0 && (
-        <div style={{ marginTop: 22 }}>
-          <div className="sec-h"><h2>More ideas</h2></div>
-          <DotScroll>{more.map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}</DotScroll>
+      {view === "all" && fromTile && alsoLike.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 3 }}><h2>You may also like</h2><span className="muted" style={{ fontSize: 14 }}>Activities close to this one.</span></div>
+          <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {alsoLike.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
+          </div>
         </div>
       )}
       {view !== "all" && (

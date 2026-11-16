@@ -451,7 +451,7 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
           <span className="row" style={{ gap: 0, marginRight: -6 }}>
             <button aria-label="More like this" aria-pressed={fb === 1} style={ib(fb === 1)} onClick={act(() => onFb(t, 1))}><Icon name="up" size={16} /></button>
             <button aria-label="Less like this" aria-pressed={fb === -1} style={ib(fb === -1)} onClick={act(() => onFb(t, -1))}><Icon name="down" size={16} /></button>
-            <button aria-label={fav ? "Remove from your moods" : "Add to your moods"} aria-pressed={fav} style={ib(fav)} onClick={act(() => onFav(t))}><Icon name="heart" size={17} fill={fav ? "currentColor" : "none"} /></button>
+            {onFav && <button aria-label={fav ? "Remove from your moods" : "Add to your moods"} aria-pressed={fav} style={ib(fav)} onClick={act(() => onFav(t))}><Icon name="heart" size={17} fill={fav ? "currentColor" : "none"} /></button>}
           </span>
         )}
       </span>

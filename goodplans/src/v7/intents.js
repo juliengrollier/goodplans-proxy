@@ -65,3 +65,14 @@ export function joinMoods(ids) {
   const l = ids.map((id, i) => (i ? INTENT[id].label.toLowerCase() : INTENT[id].label));
   return l.length <= 1 ? l.join("") : l.slice(0, -1).join(", ") + " and " + l[l.length - 1];
 }
+
+// One fixed mood per activity (first intention that lists it, else by category or family), so labels don't drift day to day
+export function primaryIntent(e0) {
+  const e = e0 || {};
+  for (const it of INTENTS) if (SETS[it.id].acts.has(e.act)) return it;
+  for (const it of INTENTS) if (SETS[it.id].cats.has(e.ncat)) return it;
+  for (const it of INTENTS) if (SETS[it.id].fams.has(e.fam)) return it;
+  return null;
+}
+// How much a list fits each mood (for "You may also like": lists with a similar mood profile)
+export const moodProfile = (list) => INTENTS.map((it) => list.slice(0, 12).reduce((a, e) => a + Math.min(1, member(e, it.id)), 0) / Math.min(12, list.length || 1));
