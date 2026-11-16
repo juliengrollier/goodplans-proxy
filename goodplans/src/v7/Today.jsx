@@ -324,14 +324,19 @@ function EventRows({ evs, today, dark, onOpen, lead, max = 3, moreLabel, onMore,
   );
 }
 
+// The shortest name we have for what the event is (activity, sub-type or category)
+const shortName = (e) => { const c = [e.act && ACT[e.act]?.label, e.nsub, e.ncat || e.cat].filter(Boolean).map((x) => String(x)); const t = c.sort((a, b) => a.length - b.length)[0] || ""; return t ? t[0].toUpperCase() + t.slice(1) : ""; };
+
 export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320, legend }) {
   const [sel, setSel] = React.useState(null);
-  const [all, setAll] = React.useState(false);
+  const [page, setPage] = React.useState(0);
+  React.useEffect(() => setPage(0), [evs.map((e) => e.id).join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pages = Math.ceil(evs.length / 3), shown = legend ? evs.slice(page * 3, page * 3 + 3) : evs;
   const ev = evs.find((e) => e.id === sel) || null;
   return (
     <div style={{ padding: "0 16px" }}>
       <div style={{ position: "relative" }}>
-        <LeafletMap events={legend && !all ? evs.slice(0, 3) : evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color || evColor(e, dark) : undefined} />
+        <LeafletMap events={shown} numberOffset={legend ? page * 3 : 0} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color || evColor(e, dark) : undefined} />
         <button onClick={onFull} aria-label="Open the full map" style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
         {ev && (
           <div role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 4, background: "var(--card)", borderRadius: 20, padding: 8, display: "flex", gap: 10, boxShadow: "0 8px 24px rgba(20,24,51,.35)", cursor: "pointer" }}>
@@ -348,8 +353,21 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
       </div>
       {legend && (
         <div style={{ marginTop: 10 }}>
-          <EventRows evs={evs} today={today} dark={dark} onOpen={onOpen} max={all ? evs.length : 3} toggle onMore={() => setAll(!all)} moreLabel={all ? "Show less" : "Show " + (evs.length - 3) + " more"}
-            lead={(e, k) => <span style={{ width: 20, height: 20, borderRadius: 10, flexShrink: 0, background: primaryIntent(e)?.color || evColor(e, dark), color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>} />
+          {shown.map((e, k) => { const lab = shortName(e); return (
+            <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ width: "100%", gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
+              <span style={{ width: 14, flexShrink: 0, fontSize: 13, fontWeight: 700, color: "var(--ink3)", textAlign: "right" }}>{page * 3 + k + 1}</span>
+              <span style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 700, color: evColor(e, dark), maxWidth: 92, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lab}</span>
+              <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5, whiteSpace: "nowrap", color: "var(--ink2)" }}><span style={{ fontWeight: 600, color: "var(--ink)" }}>{shortWhen(e, today)}</span>{" · " + e.title}</span>
+              <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
+            </button>
+          ); })}
+          {pages > 1 && (
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", padding: "8px 4px 0" }}>
+              <button disabled={page === 0} onClick={() => setPage(page - 1)} className="row" style={{ gap: 4, border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 800, color: "var(--ink2)", opacity: page === 0 ? 0.3 : 1 }}><Icon name="back" size={14} />Previous</button>
+              <span style={{ fontSize: 12, color: "var(--ink3)" }}>{page * 3 + 1}–{Math.min(evs.length, page * 3 + 3)} of {evs.length}</span>
+              <button disabled={page >= pages - 1} onClick={() => setPage(page + 1)} className="row" style={{ gap: 4, border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 800, color: "var(--ink2)", opacity: page >= pages - 1 ? 0.3 : 1 }}>Next 3<Icon name="chev" size={14} /></button>
+            </div>
+          )}
         </div>
       )}
     </div>

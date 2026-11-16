@@ -102,7 +102,7 @@ export function CardActions({ ev, size = 34, onNfm, noSave }) {
 }
 
 // Save button and price sit on the picture itself
-export function PicOverlay({ ev, size = 36 }) {
+export function PicOverlay({ ev, size = 36, mood }) {
   const a = useContext(ActionsCtx);
   const saved = a.isSaved(ev.id);
   const m = primaryIntent(ev);
@@ -112,7 +112,7 @@ export function PicOverlay({ ev, size = 36 }) {
         style={{ position: "absolute", top: 8, right: 8, width: size - 4, height: size - 4, borderRadius: (size - 4) / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: saved ? "rgba(255,255,255,.92)" : "rgba(10,12,30,.28)", color: saved ? "#1B1F3B" : "#fff", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
         <Icon name="save" size={Math.round(size * 0.46)} fill={saved ? "currentColor" : "none"} />
       </button>
-      {m && <span className="row" style={{ position: "absolute", left: 10, top: 9, gap: 5, color: "#fff", fontSize: 12, fontWeight: 800, letterSpacing: 0.3, textShadow: "0 1px 3px rgba(0,0,0,.55)", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.4))" }}>{React.createElement(m.icon, { size: 14, strokeWidth: 2.4 })}{m.label}</span>}
+      {mood && m && <span className="row" style={{ position: "absolute", left: 0, top: 0, gap: 6, padding: "7px 12px 7px 11px", borderBottomRightRadius: 14, background: m.color, color: "#fff", fontSize: 12.5, fontWeight: 500 }}>{React.createElement(m.icon, { size: 14, strokeWidth: 2.2 })}{m.label}</span>}
       {ev.busy && <span className="tag tag-warn" style={{ position: "absolute", left: 8, bottom: 8 }}>Clash</span>}
     </>
   );
@@ -291,7 +291,7 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
       <div {...tap(onOpen, ev)} ref={seenRef} style={{ position: "relative", width: "100%", borderRadius: 20, overflow: "hidden", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
         <Media ev={ev} dark={dark} height={210} radius={20} hideTitle />
         <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 30%, rgba(10,12,30,.72) 100%)" }} />
-        <PicOverlay ev={ev} size={30} />
+        <PicOverlay ev={ev} size={30} mood />
         <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
           <span className="row" style={{ gap: 6, minWidth: 0 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell" style={{ fontSize: 12.5, opacity: 0.92 }}>{line}</span></span>
           <span className="disp ell" style={{ fontSize: 20, lineHeight: 1.15, whiteSpace: "nowrap" }}>{ev.title}</span>
@@ -396,7 +396,7 @@ function loadLeaflet() {
   return leafletPromise;
 }
 
-export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger, hideHome, numbered, pinColor }) {
+export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger, hideHome, numbered, pinColor, numberOffset = 0 }) {
   const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef("");
   const [err, setErr] = useState(null);
   const [hint, setHint] = useState(false);
@@ -458,7 +458,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
     });
     singles.forEach((ev) => {
       const c = (pinColor && pinColor(ev)) || evColor(ev, dark), sel = ev.id === selectedId, sz = numbered ? (sel ? 34 : 28) : sel ? 44 : 34;
-      const inner = numbered ? `<span style="color:#fff;font-weight:800;font-size:${sel ? 15 : 13}px">${events.indexOf(ev) + 1}</span>` : lIconString(evNode(ev), sel ? 20 : 16);
+      const inner = numbered ? `<span style="color:#fff;font-weight:800;font-size:${sel ? 15 : 13}px">${numberOffset + events.indexOf(ev) + 1}</span>` : lIconString(evNode(ev), sel ? 20 : 16);
       const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${inner}</div>`;
       const mk = L.marker(ev.coord, { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }), interactive: !!onPick });
       if (onPick) mk.on("click", () => onPick(ev));
