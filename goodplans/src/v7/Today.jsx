@@ -305,11 +305,12 @@ function Glance({ highlights, data, onOpen, quick = [], onTile }) {
 // Around you right now: a live map of what is on or starting nearby; tap a pin for a preview, or go full size
 export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320, legend }) {
   const [sel, setSel] = React.useState(null);
+  const [all, setAll] = React.useState(false);
   const ev = evs.find((e) => e.id === sel) || null;
   return (
     <div style={{ padding: "0 16px" }}>
       <div style={{ position: "relative" }}>
-        <LeafletMap events={evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color || evColor(e, dark) : undefined} />
+        <LeafletMap events={legend && !all ? evs.slice(0, 3) : evs} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color || evColor(e, dark) : undefined} />
         <button onClick={onFull} aria-label="Open the full map" style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
         {ev && (
           <div role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 4, background: "var(--card)", borderRadius: 20, padding: 8, display: "flex", gap: 10, boxShadow: "0 8px 24px rgba(20,24,51,.35)", cursor: "pointer" }}>
@@ -326,7 +327,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
       </div>
       {legend && (
         <div style={{ display: "flex", flexDirection: "column", marginTop: 10 }}>
-          {evs.map((e, k) => { const it = primaryIntent(e); return (
+          {(all ? evs : evs.slice(0, 3)).map((e, k) => { const it = primaryIntent(e); return (
             <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
               <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, background: it?.color || evColor(e, dark), color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>
               <CatBullet ev={e} size={18} dark={dark} />
@@ -334,6 +335,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
               <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
             </button>
           ); })}
+          {evs.length > 3 && <button onClick={() => setAll(!all)} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: "6px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{all ? "Show less" : "Show " + (evs.length - 3) + " more"}</button>}
         </div>
       )}
     </div>
@@ -516,16 +518,6 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
         <>
           <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Best picks for your next outing." />
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
-          {intentSel.length > 0 && intentWithin.length > 0 && (() => { const M = INTENT[intentSel[0]]; return (
-            <div className="hscroll" style={{ gap: 6, padding: "10px 16px 0" }}>
-              {intentWithin.map(([id, l]) => (
-                <button key={id} onClick={() => onTile({ key: "intent-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1), list: l, color: M.color, icon: M.icon, teaser: "Within " + intentTitle.toLowerCase() + ", soonest first.", verb: intentTitle })}
-                  style={{ height: 30, flexShrink: 0, padding: "0 11px", borderRadius: 15, border: "1.5px solid " + M.color + "66", background: M.color + "14", color: M.color, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
-                  {ACT[id].label}<span style={{ opacity: 0.65, fontWeight: 800 }}>{l.length}</span>
-                </button>
-              ))}
-            </div>
-          ); })()}
           {bestNow.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
               <DotScroll key={intentSel.join("+")}>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
@@ -564,6 +556,11 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
         </>
       )}
 
+      {/* 1. This week at a glance: one short row per day */}
+      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
+
+
+
       {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
       {!empty && nyRows.length > 0 && (
         <>
@@ -573,9 +570,6 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
           </div>
         </>
       )}
-
-      {/* 1. This week at a glance: one short row per day */}
-      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
 
 
 
