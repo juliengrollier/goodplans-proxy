@@ -102,20 +102,18 @@ export function CardActions({ ev, size = 34, onNfm, noSave }) {
 }
 
 // Save button and price sit on the picture itself
-export function PicOverlay({ ev, size = 36, priceTop }) {
+export function PicOverlay({ ev, size = 36 }) {
   const a = useContext(ActionsCtx);
   const saved = a.isSaved(ev.id);
-  const free = isFree(ev);
-  const p = (ev.price || "").split("/")[0].trim();
-  const real = free || /\$\s?\d|\d\s?(usd|\$)/i.test(p);
+  const m = primaryIntent(ev);
   return (
     <>
       <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} onClick={(e) => { e.stopPropagation(); a.onSave(ev); }}
-        style={{ position: "absolute", top: 8, right: 8, width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: saved ? "var(--navy)" : "rgba(255,255,255,.92)", color: saved ? "var(--onnavy)" : "#1B1F3B", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }}>
-        <Icon name="save" size={Math.round(size * 0.52)} fill={saved ? "currentColor" : "none"} />
+        style={{ position: "absolute", top: 8, right: 8, width: size - 4, height: size - 4, borderRadius: (size - 4) / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: saved ? "rgba(255,255,255,.92)" : "rgba(10,12,30,.28)", color: saved ? "#1B1F3B" : "#fff", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
+        <Icon name="save" size={Math.round(size * 0.46)} fill={saved ? "currentColor" : "none"} />
       </button>
-      {real && <span className={"tag " + (free ? "tag-free" : "tag-white")} style={{ position: "absolute", left: priceTop ? 12 : 8, ...(priceTop ? { top: 12 } : { bottom: 8 }), boxShadow: "0 1px 4px rgba(0,0,0,.2)" }}>{free ? "Free" : (p.length > 14 ? p.slice(0, 13) + "…" : p)}</span>}
-      {ev.busy && <span className="tag tag-warn" style={{ position: "absolute", left: 8, top: 8 }}>Clash</span>}
+      {m && <span className="row" style={{ position: "absolute", left: 10, top: 9, gap: 5, color: "#fff", fontSize: 12, fontWeight: 800, letterSpacing: 0.3, textShadow: "0 1px 3px rgba(0,0,0,.55)", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.4))" }}>{React.createElement(m.icon, { size: 14, strokeWidth: 2.4 })}{m.label}</span>}
+      {ev.busy && <span className="tag tag-warn" style={{ position: "absolute", left: 8, bottom: 8 }}>Clash</span>}
     </>
   );
 }
@@ -267,6 +265,7 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
 export const actLabel = (ev) => { const l = (ev.act && ACT[ev.act]?.label) || ev.nsub || ev.sub || ev.ncat || ev.cat || ""; return l ? l[0].toUpperCase() + l.slice(1) : ""; };
 export const areaLabel = (ev) => neighbourhoodOf(ev) || (ev.hood ? String(ev.hood).split(",")[0].trim() : "");
 export const minsLabel = (ev) => (ev.tt?.mins != null ? Math.round(ev.tt.mins) + "\u2032" : "");
+export const priceShort = (ev) => { if (isFree(ev)) return "Free"; const m = String(ev.price || "").match(/\$\s?\d+(\.\d+)?/); return m ? m[0].replace(/\s/g, "") : ""; };
 export function TravelMini({ ev, size = 13 }) {
   if (ev.tt?.mins == null) return null;
   return <span className="row" style={{ gap: 2, color: "var(--ink3)", flexShrink: 0, whiteSpace: "nowrap" }}><Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={size} width={2.2} />{minsLabel(ev)}</span>;
@@ -290,14 +289,14 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
     const line = [act, area].filter(Boolean).join(" · ");
     return (
       <div {...tap(onOpen, ev)} ref={seenRef} style={{ position: "relative", width: "100%", borderRadius: 20, overflow: "hidden", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
-        <Media ev={ev} dark={dark} height={210} radius={20} hideTitle tint={primaryIntent(ev)?.color} />
+        <Media ev={ev} dark={dark} height={210} radius={20} hideTitle />
         <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 30%, rgba(10,12,30,.72) 100%)" }} />
-        <PicOverlay ev={ev} size={30} priceTop />
+        <PicOverlay ev={ev} size={30} />
         <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
           <span className="row" style={{ gap: 6, minWidth: 0 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell" style={{ fontSize: 12.5, opacity: 0.92 }}>{line}</span></span>
           <span className="disp ell" style={{ fontSize: 20, lineHeight: 1.15, whiteSpace: "nowrap" }}>{ev.title}</span>
           <span className="row" style={{ justifyContent: "space-between", alignItems: "center", fontSize: 12.5, minWidth: 0 }}>
-            <span className="row" style={{ gap: 6, opacity: 0.9, minWidth: 0, whiteSpace: "nowrap" }}><span className="ell">{shortWhen(ev, today)}</span>{ev.tt?.mins != null && <span className="row" style={{ gap: 2 }}>·&nbsp;<Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={12} width={2.2} />{minsLabel(ev)}</span>}</span>
+            <span className="row" style={{ gap: 6, opacity: 0.9, minWidth: 0, whiteSpace: "nowrap" }}><span className="ell">{shortWhen(ev, today)}{priceShort(ev) ? " · " + priceShort(ev) : ""}</span>{ev.tt?.mins != null && <span className="row" style={{ gap: 2 }}>·&nbsp;<Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={12} width={2.2} />{minsLabel(ev)}</span>}</span>
             <span className="onpic" style={{ display: "flex", marginRight: -6 }}><CardActions ev={ev} size={24} noSave /></span>
           </span>
         </div>
@@ -311,7 +310,7 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
       <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 400, color: "var(--ink2)" }}>{top}</span></span>
       <div className="disp ell" style={{ fontSize: fluid ? 18 : 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
       <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between", fontWeight: 400 }}>
-        <span className="ell" style={{ minWidth: 0, color: "var(--ink3)" }}>{shortWhen(ev, today)}</span>
+        <span className="ell" style={{ minWidth: 0, color: "var(--ink3)" }}>{shortWhen(ev, today)}{priceShort(ev) ? " · " + priceShort(ev) : ""}</span>
         <TravelMini ev={ev} size={12} />
       </div>
       <div className="row" style={{ marginLeft: -6, height: 24 }}><CardActions ev={ev} size={24} noSave /></div>
@@ -502,8 +501,8 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {t.verb && <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.85 }}>{t.verb}</span>}
         <span className="disp" style={{ fontSize: 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
-        {/^(Because|You both|Something different)/.test(t.why || "") && <span className="ell" style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3, padding: "2px 8px", borderRadius: 10, background: "rgba(255,255,255,.2)", alignSelf: "flex-start", maxWidth: "100%" }}>{t.why}</span>}
-        {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: /^(Because|You both|Something different)/.test(t.why || "") ? 1 : 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
+
+        {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
       </span>
       <span className="row" style={{ justifyContent: "space-between", minHeight: 30 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>

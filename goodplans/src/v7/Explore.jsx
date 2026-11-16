@@ -134,8 +134,9 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
               <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink3)", minWidth: 0 }} className="ell">{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
               </div>
             </div>
-            {mapEvs.length > 0 && home && <div style={{ paddingTop: 16 }}><AroundMap legend evs={mapEvs.slice(0, 12)} home={home} dark={dark} today={today} onOpen={onOpen} height={200} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></div>}
-            <div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "22px 16px 4px" }} />
+            {mapEvs.length > 0 && home && <><div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "30px 16px 26px" }} /><div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Happening next</div><AroundMap legend evs={mapEvs.slice(0, 12)} home={home} dark={dark} today={today} onOpen={onOpen} height={200} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></>}
+            <div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "30px 16px 26px" }} />
+            <div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Coming up</div>
           </div>
         );
       })()}

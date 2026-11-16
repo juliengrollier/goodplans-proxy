@@ -391,12 +391,12 @@ function IntentChips({ data, today, sel, put }) {
   const counts = React.useMemo(() => Object.fromEntries(INTENTS.map((i) => [i.id, intentCount(data, i.id, today)])), [data, today]);
   return (
     <div style={{ margin: "2px 0 0" }}>
-      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>In the mood for…</span>{sel.length > 0 && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
+      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>I'm in the mood to…</span>{sel.length > 0 && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
       <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }}>
         {[...INTENTS.filter((it) => sel.includes(it.id)), ...INTENTS.filter((it) => !sel.includes(it.id) && counts[it.id])].map((it) => { const on = sel.includes(it.id); return (
           <button key={it.id} aria-pressed={on} onClick={() => put(on ? [] : [it.id])}
-            className="chip" style={{ height: 32, flexShrink: 0, gap: 6, padding: "0 11px 0 9px", fontSize: 13, background: on ? it.color : undefined, borderColor: on ? it.color : undefined, color: on ? "#fff" : undefined }}>
-            {React.createElement(it.icon, { size: 14, strokeWidth: 2.3, color: on ? "#fff" : it.color })}{it.label}
+            style={{ width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (on ? it.color : "var(--line, rgba(128,128,128,.25))"), background: on ? it.color : "var(--card)", color: on ? "#fff" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center" }}>
+            {React.createElement(it.icon, { size: 20, strokeWidth: 2.2, color: on ? "#fff" : it.color })}{it.label}
           </button>
         ); })}
       </div>
@@ -466,7 +466,17 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
   // ── Home v8 (after Theo's feedback): five distinct sections, one card style, curated lists as tiles
   const now = nowMinutes();
   const notOver = (e) => { const em = endMinutes(e); return em == null || em > now; };
-  const mapEvs = nowSoon.filter((e) => e.coord && !isImprecise(e));
+  // Around you: on now or starting within 4 h, up to 35 min away; if that's thin, the rest of today. Exact addresses only.
+  const mapEvs = React.useMemo(() => {
+    const now = nowMinutes();
+    const cand = (data || []).filter((e) => { if (!evCovers(e, today) || !Array.isArray(e.coord) || isImprecise(e)) return false; const st = startMinutes(e), en = endMinutes(e); if (st == null) return false; return en != null ? en > now : st >= now - 90; });
+    const near = (e, m) => (e.tt?.mins ?? 99) <= m;
+    const onNow = (e) => (startMinutes(e) ?? 1e4) <= now;
+    let L = cand.filter((e) => near(e, 35) && (onNow(e) || startMinutes(e) <= now + 240));
+    if (L.length < 5) L = cand.filter((e) => near(e, 45));
+    const seen = new Set();
+    return L.sort((a, b) => (onNow(b) - onNow(a)) || (startMinutes(a) - startMinutes(b)) || (b.sc || 0) - (a.sc || 0)).filter((e) => { const k = String(e.title).toLowerCase().slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
+  }, [data, today]);
   const byStart = (x, y) => (startMinutes(x) ?? 0) - (startMinutes(y) ?? 0);
   const savedNow = data.filter((e) => A.isSaved(e.id));
   const planToday = savedNow.filter((e) => evCovers(e, today) && notOver(e)).sort(byStart).slice(0, 10);
@@ -533,7 +543,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
           {bestNow.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
-              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 5).map((ev) => <div key={ev.id} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
+              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev) => <div key={ev.id} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
               {intentSel.length === 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
                   <button onClick={() => onTile({ key: "top-picks", title: "Top picks", list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
