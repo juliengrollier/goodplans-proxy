@@ -211,7 +211,7 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
 }
 
 // A horizontal carousel with page dots under it, so it is obvious there is more to swipe to
-export function DotScroll({ children, className = "hscroll", style }) {
+export function DotScroll({ children, className = "hscroll", style, onMore }) {
   const ref = useRef(null);
   const [i, setI] = useState(0);
   const n = React.Children.count(children);
@@ -222,6 +222,8 @@ export function DotScroll({ children, className = "hscroll", style }) {
     let best = 0, bd = 1e9;
     kids.forEach((k, j) => { const d = Math.abs(k.offsetLeft - x); if (d < bd) { bd = d; best = j; } });
     if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 4) best = kids.length - 1;
+    // Endless: ask for more when within about two cards of the end
+    if (onMore && el.scrollLeft + el.clientWidth >= el.scrollWidth - 380) onMore();
     setI(best);
   };
   const shown = Math.min(n, 7), at = n > 1 ? Math.round((i / (n - 1)) * (shown - 1)) : 0;
@@ -272,25 +274,24 @@ export function shortWhen(ev, today) {
     if (st != null) return fmtClock(st);
     return multi ? "Until " + new Date(ev.X + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Today";
   }
-  const day = d === 1 ? "Tmrw" : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "short" });
+  const day = d === 1 ? "Tomorrow" : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long" });
   return day + (st != null ? " " + fmtClock(st) : "");
 }
 
-export function PosterCard({ ev, dark, today, onOpen }) {
+export function PosterCard({ ev, dark, today, onOpen, fluid }) {
   const seenRef = useSeen(ev);
-  const area = areaLabel(ev);
+  const act = actLabel(ev), area = areaLabel(ev);
+  const top = area && (act + " · " + area).length <= 24 ? act + " · " + area : act; // the area only when it fits
   return (
-    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: fluid ? "100%" : 168, minWidth: 0, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
       <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
-      <div className="row" style={{ gap: 5, justifyContent: "space-between", minWidth: 0, height: 24 }}>
-        <span className="row" style={{ gap: 5, minWidth: 0 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 500, color: "var(--ink2)" }}>{actLabel(ev)}</span></span>
-        <CardActions ev={ev} size={24} noSave />
-      </div>
-      <div className="disp clamp2" style={{ fontSize: 15.5, lineHeight: 1.12, height: 35 }}>{ev.title}</div>
+      <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 500, color: "var(--ink2)" }}>{top}</span></span>
+      <div className="disp ell" style={{ fontSize: 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
       <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between", fontWeight: 400 }}>
-        <span className="ell" style={{ minWidth: 0 }}>{shortWhen(ev, today)}{area ? <span style={{ color: "var(--ink3)" }}>{" · " + area}</span> : null}</span>
+        <span className="ell" style={{ minWidth: 0 }}>{shortWhen(ev, today)}</span>
         <TravelMini ev={ev} size={12} />
       </div>
+      <div className="row" style={{ marginLeft: -6, height: 24 }}><CardActions ev={ev} size={24} noSave /></div>
     </div>
   );
 }

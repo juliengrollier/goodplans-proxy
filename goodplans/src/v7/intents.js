@@ -50,10 +50,10 @@ export function blend(e, ids) {
 // Ranked events for a set of intentions over the next two weeks
 export function intentEvents(events, ids, today) {
   if (!ids.length) return [];
-  return events.map((e) => { const d = daysUntil(e, today); if (d < 0 || d > 14) return null; const b = blend(e, ids); if (b < 0.45) return null; return [e, (e.sc || 0) * (0.55 + 0.45 * Math.min(1, b)) * (1 + 0.1 * Math.max(0, b - 1)) * Math.pow(0.97, d)]; })
+  return events.map((e) => { const d = daysUntil(e, today); if (d < 0) return null; const b = blend(e, ids); if (b < 0.45) return null; return [e, (e.sc || 0) * (0.55 + 0.45 * Math.min(1, b)) * (1 + 0.1 * Math.max(0, b - 1)) * Math.pow(0.97, d)]; })
     .filter(Boolean).sort((a, b) => b[1] - a[1]).map(([e]) => e);
 }
-export const intentCount = (events, id, today) => events.filter((e) => { const d = daysUntil(e, today); return d >= 0 && d <= 14 && member(e, id) >= 0.45; }).length;
+export const intentCount = (events, id, today) => events.filter((e) => { const d = daysUntil(e, today); return d >= 0 && member(e, id) >= 0.45; }).length;
 // The intention a list fits best (for labelling and colouring activity tiles in mood terms)
 export function bestIntent(list, only) {
   let best = null, bv = 0;
