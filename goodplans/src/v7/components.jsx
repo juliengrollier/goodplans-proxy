@@ -5,6 +5,7 @@ import { catColor, catIcon } from "./theme.js";
 import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
 import { whenLabel, isFree, weatherBadge, startMinutes, endMinutes, nowMinutes, fmtClock } from "./engine.js";
 import { ACT } from "./activities.js";
+import { primaryIntent } from "./intents.js";
 import { daysUntil } from "../lib/core.js";
 import { useEventImage, dropImage } from "./images.js";
 import { neighbourhoodOf } from "./tiles.js";
@@ -120,7 +121,7 @@ export function PicOverlay({ ev, size = 36, priceTop }) {
 }
 
 // Real picture when one is found (poster, then venue), else a typographic poster in the category colour
-export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit }) {
+export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit, tint }) {
   const img = useEventImage(ev);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [img?.src]);
@@ -128,15 +129,17 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit })
   if (img?.src && !broken) {
     return (
       <div style={{ position: "relative", height, borderRadius: radius, overflow: "hidden", background: "var(--media)" }}>
-        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "var(--img-filter)" }} />
-        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: "var(--img-veil)", pointerEvents: "none" }} />
+        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: big ? "none" : "var(--img-filter)" }} />
+        {!big && <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: "var(--img-veil)", pointerEvents: "none" }} />}
+        {tint && !big && <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: tint, opacity: 0.28, mixBlendMode: "soft-light", pointerEvents: "none" }} />}
+        {tint && !big && <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: tint, opacity: 0.12, pointerEvents: "none" }} />}
         {credit && img.credit && <span style={{ position: "absolute", left: 12, bottom: 8, fontSize: 10, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>{img.credit}</span>}
       </div>
     );
   }
   return (
     <div style={{ position: "relative", height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
-      <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: "var(--ph-veil)", pointerEvents: "none" }} />
+      {!big && <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: "var(--ph-veil)", pointerEvents: "none" }} />}
       {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><LIcon node={evNode(ev)} size={Math.min(96, Math.round((typeof height === "number" ? height : 200) * 0.42))} color="#fff" stroke={1.8} /></div> : <LIcon node={evNode(ev)} size={big ? 46 : 30} color="#fff" stroke={2} />}
       {!hideTitle && <span className="disp clamp2" style={{ fontSize: big ? 28 : 18, lineHeight: 1, letterSpacing: -0.3 }}>{ev.title}</span>}
     </div>
@@ -287,11 +290,11 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
     const line = [act, area].filter(Boolean).join(" · ");
     return (
       <div {...tap(onOpen, ev)} ref={seenRef} style={{ position: "relative", width: "100%", borderRadius: 20, overflow: "hidden", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
-        <Media ev={ev} dark={dark} height={210} radius={20} hideTitle />
+        <Media ev={ev} dark={dark} height={210} radius={20} hideTitle tint={primaryIntent(ev)?.color} />
         <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 30%, rgba(10,12,30,.72) 100%)" }} />
         <PicOverlay ev={ev} size={30} priceTop />
         <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
-          <span className="ell" style={{ fontSize: 12.5, opacity: 0.9 }}>{line}</span>
+          <span className="row" style={{ gap: 6, minWidth: 0 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell" style={{ fontSize: 12.5, opacity: 0.92 }}>{line}</span></span>
           <span className="disp ell" style={{ fontSize: 20, lineHeight: 1.15, whiteSpace: "nowrap" }}>{ev.title}</span>
           <span className="row" style={{ justifyContent: "space-between", alignItems: "center", fontSize: 12.5, minWidth: 0 }}>
             <span className="row" style={{ gap: 6, opacity: 0.9, minWidth: 0, whiteSpace: "nowrap" }}><span className="ell">{shortWhen(ev, today)}</span>{ev.tt?.mins != null && <span className="row" style={{ gap: 2 }}>·&nbsp;<Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={12} width={2.2} />{minsLabel(ev)}</span>}</span>
