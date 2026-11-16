@@ -1,14 +1,15 @@
 import { FAM, CAT } from "./taxonomy.js";
 import React, { useRef, useState } from "react";
+import { moodProfile, primaryIntent } from "./intents.js";
 import { Icon } from "./icons.jsx";
-import { CatBullet, Media, PriceTag, Dialog, Keywords, Travel, CompactCard, LeafletMap, When } from "./components.jsx";
+import { CatBullet, Media, PriceTag, Dialog, Travel, CompactCard, LeafletMap, When, DotScroll, MoodTile } from "./components.jsx";
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge, fmtT } from "./engine.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord, isImprecise } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
-export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], onOpen, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
+export default function EventSheet({ tiles, onTile = () => {}, ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], onOpen, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
   const [nfm, setNfm] = useState(false);
   const thumb = taste.thumbs[ev.id] || 0;
   const followed = !!taste.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()];
@@ -37,7 +38,15 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
   const onTouchStart = (e) => { y0.current = sheetRef.current?.scrollTop <= 0 ? e.touches[0].clientY : null; };
   const onTouchEnd = (e) => { if (y0.current != null && e.changedTouches[0].clientY - y0.current > 110) onClose(); y0.current = null; };
   const wb = weatherBadge(ev);
-  const [ctxOpen, setCtxOpen] = useState(false);
+  // You may also like: activities whose mood mix is closest to this event and its look-alikes
+  const [alsoN, setAlsoN] = useState(6);
+  const alsoLike = React.useMemo(() => {
+    const base = [ev, ...similar]; const mine = moodProfile(base);
+    const cosv = (a, b) => { let d = 0, na = 0, nb = 0; a.forEach((x, i) => { d += x * b[i]; na += x * x; nb += b[i] * b[i]; }); return na && nb ? d / Math.sqrt(na * nb) : 0; };
+    return (tiles?.all || []).filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length && !t.list.some((e) => e.id === ev.id))
+      .map((t) => [t, cosv(mine, moodProfile(t.list))]).sort((a, b) => b[1] - a[1])
+      .map(([t]) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
+  }, [ev, similar, tiles]); // eslint-disable-line react-hooks/exhaustive-deps
   // Recurrence: the pattern, the next session, and the last date when the listing has one ("Monthly · next Sun, Nov 16 · until Nov 30")
   const recLine = (() => {
     const fd = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -71,7 +80,6 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         </div>
         <h1 className="disp" style={{ margin: 0, fontSize: 32, lineHeight: 1.02 }}>{ev.title}</h1>
         <div style={{ fontSize: 15, color: "var(--ink2)" }}>{ev.venue}</div>
-        <div style={{ marginTop: 4 }}><Keywords ev={ev} max={5} size="lg" /></div>
         {recLine && (
           <div className="row" style={{ gap: 6, fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>
             <Icon name="refresh" size={15} /> {recLine}{ev.recurring === "synthetic" ? " · not in the latest feed, check before going" : ""}
@@ -101,16 +109,6 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         </div>
       )}
 
-      {(stations.length > 0 || ev.busy || ev.calChecked || ev.wx) && (
-        <div style={{ padding: "18px 0 0" }}>
-          <button aria-expanded={ctxOpen} onClick={() => setCtxOpen(!ctxOpen)} className="row" style={{ width: "calc(100% - 32px)", margin: "0 16px", padding: "12px 14px", borderRadius: 16, border: "none", background: "var(--chip)", color: "var(--ink)", gap: 10, textAlign: "left" }}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Weather, transit &amp; calendar</span>
-              <span className="ell muted" style={{ display: "block", fontSize: 12.5 }}>{[ev.wx ? fmtT(ev.wx.hi) + ", " + ev.wx.pmax + "% rain" : null, stations[0] && ev.tt?.mode === "transit" ? stations[0].n : null, ev.busy ? "Calendar clash" : ev.calChecked ? "Free in your calendar" : null].filter(Boolean).join(" · ")}</span>
-            </span>
-            <span style={{ display: "flex", transform: ctxOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span>
-          </button>
-          {ctxOpen && (<div>
       {stations.length > 0 && ev.tt?.mode === "transit" && (
         <div className="row" style={{ margin: "10px 20px 0", gap: 8, flexWrap: "wrap", fontSize: 13, fontWeight: 700 }}>
           <span className="muted">Nearest station: {stations[0].n}</span>
@@ -118,46 +116,17 @@ export default function EventSheet({ ev, dark, today, onSignal = () => {}, onAsk
         </div>
       )}
 
-      {ev.busy ? (
-        <div className="row" style={{ margin: "12px 16px 0", gap: 10, padding: "12px 16px", borderRadius: 20, background: "var(--warn-bg)", color: "var(--warn-ink)" }}><Icon name="cal" size={20} /><span style={{ fontSize: 14, fontWeight: 700 }}>This clashes with something in your calendar.</span></div>
-      ) : ev.calChecked ? (
-        <div className="row" style={{ margin: "12px 16px 0", gap: 10, padding: "12px 16px", borderRadius: 20, background: "var(--free-bg)", color: "var(--free-ink)" }}><Icon name="calcheck" size={20} /><span style={{ fontSize: 14, fontWeight: 700 }}>No clash in your calendar.</span></div>
-      ) : null}
-      {ev.wx && (
-        <div className="row" style={{ margin: "10px 16px 0", gap: 12, padding: "12px 16px", borderRadius: 20, background: wb?.tone === "warn" ? "var(--warn-bg)" : wb?.tone === "free" ? "var(--free-bg)" : "var(--chip)", color: wb?.tone === "warn" ? "var(--warn-ink)" : wb?.tone === "free" ? "var(--free-ink)" : "var(--ink)" }}>
-          <Icon name={wb?.icon || (ev.wx.pmax >= 50 ? "rain" : ev.wx.pmax >= 25 ? "cloud" : "sun")} size={22} />
-          <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>
-            {fmtT(ev.wx.hi)} high, {ev.wx.pmax}% chance of rain{ev.wx.evening != null ? ` (${ev.wx.evening}% in the evening)` : ""}.
-            {ev.outdoor ? (ev.rain ? " It's outdoors: have a plan B." : ev.dark ? " Outdoors and ends after dark: bring a layer." : wb?.tone === "free" ? " Great day to be outside." : " It's outdoors.") : " Indoors, so the weather won't matter."}
-          </span>
-        </div>
-      )}
-
-          </div>)}
-        </div>
-      )}
-
-      <div style={{ padding: "22px 20px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-        <div className="disp" style={{ fontSize: 20 }}>Why it's picked</div>
-        <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-          {(ev.why?.length ? ev.why : ["Matches your settings"]).map((w) => <span key={w} className="tag tag-plain" style={{ height: 32, fontSize: 13, padding: "0 13px" }}>{w}</span>)}
-        </div>
-      </div>
-
-      <div style={{ padding: "18px 20px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-        <div className="disp" style={{ fontSize: 20 }}>Teach Good Plans</div>
-        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          <button className={"chip" + (thumb === 1 ? " on" : "")} onClick={() => { if (thumb === 1) onReact(ev, "undo"); else { onReact(ev, "up", null, true); onAskWhy(ev, "up"); } }}><Icon name="up" size={16} /> More like this</button>
-          <button className={"chip" + (thumb === -1 ? " on" : "")} onClick={() => { if (thumb === -1) onReact(ev, "undo"); else { onReact(ev, "down", null, true); onAskWhy(ev, "down"); } }}><Icon name="down" size={16} /> Less like this</button>
-          <button className="chip" onClick={() => setNfm(true)}><Icon name="hide" size={16} /> Not for me…</button>
-          {ev.venue && <button className={"chip" + (followed ? " on" : "")} onClick={() => onFollow(ev)}><Icon name={followed ? "check" : "plus"} size={16} /> {followed ? "Following" : "Follow"} {venueLabel(ev).slice(0, 22)}</button>}
-        </div>
-      </div>
-
       {similar.length > 0 && (
         <div style={{ padding: "26px 16px 0", display: "flex", flexDirection: "column", gap: 16 }}>
-          <div className="disp" style={{ fontSize: 20, padding: "0 4px" }}>You may also like</div>
+          <div className="disp" style={{ fontSize: 20, padding: "0 4px" }}>Similar events</div>
           {similar.map((s) => <CompactCard key={s.id} ev={s} dark={dark} today={today} onOpen={onOpen} />)}
+        </div>
+      )}
+
+      {alsoLike.length > 0 && (
+        <div style={{ paddingTop: 26 }}>
+          <div className="disp" style={{ fontSize: 20, padding: "0 20px 12px" }}>You may also like</div>
+          <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} />)}</DotScroll>
         </div>
       )}
 

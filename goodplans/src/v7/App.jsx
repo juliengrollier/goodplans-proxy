@@ -960,7 +960,7 @@ export default function App() {
       <TabBar tab={tab} setTab={(t) => { setTab(t); window.scrollTo(0, 0); }} plansCount={plansCount} />
 
       {showQuiz && <Quiz dark={dark} initial={quiz?.v === Q.QUIZ_VERSION ? quiz.answers || {} : {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
-      {sheetEv && <EventSheet ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
+      {sheetEv && <EventSheet tiles={tileSet} onTile={(t) => { setOpenEv(null); openTile(t); }} ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
       {showFree && <FreeUntilDialog freeUntil={effFree} autoFree={autoFree} onClose={() => setShowFree(false)}

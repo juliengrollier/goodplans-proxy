@@ -63,6 +63,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
     let out = [...by.entries()];
     if (groupBy === "day") out = out.sort((a, b) => ord[a[0]] - ord[b[0]]).map(([k, l]) => [k, l.slice().sort((x, y) => (startMinutes(x) ?? 9999) - (startMinutes(y) ?? 9999))]);
     if (groupBy === "area") out = out.sort((a, b) => (a[0] === "Elsewhere") - (b[0] === "Elsewhere") || b[1].length - a[1].length);
+    // Categories you like come first: ranked by the average score of their best three events (your taste is in the score)
+    if (groupBy === "cat") { const fit = (l) => { const t = l.map((e) => e.sc || 0).sort((a, b) => b - a).slice(0, 3); return t.reduce((a, b) => a + b, 0) / t.length; }; out = out.sort((a, b) => fit(b[1]) - fit(a[1])); }
     return out;
   };
   const catGroups = useMemo(() => groupUp(results.slice(0, 160).filter((e) => !(fromTile && act.isSaved(e.id)))), [results, fromTile, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
