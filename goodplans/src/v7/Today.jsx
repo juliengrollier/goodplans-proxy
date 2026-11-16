@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { INTENTS, INTENT, intentEvents, intentCount } from "./intents.js";
+import { INTENTS, INTENT, intentEvents, intentCount, blend } from "./intents.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
@@ -368,18 +368,12 @@ function NYRow({ row, ri, onTile }) {
 }
 
 
-// In the mood for…: pick one or several intentions; matching events ranked by your taste, then the activities inside them
-function IntentSection({ data, today, dark, onOpen, onTile }) {
-  const [sel, setSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]"); } catch { return []; } });
-  const put = (x) => { setSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
+// In the mood for…: one or several intentions; the pick reshapes "Best for you right now" and opens a full mood page
+function IntentChips({ data, today, sel, put }) {
   const counts = React.useMemo(() => Object.fromEntries(INTENTS.map((i) => [i.id, intentCount(data, i.id, today)])), [data, today]);
-  const list = React.useMemo(() => intentEvents(data, sel, today), [data, sel, today]);
-  const title = sel.map((id) => INTENT[id].label).join(" + ");
-  const first = INTENT[sel[0]];
-  const within = React.useMemo(() => { const m = {}; list.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 10); }, [list]);
   const lab = { padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" };
   return (
-    <div style={{ marginTop: 6 }}>
+    <div style={{ margin: "4px 0 18px" }}>
       <div className="row" style={{ ...lab, justifyContent: "space-between" }}><span>In the mood for…</span>{sel.length > 0 && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
       <div className="row" style={{ padding: "0 16px", gap: 7, flexWrap: "wrap" }}>
         {INTENTS.map((it) => { const on = sel.includes(it.id); return (
@@ -389,38 +383,26 @@ function IntentSection({ data, today, dark, onOpen, onTile }) {
           </button>
         ); })}
       </div>
-      {sel.length === 0 ? (
-        <div className="muted" style={{ padding: "10px 20px 0", fontSize: 13.5 }}>Pick one or several. Your taste ranks what fits.</div>
-      ) : list.length === 0 ? (
-        <div className="muted" style={{ padding: "12px 20px 0", fontSize: 14 }}>Nothing fits {title.toLowerCase()} in the next two weeks.</div>
-      ) : (
-        <div style={{ marginTop: 14 }}>
-          <DotScroll>{list.slice(0, 10).map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
-          {within.length > 1 && (
-            <div className="hscroll" style={{ gap: 7, padding: "16px 16px 0" }}>
-              {within.map(([id, l]) => (
-                <button key={id} className="chip" style={{ height: 34, flexShrink: 0, fontSize: 13.5 }} onClick={() => onTile({ key: "intent-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1), list: l, color: first.color, icon: first.icon, teaser: "Within " + title.toLowerCase() + ", soonest first.", verb: title })}>
-                  {ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div style={{ padding: "14px 16px 0" }}>
-            <button className="btn" onClick={() => onTile({ key: "intent-" + sel.join("+"), title, list, color: first.color, icon: first.icon, teaser: "Everything that fits, ranked by your taste.", verb: "In the mood for" })} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>See all {list.length}</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+  const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]"); } catch { return []; } });
+  const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
+  const intentAll = React.useMemo(() => intentEvents(data || [], intentSel, today), [data, intentSel, today]);
+  const intentTitle = intentSel.map((id) => INTENT[id].label).join(" + ");
+  const intentWithin = React.useMemo(() => { const m = {}; intentAll.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 10); }, [intentAll]);
   // Best for you right now: what is still to come today (or on now), else tomorrow, by your score, sooner first on ties
   const bestNow = React.useMemo(() => {
     const now = nowMinutes();
     const ok = (data || []).filter((e) => { const d = daysUntil(e, today); if (d > 1 || d < 0) return false; if (d === 1) return true; const st = startMinutes(e), en = endMinutes(e); return st == null ? true : st >= now - 20 || (en != null && en > now + 30); });
-    return ok.map((e) => [e, (e.sc || 0) * (daysUntil(e, today) === 0 ? 1 : 0.82)]).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([e]) => e);
-  }, [data, today]);
+    const pool = intentSel.length ? ok.filter((e) => blend(e, intentSel) >= 0.45) : ok;
+    const now2 = pool.map((e) => [e, (e.sc || 0) * (daysUntil(e, today) === 0 ? 1 : 0.82) * (intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1)]).sort((a, b) => b[1] - a[1]).map(([e]) => e);
+    // With a mood picked and little on right now, fill from the coming days
+    if (intentSel.length && now2.length < 6) for (const e of intentAll) { if (now2.length >= 8) break; if (!now2.includes(e)) now2.push(e); }
+    return now2.slice(0, 8);
+  }, [data, today, intentSel, intentAll]);
   const [moreN, setMoreN] = useState(0);
   // My moods: pinned ones (newest first), then the lists you open most (recent opens count more); four at most
   const pool = tiles ? (tiles.every || tiles.all) : [];
@@ -521,13 +503,32 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
               {tiles.quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
             </div>
           )}
-          {bestNow.length > 0 && (
-            <div style={{ margin: "6px 0 18px" }}>
-              <div style={{ padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Best for you right now</div>
-              <DotScroll>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
+          <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
+          {bestNow.length > 0 ? (
+            <div style={{ margin: "0 0 18px" }}>
+              <div className="ell" style={{ padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Best for you right now{intentSel.length ? " · " + intentTitle : ""}</div>
+              <DotScroll key={intentSel.join("+")}>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
+              {intentSel.length > 0 && intentWithin.length > 1 && (
+                <div className="hscroll" style={{ gap: 7, padding: "16px 16px 0" }}>
+                  {intentWithin.map(([id, l]) => (
+                    <button key={id} className="chip" style={{ height: 34, flexShrink: 0, fontSize: 13.5 }} onClick={() => onTile({ key: "intent-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1), list: l, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Within " + intentTitle.toLowerCase() + ", soonest first.", verb: intentTitle })}>
+                      {ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {intentSel.length > 0 && (
+                <div style={{ padding: "14px 16px 0" }}>
+                  <button onClick={() => onTile({ key: "intent-" + intentSel.join("+"), title: intentTitle, list: intentAll, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Everything that fits over the next two weeks, ranked by your taste.", verb: "In the mood for" })}
+                    className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: INTENT[intentSel[0]].color, color: "#fff", fontWeight: 800, fontSize: 14.5 }}>
+                    {React.createElement(INTENT[intentSel[0]].icon, { size: 17, strokeWidth: 2.2 })} Explore {intentTitle.toLowerCase()} · {new Set(intentAll.map((e) => String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24))).size}
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-          <IntentSection data={data} today={today} dark={dark} onOpen={onOpen} onTile={onTile} />
+          ) : intentSel.length > 0 ? (
+            <div className="muted" style={{ padding: "0 20px 18px", fontSize: 14 }}>Nothing fits {intentTitle.toLowerCase()} in the next two weeks.</div>
+          ) : null}
         </>
       )}
 
