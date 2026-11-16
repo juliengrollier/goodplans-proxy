@@ -285,13 +285,13 @@ function Glance({ highlights, data, onOpen, quick = [], onTile }) {
     <div>
       <Head title="This week's picks" />
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-        {quick.map((t) => { const bl = blurbs[keyOf(t)]; return (
-          <div key={t.key} className="row" style={{ gap: 12, alignItems: "center" }}>
+        {quick.filter((t) => t.key !== "week").map((t) => { const bl = blurbs[keyOf(t)]; return (
+          <div key={t.key} className="row" style={{ gap: 12, alignItems: "flex-start" }}>
             <button onClick={() => onTile(t)} style={{ flexShrink: 0, width: 76, height: 76, border: "none", borderRadius: 16, padding: "8px 8px 7px", background: t.color, color: "#fff", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.1 }}>{t.key === "weekend" ? "Weekend" : t.key === "week" ? "This week" : t.title}</span>
               <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
             </button>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.4, color: bl ? "var(--ink2)" : "var(--ink3)", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            <span style={{ flex: 1, minWidth: 0, paddingTop: 2, textAlign: "left", fontSize: 13.5, lineHeight: 1.4, color: bl ? "var(--ink2)" : "var(--ink3)", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
               {bl ? renderHighlights(bl, highlights.ids, data, onOpen) : highlights.status === "loading" ? "Picking highlights…" : "Tap to see what's on."}
             </span>
           </div>
