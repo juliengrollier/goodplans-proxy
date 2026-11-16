@@ -225,9 +225,9 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
     for (const e of l) { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (seenT.has(k)) continue; seenT.add(k); names.push(String(e.title).length > 30 ? String(e.title).slice(0, 28).trim() + "…" : e.title); if (names.length === 2) break; }
     const free = l.filter(isFree).length, paid = l.map(price).filter((p) => p != null && p > 0);
     const cost = free === n ? "all free" : paid.length && free ? "free to $" + Math.max(...paid) : paid.length ? "from $" + Math.min(...paid) : null;
-    const teaser = c.kind === "rare"
-      ? up1(c.note) + ": " + names.join(", ") + "."
-      : (c.note ? up1(c.note) + ". " : "") + names.join(", ") + (cost ? " · " + cost : "") + ".";
+    const hk = (() => { const m = {}; l.forEach((e) => { const k = hoodOf(e); if (k) m[k] = (m[k] || 0) + 1; }); const top = Object.entries(m).sort((x, y) => y[1] - x[1])[0]; return top && top[1] / n >= 0.6 ? top[0] : null; })();
+    const nextD = Math.max(0, daysUntil(l[0], today)), nextS = nextD === 0 ? "on today" : nextD === 1 ? "next tomorrow" : "next " + new Date(today.getTime() + nextD * 86400000).toLocaleDateString("en-US", { weekday: "long" });
+    const teaser = c.kind === "rare" ? up1(c.note) + "." : up1([cost, hk ? "around " + hk : null, nextS].filter(Boolean).join(" · ")) + ".";
     const node = (MOMENT.has(c.kind) && c.kind !== "cut" ? FAM[fam]?.icon : null) || CAT[c.ncat]?.icon || FAM[fam]?.icon;
     const vk = c.ncat === "Comedy" ? "laugh" : c.ncat === "Yoga & Wellness" ? "chill" : VERB_OF_FAM[fam];
     // Why this is here, in one line: discovery first, then your own history, then the moment
