@@ -306,7 +306,7 @@ function Glance({ highlights, data, onOpen, quick = [], onTile }) {
 
 // Around you right now: a live map of what is on or starting nearby; tap a pin for a preview, or go full size
 // One-line event rows: a lead mark (number or bookmark), icon, time, activity, travel; tap to open
-function EventRows({ evs, today, dark, onOpen, lead, max = 3, moreLabel, onMore }) {
+function EventRows({ evs, today, dark, onOpen, lead, max = 3, moreLabel, onMore, toggle }) {
   const [all, setAll] = React.useState(false);
   const shown = all ? evs : evs.slice(0, max);
   return (
@@ -315,11 +315,11 @@ function EventRows({ evs, today, dark, onOpen, lead, max = 3, moreLabel, onMore 
         <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
           {lead(e, k)}
           <CatBullet ev={e} size={20} dark={dark} />
-          <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span style={{ color: "var(--ink2)" }}>{" · " + actLabel(e)}</span></span>
+          <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5, whiteSpace: "nowrap" }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span style={{ color: "var(--ink2)" }}>{" · " + e.title}</span></span>
           <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
         </button>
       ))}
-      {evs.length > max && <button onClick={() => (onMore ? onMore() : setAll(!all))} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: "6px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{onMore ? moreLabel || "See all" : all ? "Show less" : "Show " + (evs.length - max) + " more"}</button>}
+      {(evs.length > max || (toggle && evs.length > 3)) && <button onClick={() => (onMore ? onMore() : setAll(!all))} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: "6px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{onMore ? moreLabel || "See all" : all ? "Show less" : "Show " + (evs.length - max) + " more"}</button>}
     </div>
   );
 }
@@ -348,7 +348,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
       </div>
       {legend && (
         <div style={{ marginTop: 10 }}>
-          <EventRows evs={evs} today={today} dark={dark} onOpen={onOpen} max={all ? evs.length : 3} onMore={evs.length > 3 && !all ? () => setAll(true) : undefined} moreLabel={"Show " + (evs.length - 3) + " more"}
+          <EventRows evs={evs} today={today} dark={dark} onOpen={onOpen} max={all ? evs.length : 3} toggle onMore={() => setAll(!all)} moreLabel={all ? "Show less" : "Show " + (evs.length - 3) + " more"}
             lead={(e, k) => <span style={{ width: 20, height: 20, borderRadius: 10, flexShrink: 0, background: primaryIntent(e)?.color || evColor(e, dark), color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>} />
         </div>
       )}
@@ -567,11 +567,6 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
           </DotScroll>
         </>
       )}
-
-      {/* 1. This week at a glance: one short row per day */}
-      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
-
-
 
       {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
       {!empty && nyRows.length > 0 && (

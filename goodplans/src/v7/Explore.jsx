@@ -17,8 +17,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
   const [style, setStyle] = useState("carousel");
-  const [groupBy, setGroupBy] = useState(listMeta?.group || "cat"); // cat | day | area, defaulting from where you came
-  useEffect(() => { setGroupBy(listMeta?.group || "cat"); }, [filters.list]); // eslint-disable-line react-hooks/exhaustive-deps // carousel: one row per category; list: one long list
+  const [groupBy, setGroupBy] = useState("cat"); // results pages always group by category
+  useEffect(() => { if (filters.list) setGroupBy("cat"); }, [filters.list]); // carousel: one row per category; list: one long list
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
@@ -40,12 +40,14 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
     if (!filters.list || !results.length || !tiles?.all) return [];
     const mine = moodProfile(results), ids = new Set(results.map((e) => e.id));
     const cosv = (a, b) => { let d = 0, na = 0, nb = 0; a.forEach((x, i) => { d += x * b[i]; na += x * x; nb += b[i] * b[i]; }); return na && nb ? d / Math.sqrt(na * nb) : 0; };
-    return tiles.all.filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length && (t.short || t.title) !== filters.list)
+    const picked = tiles.all.filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length && (t.short || t.title) !== filters.list)
       .map((t) => { const ov = t.list.filter((e) => ids.has(e.id)).length / t.list.length; return [t, cosv(mine, moodProfile(t.list)) - ov, ov]; })
       .filter(([, , ov]) => ov < 0.5).sort((a, b) => b[1] - a[1])
       // Variety: at most two per category, and no two lists sharing most of their events
       .reduce((acc, x) => { const [t] = x, c = t.list[0]?.ncat, n = acc.filter(([u]) => u.list[0]?.ncat === c).length; const dup = acc.some(([u]) => { const ids2 = new Set(u.list.map((e) => e.id)); return t.list.filter((e) => ids2.has(e.id)).length / t.list.length > 0.5; }); if (acc.length < 30 && n < 3 && !dup) acc.push(x); return acc; }, [])
-      .map(([t]) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
+      .map(([t]) => t);
+    const fill = tiles.all.filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length && (t.short || t.title) !== filters.list && !picked.includes(t));
+    return [...picked, ...fill].map((t) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
   }, [filters.list, results, tiles]);
   const greatFor = useMemo(() => { const m = {}; results.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).sort((a, b) => b[1].length - a[1].length).slice(0, 6); }, [results]);
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
@@ -130,15 +132,10 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
               {meta?.why && <div className="row" style={{ gap: 6, marginTop: 10, fontSize: 13, fontWeight: 800, color: col }}><Icon name="spark" size={14} />{meta.why}</div>}
               <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: meta?.why ? 6 : 12 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink3)", minWidth: 0 }} className="ell">{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
-                <span style={{ position: "relative", display: "flex", flexShrink: 0 }}>
-                  <select aria-label="Group by" value={groupBy} onChange={(ev) => setGroupBy(ev.target.value)} style={{ appearance: "none", WebkitAppearance: "none", border: "none", background: "transparent", color: "var(--ink2)", font: "inherit", fontSize: 13, fontWeight: 800, padding: "4px 20px 4px 0" }}>
-                    <option value="cat">By category</option><option value="day">By day</option><option value="area">By area</option>
-                  </select>
-                  <span style={{ position: "absolute", right: 0, top: 5, pointerEvents: "none", display: "flex", color: "var(--ink2)" }}><Icon name="chevdown" size={14} /></span>
-                </span>
               </div>
             </div>
             {mapEvs.length > 0 && home && <div style={{ paddingTop: 16 }}><AroundMap legend evs={mapEvs.slice(0, 12)} home={home} dark={dark} today={today} onOpen={onOpen} height={200} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></div>}
+            <div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "22px 16px 4px" }} />
           </div>
         );
       })()}
