@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { CatBullet } from "./components.jsx";
 import { tasteSummary } from "./engine.js";
@@ -7,7 +7,12 @@ import { CATS } from "../lib/core.js";
 const LEVELS = [["Love", 80], ["Like", 55], ["Meh", 25], ["Hide", 0]];
 const levelOf = (v) => (v === 0 ? 3 : v >= 70 ? 0 : v >= 45 ? 1 : 2);
 
+// Me is split in two: your profile (what Good Plans knows about you) and settings (connections and app options)
+const PaneCtx = React.createContext("profile");
+const SETTINGS = new Set(["Google Maps lists", "Calendar", "Notifications", "Appearance", "Location", "Events feed"]);
 function Card({ title, children, right }) {
+  const pane = useContext(PaneCtx);
+  if (SETTINGS.has(title) !== (pane === "settings")) return null;
   return (
     <div className="card" style={{ margin: "0 16px 14px", padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="row" style={{ justifyContent: "space-between", gap: 10 }}><span className="disp" style={{ fontSize: 20 }}>{title}</span>{right}</div>
@@ -17,6 +22,7 @@ function Card({ title, children, right }) {
 }
 
 export default function Me(p) {
+  const [pane, setPane] = useState("profile");
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
@@ -30,6 +36,10 @@ export default function Me(p) {
   return (
     <div>
       <div style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 14px" }}><h1 className="disp" style={{ margin: 0, fontSize: 34 }}>Me</h1></div>
+      <div className="seg" role="tablist" style={{ gridTemplateColumns: "1fr 1fr", margin: "0 16px 16px" }}>
+        {[["profile", "Profile"], ["settings", "Settings"]].map(([k, l]) => <button key={k} role="tab" aria-selected={pane === k} className={pane === k ? "on" : ""} onClick={() => setPane(k)}>{l}</button>)}
+      </div>
+      <PaneCtx.Provider value={pane}>
 
       <Card title="What Good Plans has learned" right={learned.strong >= 5 && <button className="chip" onClick={onCardRefresh} disabled={cardBusy}>{cardBusy ? "Writing…" : "Refresh"}</button>}>
         {quiz?.profile && (
@@ -255,6 +265,7 @@ export default function Me(p) {
         <a href="/?classic=1" className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Open the classic app (sync tools, enrichment, debug)</a>
       </div>
       <div className="muted" style={{ textAlign: "center", fontSize: 12, padding: "8px 0 24px" }}>Version {typeof __BUILD__ !== "undefined" ? new Date(__BUILD__).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "dev"}</div>
+      </PaneCtx.Provider>
     </div>
   );
 }

@@ -6,12 +6,15 @@ import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
 import { startMinutes, whenLabel } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
+import { neighbourhoodOf } from "./tiles.js";
+import { moodProfile, primaryIntent } from "./intents.js";
 import { AroundMap } from "./Today.jsx";
 
 export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
-  const [style, setStyle] = useState("carousel"); // carousel: one row per category; list: one long list
+  const [style, setStyle] = useState("carousel");
+  const [groupBy, setGroupBy] = useState("cat"); // cat | day | area // carousel: one row per category; list: one long list
   const [limit, setLimit] = useState(40);
   const [view, setView] = useState("all"); // all | regulars
   const [freq, setFreq] = useState("all"); // all | weekly | monthly | annual
@@ -20,25 +23,43 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
   useEffect(() => { if (first.current) { first.current = false; return; } if (window.scrollY > 120) window.scrollTo({ top: 0, behavior: "smooth" }); }, [filters, sort]);
 
   const listTile = filters.list ? (tiles?.every || tiles?.lists || []).find((t) => t.title === filters.list) : null;
-  const more = filters.list && tiles ? (tiles.all || tiles.lists).filter((t) => t.title !== filters.list).slice(0, 8) : [];
   const counts = useMemo(() => scored.reduce((m, e) => ((m[e.cat] = (m[e.cat] || 0) + 1), m), {}), [scored]);
   // Repeated dates of the same series collapse into one card ("+N more dates")
   // Opened from a Home tile: soonest first (then grouped by category below); otherwise the chosen sort
   const fromTile = !!filters.list;
   const soonest = (a, b) => (Math.max(0, daysUntil(a, today)) - Math.max(0, daysUntil(b, today))) || ((startMinutes(a) ?? 9999) - (startMinutes(b) ?? 9999));
   const results = useMemo(() => { const base = applyFilters(scored, filters, today); return collapseSeries(fromTile ? [...base].sort(soonest) : sortEvents(base, sort)); }, [scored, filters, sort, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  // You may also like: activities with the closest mood profile to this list, not mostly the same events, not this one
+  const [alsoN, setAlsoN] = useState(6);
+  useEffect(() => setAlsoN(6), [filters.list]);
+  const alsoLike = useMemo(() => {
+    if (!filters.list || !results.length || !tiles?.all) return [];
+    const mine = moodProfile(results), ids = new Set(results.map((e) => e.id));
+    const cosv = (a, b) => { let d = 0, na = 0, nb = 0; a.forEach((x, i) => { d += x * b[i]; na += x * x; nb += b[i] * b[i]; }); return na && nb ? d / Math.sqrt(na * nb) : 0; };
+    return tiles.all.filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length && (t.short || t.title) !== filters.list)
+      .map((t) => { const ov = t.list.filter((e) => ids.has(e.id)).length / t.list.length; return [t, cosv(mine, moodProfile(t.list)) - ov, ov]; })
+      .filter(([, , ov]) => ov < 0.5).sort((a, b) => b[1] - a[1])
+      // Variety: at most two per category, and no two lists sharing most of their events
+      .reduce((acc, x) => { const [t] = x, c = t.list[0]?.ncat, n = acc.filter(([u]) => u.list[0]?.ncat === c).length; const dup = acc.some(([u]) => { const ids2 = new Set(u.list.map((e) => e.id)); return t.list.filter((e) => ids2.has(e.id)).length / t.list.length > 0.5; }); if (acc.length < 30 && n < 3 && !dup) acc.push(x); return acc; }, [])
+      .map(([t]) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
+  }, [filters.list, results, tiles]);
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
-  const catGroups = useMemo(() => {
-    const by = new Map();
-    results.slice(0, 160).forEach((e) => { if (fromTile && act.isSaved(e.id)) return; const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
-    return [...by.entries()];
-  }, [results, fromTile, act]);
-  const groups = useMemo(() => {
-    if (!fromTile) return null;
-    const by = new Map();
-    results.slice(0, limit).forEach((e) => { if (act.isSaved(e.id)) return; const k = e.ncat || e.cat || "Other"; if (!by.has(k)) by.set(k, []); by.get(k).push(e); });
-    return [...by.entries()];
-  }, [results, fromTile, limit, act]);
+  // Grouping: by category (default), by day (soonest first) or by neighbourhood (biggest first)
+  const keyOf = (e) => {
+    if (groupBy === "day") { const d = Math.max(0, daysUntil(e, today)); return [d === 0 ? "Today" : d === 1 ? "Tomorrow" : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }), d]; }
+    if (groupBy === "area") { const a = neighbourhoodOf(e) || (e.hood ? String(e.hood).split(",")[0].trim() : "") || "Elsewhere"; return [a, 0]; }
+    return [e.ncat || e.cat || "Other", 0];
+  };
+  const groupUp = (list) => {
+    const by = new Map(), ord = {};
+    list.forEach((e) => { const [k, o] = keyOf(e); if (!by.has(k)) { by.set(k, []); ord[k] = o; } by.get(k).push(e); });
+    let out = [...by.entries()];
+    if (groupBy === "day") out = out.sort((a, b) => ord[a[0]] - ord[b[0]]).map(([k, l]) => [k, l.slice().sort((x, y) => (startMinutes(x) ?? 9999) - (startMinutes(y) ?? 9999))]);
+    if (groupBy === "area") out = out.sort((a, b) => (a[0] === "Elsewhere") - (b[0] === "Elsewhere") || b[1].length - a[1].length);
+    return out;
+  };
+  const catGroups = useMemo(() => groupUp(results.slice(0, 160).filter((e) => !(fromTile && act.isSaved(e.id)))), [results, fromTile, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => (fromTile ? groupUp(results.slice(0, limit).filter((e) => !act.isSaved(e.id))) : null), [results, fromTile, limit, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Regulars: series learned from the feed (weekly, every other week, monthly, varying) plus the city's yearly events.
   // The When filter doesn't apply here; the other filters do.
@@ -101,14 +122,21 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       })()}
       <div className="row" style={{ padding: "20px 16px 12px", gap: 6 }} role="tablist">
         <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
-        <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Regulars · {nReg}</button>
+        <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Recurring · {nReg}</button>
         {view === "all" && (
           <span className="row" style={{ marginLeft: "auto", gap: 4 }} role="group" aria-label="Layout">
+            <span className="chip" style={{ height: 32, padding: 0, position: "relative", gap: 0 }}>
+              <select aria-label="Group by" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ appearance: "none", WebkitAppearance: "none", border: "none", background: "transparent", color: "inherit", font: "inherit", fontSize: 13, fontWeight: 800, height: "100%", padding: "0 26px 0 12px" }}>
+                <option value="cat">Category</option><option value="day">Day</option><option value="area">Area</option>
+              </select>
+              <span style={{ position: "absolute", right: 8, top: 8, pointerEvents: "none", display: "flex" }}><Icon name="chevdown" size={15} /></span>
+            </span>
             <button className={"chip" + (style === "carousel" ? " on" : "")} aria-pressed={style === "carousel"} aria-label="Carousels" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("carousel")}><Icon name="rows" size={16} /></button>
             <button className={"chip" + (style === "list" ? " on" : "")} aria-pressed={style === "list"} aria-label="List" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("list")}><Icon name="list" size={16} /></button>
           </span>
         )}
       </div>
+
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 8, marginBottom: 14 }}>
           <div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
@@ -121,8 +149,8 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
         <div style={{ display: "flex", flexDirection: "column", gap: 30, paddingTop: 12 }}>
           {catGroups.map(([cat, list]) => (
             <div key={cat}>
-              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "2px 20px 12px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><CatBullet ev={list[0]} size={24} dark={dark} /><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
-              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard hideCat key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
+              <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "2px 20px 12px", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}>{groupBy === "cat" ? <CatBullet ev={list[0]} size={24} dark={dark} /> : <span style={{ display: "flex", color: "var(--ink2)" }}><Icon name={groupBy === "day" ? "cal" : "pin"} size={20} /></span>}<span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
+              {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard hideCat={groupBy === "cat"} key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
             </div>
           ))}
           {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
@@ -141,10 +169,17 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
           {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>Show more</button>}
         </div>
       ) : null}
-      {view === "all" && more.length > 0 && (
-        <div style={{ marginTop: 22 }}>
-          <div className="sec-h"><h2>More ideas</h2></div>
-          <DotScroll>{more.map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}</DotScroll>
+      {view === "all" && fromTile && alsoLike.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 3 }}><h2>You may also like</h2><span className="muted" style={{ fontSize: 14 }}>Activities close to this one.</span></div>
+          <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
+          </div>
+          {alsoLike.length > alsoN && (
+            <div style={{ padding: "12px 16px 0" }}>
+              <button className="btn" onClick={() => setAlsoN(alsoN + 6)} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>More activities</button>
+            </div>
+          )}
         </div>
       )}
       {view !== "all" && (
@@ -154,7 +189,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
               <button key={k} role="tab" aria-selected={freq === k} className={"chip" + (freq === k ? " on" : "")} style={{ height: 30 }} onClick={() => setFreq(k)}>{l}</button>
             ))}
           </div>
-          {!nReg && <div className="card" style={{ padding: 20, fontSize: 15 }}>No regulars yet. A series shows up here once it appears on two dates with a pattern (weekly, every other week, monthly), or says "every Tuesday". The app keeps them between refreshes.</div>}
+          {!nReg && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing recurring yet. A series shows up here once it appears on two dates with a pattern (weekly, every other week, monthly), or says "every Tuesday". The app keeps them between refreshes.</div>}
           {regGroups.map(([label, list]) => (
             <React.Fragment key={label}>
               <div className="disp" style={{ fontSize: 19, padding: "8px 4px 0" }}>{label}</div>

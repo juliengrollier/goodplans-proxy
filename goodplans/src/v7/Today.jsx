@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods, primaryIntent } from "./intents.js";
+import { markSeen } from "./moods2.js";
+import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
 import { ThemePhoto } from "./themeArt.jsx";
@@ -270,28 +273,33 @@ function Tile({ t }) {
 }
 
 // This week at a glance: one short row per day or moment, easy to skim
-function Glance({ highlights, data, onOpen }) {
+function Glance({ highlights, data, onOpen, quick = [], onTile }) {
   const [all, setAll] = React.useState(false);
   const segs = (highlights.text || "").split(/\s*▫️?\s*/).map((x) => x.trim()).filter(Boolean);
-  const rows = segs.length > 1 ? segs : [highlights.text];
-  const shown = all ? rows : rows.slice(0, 2);
+  const rows = segs.length > 1 ? segs : highlights.text ? [highlights.text] : [];
+  const shown = all ? rows : rows.slice(0, 3);
   return (
-    <div style={{ padding: "14px 20px 2px" }}>
-      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>This week's picks</div>
-      {highlights.text ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div>
+      <Head title="This week's picks" sub={highlights.status === "loading" && !rows.length ? "Writing your week's highlights…" : "The few things worth knowing about, day by day."} />
+      {rows.length > 0 && (
+        <div style={{ margin: "0 16px", padding: "4px 16px", borderRadius: 20, background: "var(--card)" }}>
           {shown.map((seg, i) => {
             const m = /^([^:\[]{2,22}):\s*([\s\S]*)$/.exec(seg);
             return (
-              <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-                {m && <span style={{ flexShrink: 0, width: 54, fontSize: 11.5, fontWeight: 800, color: "var(--ink3)" }}>{m[1]}</span>}
-                <span style={{ fontSize: 13.5, lineHeight: 1.4, color: "var(--ink2)", ...(all ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{renderHighlights(m ? m[2] : seg, highlights.ids, data, onOpen)}</span>
+              <div key={i} style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "11px 0", borderTop: i ? "1px solid var(--line, rgba(128,128,128,.2))" : "none" }}>
+                {m && <span style={{ flexShrink: 0, width: 64, fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--ink3)" }}>{m[1]}</span>}
+                <span style={{ fontSize: 14.5, lineHeight: 1.45, color: "var(--ink)", ...(all ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{renderHighlights(m ? m[2] : seg, highlights.ids, data, onOpen)}</span>
               </div>
             );
           })}
-          {(rows.length > 2 || !all) && <button onClick={() => setAll(!all)} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: 0, fontSize: 12.5, fontWeight: 700, color: "var(--ink3)" }}>{all ? "Show less" : "Show more"}</button>}
+          {rows.length > 3 && <button onClick={() => setAll(!all)} style={{ display: "block", border: "none", background: "none", padding: "2px 0 10px 76px", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{all ? "Show less" : "Show " + (rows.length - 3) + " more"}</button>}
         </div>
-      ) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>Writing your week's highlights…</p>}
+      )}
+      {quick.length > 0 && (
+        <div style={{ margin: "14px 16px 0", display: "grid", gridTemplateColumns: "repeat(" + quick.length + ", 1fr)", gap: 8 }}>
+          {quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -365,13 +373,57 @@ function NYRow({ row, ri, onTile }) {
   );
 }
 
+
+// In the mood for…: one or several intentions; the pick reshapes "Best for you right now" and opens a full mood page
+function IntentChips({ data, today, sel, put }) {
+  const rowRef = React.useRef(null);
+  React.useEffect(() => { rowRef.current?.scrollTo?.({ left: 0, behavior: "smooth" }); }, [sel.join()]); // selected moods sit first: bring them into view
+  const counts = React.useMemo(() => Object.fromEntries(INTENTS.map((i) => [i.id, intentCount(data, i.id, today)])), [data, today]);
+  return (
+    <div style={{ margin: "2px 0 0" }}>
+      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>In the mood for…</span>{sel.length > 0 && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
+      <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }}>
+        {[...INTENTS.filter((it) => sel.includes(it.id)), ...INTENTS.filter((it) => !sel.includes(it.id) && counts[it.id])].map((it) => { const on = sel.includes(it.id); return (
+          <button key={it.id} aria-pressed={on} onClick={() => put(on ? sel.filter((x) => x !== it.id) : [...sel, it.id])}
+            className="chip" style={{ height: 32, flexShrink: 0, gap: 6, padding: "0 11px 0 9px", fontSize: 13, background: on ? it.color : undefined, borderColor: on ? it.color : undefined, color: on ? "#fff" : undefined }}>
+            {React.createElement(it.icon, { size: 14, strokeWidth: 2.3, color: on ? "#fff" : it.color })}{it.label}
+          </button>
+        ); })}
+      </div>
+    </div>
+  );
+}
+
 export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+  const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]"); } catch { return []; } });
+  const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
+  const intentAll = React.useMemo(() => intentEvents(data || [], intentSel, today), [data, intentSel, today]);
+  const intentTitle = joinMoods(intentSel);
+  const [discN, setDiscN] = useState(6);
+  // Discover: the activities you're most likely to want now. Picked moods lift what fits them; they don't filter.
+  const discover = React.useMemo(() => {
+    const gens = (tiles?.all || []).filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length);
+    const rest = (tiles?.all || []).filter((t) => t.list?.length && !/^gen-(act|sub|term|cut)-/.test(t.key));
+    const ranked = gens.map((t, i) => {
+      const fit = intentSel.length ? t.list.reduce((a, e) => a + Math.min(1, blend(e, intentSel)), 0) / t.list.length : 0;
+      return [t, i - 8 * fit];
+    }).sort((a, b) => a[1] - b[1]).map(([t]) => t);
+    return [...ranked, ...rest].map((t) => { const b = primaryIntent(t.list[0]) || bestIntent(t.list); return b ? { ...t, title: t.short || t.title, verb: b.label, color: b.color } : { ...t, title: t.short || t.title }; });
+  }, [tiles, intentSel]);
+  // Impressions for the mood stats: what Discover actually shows
+  React.useEffect(() => { const ks = discover.slice(0, discN).filter((t) => /^gen-/.test(t.key)); if (ks.length) markSeen(ks, today); }, [discover, discN]); // eslint-disable-line react-hooks/exhaustive-deps
+  const intentWithin = React.useMemo(() => { const m = {}; intentAll.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 10); }, [intentAll]);
   // Best for you right now: what is still to come today (or on now), else tomorrow, by your score, sooner first on ties
   const bestNow = React.useMemo(() => {
     const now = nowMinutes();
     const ok = (data || []).filter((e) => { const d = daysUntil(e, today); if (d > 1 || d < 0) return false; if (d === 1) return true; const st = startMinutes(e), en = endMinutes(e); return st == null ? true : st >= now - 20 || (en != null && en > now + 30); });
-    return ok.map((e) => [e, (e.sc || 0) * (daysUntil(e, today) === 0 ? 1 : 0.82)]).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([e]) => e);
-  }, [data, today]);
+    const pool = intentSel.length ? ok.filter((e) => blend(e, intentSel) >= 0.45) : ok;
+    const now2 = pool.map((e) => [e, (e.sc || 0) * (daysUntil(e, today) === 0 ? 1 : 0.82) * (intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1)]).sort((a, b) => b[1] - a[1]).map(([e]) => e);
+    // With a mood picked and little on right now, fill from the coming days
+    if (intentSel.length && now2.length < 6) for (const e of intentAll) { if (now2.length >= 8) break; if (!now2.includes(e)) now2.push(e); }
+    // One card per series: the same event on two dates shows once
+    const seen = new Set(); return now2.filter((e) => { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+  }, [data, today, intentSel, intentAll]);
   const [moreN, setMoreN] = useState(0);
   // My moods: pinned ones (newest first), then the lists you open most (recent opens count more); four at most
   const pool = tiles ? (tiles.every || tiles.all) : [];
@@ -445,7 +497,7 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
       )}
 
       {/* 1. This week at a glance: one short row per day */}
-      {!empty && (highlights?.text || highlights?.status === "loading") && <Glance highlights={highlights} data={data} onOpen={onOpen} />}
+      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
 
       {/* 2. Your plans: saved only. Today first, then what is next, in the same row */}
       {!empty && mine.length > 0 && (
@@ -456,50 +508,57 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
       )}
 
       {/* 3. Around you right now: a map of what is on or starting nearby */}
-      {!empty && (
+      {!empty && mapEvs.length > 0 && (
         <>
-          <Head title="Around you right now" sub={mapEvs.length ? "Tap a pin for a preview. Drag to look around." : "Nothing starting nearby in the next couple of hours."} />
+          <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
           {mapEvs.length > 0 && <AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
         </>
       )}
 
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
-      {!empty && tiles && (tiles.quick.length > 0 || tiles.lists.length > 0) && (
+      {!empty && tiles && (
         <>
-          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Pick a moment, or a mood. Each list tells you what it is built on." />
-          {tiles.quick.length > 0 && (
-            <div style={{ padding: "0 16px 10px", display: "grid", gridTemplateColumns: "repeat(" + tiles.quick.length + ", 1fr)", gap: 8 }}>
-              {tiles.quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
+          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Pick what you're in the mood for. Your taste ranks the rest." />
+          <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
+          {bestNow.length > 0 ? (
+            <div style={{ margin: "26px 0 18px" }}>
+              <DotScroll key={intentSel.join("+")}>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
+              {intentSel.length > 0 && intentWithin.length > 1 && (
+                <div className="hscroll" style={{ gap: 7, padding: "22px 16px 0" }}>
+                  {intentWithin.map(([id, l]) => (
+                    <button key={id} className="chip" style={{ height: 34, flexShrink: 0, fontSize: 13.5 }} onClick={() => onTile({ key: "intent-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1), list: l, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Within " + intentTitle.toLowerCase() + ", soonest first.", verb: intentTitle })}>
+                      {ACT[id].label} <span style={{ opacity: 0.6, fontWeight: 800, marginLeft: 4 }}>{l.length}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {intentSel.length > 0 && (
+                <div style={{ padding: "18px 16px 0" }}>
+                  <button onClick={() => onTile({ key: "intent-" + intentSel.join("+"), title: intentTitle, list: intentAll, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Everything that fits over the next two weeks, ranked by your taste.", verb: "In the mood for" })}
+                    className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: INTENT[intentSel[0]].color, color: "#fff", fontWeight: 800, fontSize: 14.5 }}>
+                    {React.createElement(INTENT[intentSel[0]].icon, { size: 17, strokeWidth: 2.2 })} Explore {intentTitle.toLowerCase()} · {new Set(intentAll.map((e) => String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24))).size}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ margin: "0 0 18px" }}>
+              {intentSel.length > 0 && <div className="muted" style={{ padding: "14px 20px 0", fontSize: 14 }}>Nothing fits {intentTitle.toLowerCase()} in the next two weeks.</div>}
             </div>
           )}
-          {bestNow.length > 0 && (
-            <div style={{ margin: "6px 0 18px" }}>
-              <div style={{ padding: "0 20px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Best for you right now</div>
-              <DotScroll>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
-            </div>
-          )}
-          {favTiles.length > 0 && (
-            <div style={{ margin: "4px 16px 14px", padding: "10px 0 12px", borderTop: "1px solid var(--line, rgba(128,128,128,.25))", borderBottom: "1px solid var(--line, rgba(128,128,128,.25))" }}>
-              <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 8 }}>My moods</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-                {favTiles.map((t) => (
-                  <div key={"f" + t.key} role="button" tabIndex={0} onClick={() => onTile(t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(t); }}
-                    style={{ position: "relative", height: 76, borderRadius: 16, padding: "9px 6px 6px", background: t.color, color: "#fff", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start", overflow: "hidden", cursor: "pointer", boxShadow: "inset 0 -26px 24px -18px rgba(0,0,0,.25)" }}>
-                    <span style={{ opacity: 0.95, display: "flex" }}>{t.node ? <LIcon node={t.node} size={18} color="#fff" stroke={2} /> : t.icon ? React.createElement(t.icon, { size: 18, strokeWidth: 2.2 }) : null}</span>
-                    <span style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.1, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", width: "100%" }}>{t.title}</span>
-                    <button aria-label={"Remove " + t.title + " from my moods"} onClick={(e) => { e.stopPropagation(); onMoodDrop(t); }} style={{ position: "absolute", top: 3, right: 3, width: 22, height: 22, border: "none", background: "transparent", color: "#fff", opacity: 0.75, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={12} /></button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {favTiles.length > 0 && <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Discover</div>}
+        </>
+      )}
+
+      {/* 4b. Discover: activity tiles that fit the picked moods (or your taste), labelled and coloured by the mood they fit */}
+      {!empty && discover.length > 0 && (
+        <>
+          <Head title="Discover" sub={intentSel.length ? "What you're most likely to want, leaning " + intentTitle.toLowerCase() + "." : "What you're most likely to want right now."} />
           <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {shownMoods.map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFb={onMoodFb} onFav={onMoodFav} />)}
+            {discover.slice(0, discN).map((t) => <MoodTile key={t.key} t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} />)}
           </div>
-          {allT.length > 0 && (
+          {discover.length > discN && (
             <div style={{ padding: "12px 16px 0" }}>
-              <button className="btn" style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }} onClick={() => setMoreN(moreN + 1)}>More moods</button>
+              <button className="btn" onClick={() => setDiscN(discN + 6)} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1.5px solid var(--ink)", background: "transparent", color: "var(--ink)", fontWeight: 800, fontSize: 14 }}>More activities</button>
             </div>
           )}
         </>
