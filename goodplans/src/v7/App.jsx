@@ -797,7 +797,7 @@ export default function App() {
     const t = { ...tasteRef.current, priceSens: Math.max(tasteRef.current.priceSens || 0, price), farSens: Math.max(tasteRef.current.farSens || 0, far) };
     tasteRef.current = t; saveTaste(t);
     const qz = { answers: ans, profile: prof, v: Q.QUIZ_VERSION, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
-    setShowQuiz(false); toast("Nice to meet you, " + prof.name.replace(/^The /, ""));
+    setShowQuiz(false); setTab("today"); window.scrollTo(0, 0); toast("Nice to meet you. Here are your good plans.");
     if (wantMeet != null) setTimeout(() => setMeetOn(wantMeet), 0);
   };
 
