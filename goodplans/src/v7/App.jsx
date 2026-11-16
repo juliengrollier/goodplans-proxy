@@ -513,8 +513,9 @@ export default function App() {
     const used = new Set();
     const take = (arr, n) => arr.filter((c) => c && c.list?.length && !used.has(c.id)).slice(0, n).map((c) => (used.add(c.id), c));
     const rest = () => [...cityR.all.filter((x) => x.list.length >= 2).map((m) => view("city", m, m.facts)), ...genCards];
-    const hol = view2(cityHol), wx = view2(cityWx), hood = hoodItems;
-    const rows = [hol, hood, wx].map((own, slot) => { const got = take(own, 3); return { key: "ny" + slot, slot, items: got }; });
+    const hol = view2(cityHol), hood = hoodItems;
+    // Two rows: season and neighbourhoods (the weather row was dropped)
+    const rows = [hol, hood].map((own, slot) => { const got = take(own, 3); return { key: "ny" + slot, slot, items: got }; });
     rows.forEach((r, i) => { if (r.items.length < 3) r.items.push(...take(i === 1 ? [...hoodItems, ...rest()] : rest(), 3 - r.items.length)); });
     return rows.filter((r) => r.items.length);
   })();

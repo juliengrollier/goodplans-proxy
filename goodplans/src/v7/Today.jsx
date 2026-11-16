@@ -282,16 +282,16 @@ function Glance({ highlights, data, onOpen, quick = [], onTile }) {
   const keyOf = (t) => (t.key === "tonight" ? "today" : t.key);
   if (!quick.length) return null;
   return (
-    <div style={{ padding: "26px 16px 4px" }}>
-      <div style={{ padding: "0 4px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>This week's picks</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div>
+      <Head title="This week's picks" />
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
         {quick.map((t) => { const bl = blurbs[keyOf(t)]; return (
           <div key={t.key} className="row" style={{ gap: 12, alignItems: "center" }}>
-            <button onClick={() => onTile(t)} style={{ flexShrink: 0, width: 96, height: 48, border: "none", borderRadius: 14, padding: "6px 10px", background: t.color, color: "#fff", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.05, whiteSpace: "nowrap" }}>{t.key === "weekend" ? "Weekend" : t.title}</span>
-              <span style={{ fontSize: 11.5, fontWeight: 700, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
+            <button onClick={() => onTile(t)} style={{ flexShrink: 0, width: 76, height: 76, border: "none", borderRadius: 16, padding: "8px 8px 7px", background: t.color, color: "#fff", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.1 }}>{t.key === "weekend" ? "Weekend" : t.key === "week" ? "This week" : t.title}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
             </button>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.4, color: bl ? "var(--ink2)" : "var(--ink3)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.4, color: bl ? "var(--ink2)" : "var(--ink3)", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
               {bl ? renderHighlights(bl, highlights.ids, data, onOpen) : highlights.status === "loading" ? "Picking highlights…" : "Tap to see what's on."}
             </span>
           </div>
