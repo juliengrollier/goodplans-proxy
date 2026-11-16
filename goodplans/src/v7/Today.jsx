@@ -8,7 +8,7 @@ import { ThemePhoto } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
 import { catColor, catIcon } from "./theme.js";
-import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay, whenLabel } from "./engine.js";
+import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay, whenLabel, eventWindow, canMake } from "./engine.js";
 import { DAYS, MONTHS, evCovers, evStart, CATS, daysUntil, isImprecise } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
 import { Travel, catLabel } from "./components.jsx";
@@ -405,31 +405,47 @@ function NYRow({ row, ri, onTile }) {
 // In the mood for…: one or several intentions; the pick reshapes "Best for you right now" and opens a full mood page
 // I'm in the mood to…: your own order (long-press a tile, then drag it); the ones you put first also teach your taste
 function IntentChips({ data, today, sel, put, onOrder }) {
-  const rowRef = React.useRef(null), btns = React.useRef({}), timer = React.useRef(null), dragRef = React.useRef(null), moved = React.useRef(false);
+  const rowRef = React.useRef(null), btns = React.useRef({}), timer = React.useRef(null), dragRef = React.useRef(null), moved = React.useRef(false), start = React.useRef(null);
   const counts = React.useMemo(() => Object.fromEntries(INTENTS.map((i) => [i.id, intentCount(data, i.id, today)])), [data, today]);
   const [order, setOrder] = useState(() => { try { const o = JSON.parse(localStorage.getItem("gp_intent_order") || "null"); if (Array.isArray(o)) return [...o.filter((id) => INTENT[id]), ...INTENTS.map((i) => i.id).filter((id) => !o.includes(id))]; } catch { /* none */ } return INTENTS.map((i) => i.id); });
   const [drag, setDrag] = useState(null);
   const orderRef = React.useRef(order); orderRef.current = order;
-  // While dragging, the row must not scroll
-  React.useEffect(() => { const el = rowRef.current; if (!el) return; const stop = (e) => { if (dragRef.current) e.preventDefault(); }; el.addEventListener("touchmove", stop, { passive: false }); return () => el.removeEventListener("touchmove", stop); }, []);
-  const down = (id) => (e) => { moved.current = false; clearTimeout(timer.current); const pid = e.pointerId, tgt = e.currentTarget; timer.current = setTimeout(() => { dragRef.current = id; setDrag(id); try { tgt.setPointerCapture?.(pid); } catch { /* fine */ } navigator.vibrate?.(12); }, 420); };
-  const move = (e) => {
-    if (!dragRef.current) { clearTimeout(timer.current); return; }
-    moved.current = true;
-    const o0 = orderRef.current, x = e.clientX, cur = o0.indexOf(dragRef.current);
-    const target = o0.findIndex((id) => { const r = btns.current[id]?.getBoundingClientRect(); return r && x >= r.left && x <= r.right; });
+  const reorderAt = (x) => {
+    const o0 = orderRef.current, cur = o0.indexOf(dragRef.current);
+    const target = o0.findIndex((id) => { const r = btns.current[id]?.getBoundingClientRect(); return r && r.width && x >= r.left && x <= r.right; });
     if (target >= 0 && target !== cur) { const o = o0.slice(); o.splice(cur, 1); o.splice(target, 0, dragRef.current); orderRef.current = o; setOrder(o); }
   };
-  const up = () => { clearTimeout(timer.current); if (dragRef.current) { try { localStorage.setItem("gp_intent_order", JSON.stringify(orderRef.current)); } catch { /* full */ } onOrder?.(orderRef.current); setTimeout(() => { dragRef.current = null; }, 0); setDrag(null); } };
-  const shown = order.map((id) => INTENT[id]).filter((it) => counts[it.id] || sel.includes(it.id));
+  const begin = (id, x, y) => { moved.current = false; start.current = { x, y }; clearTimeout(timer.current); timer.current = setTimeout(() => { dragRef.current = id; setDrag(id); navigator.vibrate?.(15); }, 380); };
+  const finish = () => { clearTimeout(timer.current); start.current = null; if (dragRef.current) { try { localStorage.setItem("gp_intent_order", JSON.stringify(orderRef.current)); } catch { /* full */ } onOrder?.(orderRef.current); setTimeout(() => { dragRef.current = null; }, 0); setDrag(null); } };
+  // Touch: native listeners so the row's scroll can be stopped once the long press has picked a tile up
+  React.useEffect(() => {
+    const el = rowRef.current; if (!el) return;
+    const tm = (e) => {
+      const t = e.touches[0]; if (!t) return;
+      if (!dragRef.current) { const s0 = start.current; if (s0 && Math.hypot(t.clientX - s0.x, t.clientY - s0.y) > 8) { clearTimeout(timer.current); start.current = null; } return; }
+      if (e.cancelable) e.preventDefault();
+      moved.current = true; reorderAt(t.clientX);
+      const r = el.getBoundingClientRect(); if (t.clientX < r.left + 30) el.scrollLeft -= 8; else if (t.clientX > r.right - 30) el.scrollLeft += 8;
+    };
+    const te = () => finish();
+    el.addEventListener("touchmove", tm, { passive: false }); el.addEventListener("touchend", te); el.addEventListener("touchcancel", te);
+    return () => { el.removeEventListener("touchmove", tm); el.removeEventListener("touchend", te); el.removeEventListener("touchcancel", te); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Mouse (desktop): the same with pointer events
+  const pd = (id) => (e) => { if (e.pointerType === "mouse") begin(id, e.clientX, e.clientY); };
+  const pm = (e) => { if (e.pointerType !== "mouse") return; if (!dragRef.current) { clearTimeout(timer.current); return; } moved.current = true; reorderAt(e.clientX); };
+  const pu = (e) => { if (e.pointerType === "mouse") finish(); };
+  // The active mood always comes first
+  let shown = order.map((id) => INTENT[id]).filter((it) => counts[it.id] || sel.includes(it.id));
+  if (sel[0] && !drag) shown = [...shown.filter((it) => it.id === sel[0]), ...shown.filter((it) => it.id !== sel[0])];
   return (
     <div style={{ margin: "2px 0 0" }}>
       <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? "Drag to reorder" : "I'm in the mood to…"}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
-      <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px", overflowX: drag ? "hidden" : "auto" }} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+      <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }} onPointerMove={pm} onPointerUp={pu}>
         {shown.map((it) => { const on = sel.includes(it.id), dragging = drag === it.id; return (
-          <button key={it.id} ref={(el) => { btns.current[it.id] = el; }} aria-pressed={on} onPointerDown={down(it.id)} onContextMenu={(e) => e.preventDefault()}
+          <button key={it.id} ref={(el) => { btns.current[it.id] = el; }} aria-pressed={on} onPointerDown={pd(it.id)} onTouchStart={(e) => begin(it.id, e.touches[0].clientX, e.touches[0].clientY)} onContextMenu={(e) => e.preventDefault()}
             onClick={() => { if (moved.current || dragRef.current) { moved.current = false; return; } put(on ? [] : [it.id]); }}
-            style={{ width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (on ? it.color : "var(--line, rgba(128,128,128,.25))"), background: on ? it.color : "var(--card)", color: on ? "#fff" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", transform: dragging ? "scale(1.08)" : drag ? "scale(.96)" : "none", boxShadow: dragging ? "0 8px 20px rgba(20,24,51,.25)" : "none", transition: "transform .12s, box-shadow .12s", zIndex: dragging ? 2 : 0 }}>
+            style={{ width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (on ? it.color : "var(--line, rgba(128,128,128,.25))"), background: on ? it.color : "var(--card)", color: on ? "#fff" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: drag ? "none" : "pan-x", transform: dragging ? "scale(1.08)" : drag ? "scale(.96)" : "none", boxShadow: dragging ? "0 8px 20px rgba(20,24,51,.25)" : "none", transition: "transform .12s, box-shadow .12s", zIndex: dragging ? 2 : 0 }}>
             {React.createElement(it.icon, { size: 20, strokeWidth: 2.2, color: on ? "#fff" : it.color })}{it.label}
           </button>
         ); })}
@@ -445,6 +461,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   const intentTitle = joinMoods(intentSel);
   const topAll = React.useMemo(() => (data || []).filter((e) => daysUntil(e, today) >= 0).slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)), [data, today]);
   const [discN, setDiscN] = useState(6);
+  const [favN, setFavN] = useState(12);
   const favList = React.useMemo(() => { const all = [...(tiles?.all || []), ...(tiles?.every || [])]; return moodFav.slice().reverse().map((k) => all.find((t) => t.key === k)).filter(Boolean).map((t) => { const b = t.list?.length ? primaryIntent(t.list[0]) : null; return b ? { ...t, color: b.color } : t; }); }, [tiles, moodFav]);
   // Discover: the activities you're most likely to want now. Picked moods lift what fits them; they don't filter.
   const discover = React.useMemo(() => {
@@ -501,17 +518,20 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   // ── Home v8 (after Theo's feedback): five distinct sections, one card style, curated lists as tiles
   const now = nowMinutes();
   const notOver = (e) => { const em = endMinutes(e); return em == null || em > now; };
-  // Around you: on now or starting within 4 h, up to 35 min away; if that's thin, the rest of today. Exact addresses only.
+  // Around you: within a 25-min walk (no subway), on now or starting within 4 h, and still reachable in time.
+  // Ongoing things without listed hours (exhibitions, markets) count with their usual opening hours. Exact addresses only.
   const mapEvs = React.useMemo(() => {
     const now = nowMinutes();
-    const cand = (data || []).filter((e) => { if (!evCovers(e, today) || !Array.isArray(e.coord) || isImprecise(e)) return false; const st = startMinutes(e), en = endMinutes(e); if (st == null) return false; return en != null ? en > now : st >= now - 90; });
-    const near = (e, m) => (e.tt?.mins ?? 99) <= m;
-    const onNow = (e) => (startMinutes(e) ?? 1e4) <= now;
-    let L = cand.filter((e) => near(e, 35) && (onNow(e) || startMinutes(e) <= now + 240));
-    if (L.length < 5) L = cand.filter((e) => near(e, 45));
+    const walkOf = (e) => e.tt?.walk ?? (e.tt?.mode === "walk" ? e.tt.mins : 99);
+    const L = (data || []).filter((e) => {
+      if (!evCovers(e, today) || !Array.isArray(e.coord) || isImprecise(e) || walkOf(e) > 25) return false;
+      const w = eventWindow(e);
+      if (w.s > now + 240) return false;
+      return canMake({ ...e, tt: { mins: walkOf(e) } }, today, now);
+    }).map((e) => ({ ...e, tt: { mins: walkOf(e), mode: "walk", line: null, walk: walkOf(e) } }));
     const seen = new Set();
-    const slot = (e) => (onNow(e) ? -1 : Math.floor(startMinutes(e) / 30)), walk = (e) => (e.tt?.mode === "walk" ? 0 : 1);
-    return L.sort((a, b) => (slot(a) - slot(b)) || (walk(a) - walk(b)) || ((a.tt?.mins ?? 99) - (b.tt?.mins ?? 99)) || (b.sc || 0) - (a.sc || 0)).filter((e) => { const k = String(e.title).toLowerCase().slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
+    const slot = (e) => { const w = eventWindow(e); return w.s <= now ? -1 : Math.floor(w.s / 30); };
+    return L.sort((a, b) => (slot(a) - slot(b)) || (a.tt.mins - b.tt.mins) || (b.sc || 0) - (a.sc || 0)).filter((e) => { const k = String(e.title).toLowerCase().slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
   }, [data, today]);
   const byStart = (x, y) => (startMinutes(x) ?? 0) - (startMinutes(y) ?? 0);
   const savedNow = data.filter((e) => A.isSaved(e.id));
@@ -527,7 +547,16 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
           <span className="disp" style={{ fontSize: 23, whiteSpace: "nowrap" }}>good plans</span>
         </div>
         <div className="row" style={{ gap: 6 }}>
-          <button className="chip" onClick={() => setTab("me")} aria-label="Location settings"><Icon name="pin" size={15} /> {locLabel}</button>
+          {(() => {
+            const hb = { position: "relative", width: 38, height: 38, borderRadius: 19, border: "none", background: "var(--chip)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 };
+            const badge = (n) => n > 0 && <span style={{ position: "absolute", top: -3, right: -4, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: "var(--navy)", color: "var(--onnavy, #fff)", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>{n > 99 ? "99+" : n}</span>;
+            const savedUp = savedNow.slice().sort((x, y) => evStart(x) - evStart(y) || byStart(x, y));
+            return (<>
+              <button style={hb} aria-label={"Saved plans, " + savedUp.length} onClick={() => savedUp.length && onTile({ key: "saved", title: "Your plans", list: savedUp, color: "#1F2A5C", teaser: "Everything you've bookmarked that's still coming up.", verb: "Saved", group: "day" })}><Icon name="save" size={17} />{badge(savedUp.length)}</button>
+              <button style={hb} aria-label={"Favorites, " + favList.length} onClick={() => document.getElementById("my-favs")?.scrollIntoView({ behavior: "smooth" })}><Icon name="heart" size={17} />{badge(favList.length)}</button>
+              <button style={hb} aria-label={"Profile and location · " + locLabel} onClick={() => setTab("me")}><Icon name="me" size={18} /></button>
+            </>);
+          })()}
         </div>
       </div>
       {goAsk && (
@@ -575,7 +604,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {!empty && mapEvs.length > 0 && (
         <>
           <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
-          {mapEvs.length > 0 && <AroundMap legend height={220} evs={mapEvs.slice(0, 9)} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
+          {mapEvs.length > 0 && <AroundMap legend height={220} evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
         </>
       )}
 
@@ -609,16 +638,22 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
           )}
 
           {favList.length > 0 && (
-            <div style={{ marginTop: 26 }}>
+            <div id="my-favs" style={{ marginTop: 26, scrollMarginTop: 12 }}>
               <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>My favorites</div>
-              <div className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }}>
-                {favList.map((t) => (
-                  <button key={t.key} onClick={() => onTile(t)} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid var(--line, rgba(128,128,128,.25))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "0 16px" }}>
+                {favList.slice(0, favN).map((t) => (
+                  <div key={t.key} role="button" tabIndex={0} onClick={() => onTile(t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(t); }} style={{ position: "relative", height: 70, borderRadius: 16, border: "1.5px solid var(--line, rgba(128,128,128,.25))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer", minWidth: 0 }}>
+                    <button aria-label="Remove from favorites" onClick={(e) => { e.stopPropagation(); onMoodFav(t); }} style={{ position: "absolute", top: 2, right: 2, width: 24, height: 24, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: t.color || "var(--ink3)", opacity: 0.75 }}><Icon name="heart" size={12} fill="currentColor" /></button>
                     {t.node ? <LIcon node={t.node} size={20} color={t.color} stroke={2.2} /> : t.icon ? React.createElement(t.icon, { size: 20, strokeWidth: 2.2, color: t.color }) : null}
-                    <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.short || t.title}</span>
-                  </button>
+                    <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" }}>{t.short || t.title}</span>
+                  </div>
                 ))}
               </div>
+              {favList.length > 12 && (
+                <div style={{ padding: "10px 20px 0", display: "flex", justifyContent: "center" }}>
+                  <button onClick={() => setFavN(favN < favList.length ? favN + 12 : 12)} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 13.5, fontWeight: 800, padding: 4 }}>{favN < favList.length ? "Show more" : "Show less"}</button>
+                </div>
+              )}
             </div>
           )}
         </>

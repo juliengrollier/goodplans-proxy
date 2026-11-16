@@ -252,41 +252,40 @@ const SUBWAY=[
   {n:"Roosevelt Av-Jackson Hts",l:["E","F","M","R","7"],c:[40.7466,-73.8915]},
 ];
 const LINE_COLOR={"1":"#EE352E","2":"#EE352E","3":"#EE352E","4":"#00933C","5":"#00933C","6":"#00933C","7":"#B933AD","A":"#0039A6","C":"#0039A6","E":"#0039A6","B":"#FF6319","D":"#FF6319","F":"#FF6319","M":"#FF6319","G":"#6CBE45","J":"#996633","Z":"#996633","L":"#A7A9AC","N":"#FCCC0A","Q":"#FCCC0A","R":"#FCCC0A","W":"#FCCC0A","S":"#808183"};
-const nearestSubways=(coord,maxKm)=>{
+const nearestSubways=(coord,maxKm,n)=>{
   const out=[];
   for(const s of SUBWAY){
     const d=kmdist(coord,s.c);
     if(d<=(maxKm||0.6))out.push({...s,d});
   }
-  return out.sort((a,b)=>a.d-b.d).slice(0,2);
+  return out.sort((a,b)=>a.d-b.d).slice(0,n||2);
 };
 
 // Estimate travel time (minutes) from home to a coord using walking + subway heuristic.
 // Returns { mins, mode:'walk'|'transit', line:string|null }
 // Uses the hardcoded SUBWAY stations — no external API, works offline.
 function transitTime(home,coord){
-  const d=kmdist(home,coord);
-  if(d<0.55)return{mins:Math.max(1,Math.round(d*14)),mode:"walk",line:null,toLine:null,direct:true};
-  const uStops=nearestSubways(home,0.65);
-  const eStops=nearestSubways(coord,0.65);
-  if(!uStops.length||!eStops.length){
-    return{mins:Math.min(60,Math.round(d*14)),mode:"walk",line:null,toLine:null,direct:true};
+  // Street distance ≈ 1.25 × straight line; walking 4.8 km/h. Subway: walk to the best of the 3 nearest
+  // stations each side, wait (longer late), ride ~27 km/h along a 1.25× track, +6 min per transfer.
+  const d=kmdist(home,coord), WALK=1.25*60/4.8;
+  const walk=Math.max(1,Math.round(d*WALK));
+  const W={mins:walk,mode:"walk",line:null,toLine:null,direct:true,walk};
+  if(walk<=18)return W;
+  const uStops=nearestSubways(home,1.0,3), eStops=nearestSubways(coord,1.0,3);
+  if(!uStops.length||!eStops.length)return W;
+  const h=new Date().getHours(), wait=h>=22||h<6?8:h>=20?6:4;
+  let best=null;
+  for(const u of uStops)for(const e of eStops){
+    if(u.n===e.n)continue;
+    const shared=u.l.find(l=>e.l.includes(l))||null;
+    const t=u.d*WALK+2+wait+kmdist(u.c,e.c)*1.25*(60/27)+(shared?0:6)+e.d*WALK+1;
+    if(!best||t<best.t)best={t,u,e,shared};
   }
-  const uS=uStops[0], eS=eStops[0];
-  if(uS.n===eS.n)return{mins:Math.round(uS.d*14+eS.d*14),mode:"walk",line:null,toLine:null,direct:true};
-  const shared=uS.l.find(l=>eS.l.includes(l))||null;
-  const transferPenalty=shared?0:5;
-  const rideMins=kmdist(uS.c,eS.c)*1.35*(60/27);
-  const waitMins=2.5;
-  const walkToMins=uS.d*14;
-  const walkFromMins=eS.d*14;
-  const totalMins=Math.round(walkToMins+waitMins+rideMins+transferPenalty+walkFromMins);
-  const walkMins=Math.round(d*14);
-  if(walkMins<=totalMins&&d<1.5)return{mins:walkMins,mode:"walk",line:null,toLine:null,direct:true};
-  // For transfers: fromLine = best line at origin, toLine = best line at destination
-  const fromLine=shared||uS.l[0]||null;
-  const toLine=shared?null:(eS.l[0]||null); // only set when transfer needed
-  return{mins:Math.max(3,totalMins),mode:"transit",line:fromLine,toLine,direct:!!shared};
+  if(!best)return W;
+  const tr=Math.max(5,Math.round(best.t));
+  // Walk unless the subway saves real time
+  if(walk<=tr+6||walk<=22&&walk<=tr+10)return W;
+  return{mins:tr,mode:"transit",line:best.shared||best.u.l[0]||null,toLine:best.shared?null:(best.e.l[0]||null),direct:!!best.shared,walk};
 }
 
 
