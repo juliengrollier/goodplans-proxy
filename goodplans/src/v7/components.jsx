@@ -101,7 +101,7 @@ export function CardActions({ ev, size = 34, onNfm, noSave }) {
 }
 
 // Save button and price sit on the picture itself
-export function PicOverlay({ ev, size = 36 }) {
+export function PicOverlay({ ev, size = 36, priceTop }) {
   const a = useContext(ActionsCtx);
   const saved = a.isSaved(ev.id);
   const free = isFree(ev);
@@ -113,7 +113,7 @@ export function PicOverlay({ ev, size = 36 }) {
         style={{ position: "absolute", top: 8, right: 8, width: size, height: size, borderRadius: size / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: saved ? "var(--navy)" : "rgba(255,255,255,.92)", color: saved ? "var(--onnavy)" : "#1B1F3B", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }}>
         <Icon name="save" size={Math.round(size * 0.52)} fill={saved ? "currentColor" : "none"} />
       </button>
-      {real && <span className={"tag " + (free ? "tag-free" : "tag-white")} style={{ position: "absolute", left: 8, bottom: 8, boxShadow: "0 1px 4px rgba(0,0,0,.2)" }}>{free ? "Free" : (p.length > 14 ? p.slice(0, 13) + "…" : p)}</span>}
+      {real && <span className={"tag " + (free ? "tag-free" : "tag-white")} style={{ position: "absolute", left: priceTop ? 12 : 8, ...(priceTop ? { top: 12 } : { bottom: 8 }), boxShadow: "0 1px 4px rgba(0,0,0,.2)" }}>{free ? "Free" : (p.length > 14 ? p.slice(0, 13) + "…" : p)}</span>}
       {ev.busy && <span className="tag tag-warn" style={{ position: "absolute", left: 8, top: 8 }}>Clash</span>}
     </>
   );
@@ -128,13 +128,15 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit })
   if (img?.src && !broken) {
     return (
       <div style={{ position: "relative", height, borderRadius: radius, overflow: "hidden", background: "var(--media)" }}>
-        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "var(--img-filter)" }} />
+        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: "var(--img-veil)", pointerEvents: "none" }} />
         {credit && img.credit && <span style={{ position: "absolute", left: 12, bottom: 8, fontSize: 10, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>{img.credit}</span>}
       </div>
     );
   }
   return (
-    <div style={{ height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+    <div style={{ position: "relative", height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+      <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: "var(--ph-veil)", pointerEvents: "none" }} />
       {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><LIcon node={evNode(ev)} size={Math.min(96, Math.round((typeof height === "number" ? height : 200) * 0.42))} color="#fff" stroke={1.8} /></div> : <LIcon node={evNode(ev)} size={big ? 46 : 30} color="#fff" stroke={2} />}
       {!hideTitle && <span className="disp clamp2" style={{ fontSize: big ? 28 : 18, lineHeight: 1, letterSpacing: -0.3 }}>{ev.title}</span>}
     </div>
@@ -281,14 +283,32 @@ export function shortWhen(ev, today) {
 export function PosterCard({ ev, dark, today, onOpen, fluid }) {
   const seenRef = useSeen(ev);
   const act = actLabel(ev), area = areaLabel(ev);
+  if (fluid) {
+    const line = [act, area].filter(Boolean).join(" · ");
+    return (
+      <div {...tap(onOpen, ev)} ref={seenRef} style={{ position: "relative", width: "100%", borderRadius: 20, overflow: "hidden", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
+        <Media ev={ev} dark={dark} height={210} radius={20} hideTitle />
+        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 30%, rgba(10,12,30,.72) 100%)" }} />
+        <PicOverlay ev={ev} size={30} priceTop />
+        <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
+          <span className="ell" style={{ fontSize: 12.5, opacity: 0.9 }}>{line}</span>
+          <span className="disp ell" style={{ fontSize: 20, lineHeight: 1.15, whiteSpace: "nowrap" }}>{ev.title}</span>
+          <span className="row" style={{ justifyContent: "space-between", alignItems: "center", fontSize: 12.5, minWidth: 0 }}>
+            <span className="row" style={{ gap: 6, opacity: 0.9, minWidth: 0, whiteSpace: "nowrap" }}><span className="ell">{shortWhen(ev, today)}</span>{ev.tt?.mins != null && <span className="row" style={{ gap: 2 }}>·&nbsp;<Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={12} width={2.2} />{minsLabel(ev)}</span>}</span>
+            <span className="onpic" style={{ display: "flex", marginRight: -6 }}><CardActions ev={ev} size={24} noSave /></span>
+          </span>
+        </div>
+      </div>
+    );
+  }
   const top = area && (act + " · " + area).length <= 24 ? act + " · " + area : act; // the area only when it fits
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: fluid ? "100%" : 168, minWidth: 0, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
-      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
-      <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 500, color: "var(--ink2)" }}>{top}</span></span>
-      <div className="disp ell" style={{ fontSize: 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
+      <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={fluid ? 200 : 140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
+      <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 400, color: "var(--ink2)" }}>{top}</span></span>
+      <div className="disp ell" style={{ fontSize: fluid ? 18 : 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
       <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between", fontWeight: 400 }}>
-        <span className="ell" style={{ minWidth: 0 }}>{shortWhen(ev, today)}</span>
+        <span className="ell" style={{ minWidth: 0, color: "var(--ink3)" }}>{shortWhen(ev, today)}</span>
         <TravelMini ev={ev} size={12} />
       </div>
       <div className="row" style={{ marginLeft: -6, height: 24 }}><CardActions ev={ev} size={24} noSave /></div>

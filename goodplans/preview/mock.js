@@ -76,7 +76,8 @@ window.fetch = async (input, init = {}) => {
     return json({ events: EVENTS, refreshed: new Date().toISOString() });
   }
   if (url.includes("open-meteo")) return json(weather());
-  if (url.includes("/api/image")) return json({ src: null, kind: "none" });
+  // Preview only: one of five bundled sample photos per event (the artifact viewer blocks outside images)
+  if (url.includes("/api/image")) { let h = 0; for (const ch of url) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return json({ src: new URL("img/p" + ((h % 5) + 1) + ".jpg", location.href).href, kind: "event" }); }
   if (url.includes("/api/enrich")) return json(enrichReply(JSON.parse(init.body || "{}")));
   return new Response("", { status: 404 });
 };

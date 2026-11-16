@@ -533,7 +533,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
           {bestNow.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
-              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(156px, 1fr))", columnGap: 12, rowGap: 22 }}>{bestNow.slice(0, 6).map((ev) => <div key={ev.id} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
+              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 5).map((ev) => <div key={ev.id} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
               {intentSel.length === 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
                   <button onClick={() => onTile({ key: "top-picks", title: "Top picks", list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}

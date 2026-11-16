@@ -30,7 +30,7 @@ export const CSS = `
 :root{
   --bg:#FBF7EF; --card:#FFFFFF; --ink:#1B1F3B; --ink2:#3A3E58; --ink3:#5A5E78;
   --line:#E7E1D4; --chip:#EFE9DD; --media:#E9E3D6; --mapbg:#EEE8DC; --water:#CFE0E8; --street:#FFFFFF; --park:#D5E8CC;
-  --navy:#1B1F3B; --onnavy:#FBF7EF; --onnavy2:#C9CBDB;
+  --navy:#1B1F3B; --onnavy:#FBF7EF; --onnavy2:#C9CBDB; --img-filter:saturate(.62) contrast(.86) brightness(1.06); --img-veil:.2; --ph-veil:.32;
   --free-bg:#DDF3E6; --free-ink:#11643A; --soon-bg:#FDE7DA; --soon-ink:#8A3410;
   --warn-bg:#FFF1D6; --warn-ink:#7A4B00;
   --shadow:0 6px 20px rgba(27,31,59,.08); --shadow-sm:0 4px 14px rgba(27,31,59,.06);
@@ -40,7 +40,7 @@ export const CSS = `
 [data-theme="dark"]{
   --bg:#141833; --card:#1F2447; --ink:#FBF7EF; --ink2:#D3D5E4; --ink3:#A9ADC8;
   --line:#2E3463; --chip:#2A3060; --media:#262C57; --mapbg:#262C57; --water:#1B3A55; --street:#343C70; --park:#23423A;
-  --navy:#FBF7EF; --onnavy:#141833; --onnavy2:#3A3E58;
+  --navy:#FBF7EF; --onnavy:#141833; --onnavy2:#3A3E58; --img-filter:saturate(.62) contrast(.88) brightness(.8); --img-veil:.22; --ph-veil:.38;
   --free-bg:#123D2B; --free-ink:#8FE0B1; --soon-bg:#4A2A1A; --soon-ink:#FFC8A3;
   --warn-bg:#43360F; --warn-ink:#FFD98A;
   --shadow:none; --shadow-sm:none;
