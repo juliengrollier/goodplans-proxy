@@ -128,13 +128,15 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit })
   if (img?.src && !broken) {
     return (
       <div style={{ position: "relative", height, borderRadius: radius, overflow: "hidden", background: "var(--media)" }}>
-        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <img src={img.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken(true); dropImage(ev.id); }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "saturate(.78) contrast(.92) brightness(1.03)" }} />
+        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: 0.12, pointerEvents: "none" }} />
         {credit && img.credit && <span style={{ position: "absolute", left: 12, bottom: 8, fontSize: 10, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)" }}>{img.credit}</span>}
       </div>
     );
   }
   return (
-    <div style={{ height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+    <div style={{ position: "relative", height, borderRadius: radius, background: c, color: "#fff", padding: big ? 18 : 12, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+      <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg)", opacity: 0.22, pointerEvents: "none" }} />
       {hideTitle ? <div style={{ margin: "auto", opacity: 0.9 }}><LIcon node={evNode(ev)} size={Math.min(96, Math.round((typeof height === "number" ? height : 200) * 0.42))} color="#fff" stroke={1.8} /></div> : <LIcon node={evNode(ev)} size={big ? 46 : 30} color="#fff" stroke={2} />}
       {!hideTitle && <span className="disp clamp2" style={{ fontSize: big ? 28 : 18, lineHeight: 1, letterSpacing: -0.3 }}>{ev.title}</span>}
     </div>
@@ -285,10 +287,10 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: fluid ? "100%" : 168, minWidth: 0, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
       <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
-      <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 500, color: "var(--ink2)" }}>{top}</span></span>
+      <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 400, color: "var(--ink2)" }}>{top}</span></span>
       <div className="disp ell" style={{ fontSize: 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
       <div className="row" style={{ gap: 6, fontSize: 12.5, minWidth: 0, justifyContent: "space-between", fontWeight: 400 }}>
-        <span className="ell" style={{ minWidth: 0 }}>{shortWhen(ev, today)}</span>
+        <span className="ell" style={{ minWidth: 0, color: "var(--ink3)" }}>{shortWhen(ev, today)}</span>
         <TravelMini ev={ev} size={12} />
       </div>
       <div className="row" style={{ marginLeft: -6, height: 24 }}><CardActions ev={ev} size={24} noSave /></div>

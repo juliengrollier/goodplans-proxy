@@ -76,7 +76,8 @@ window.fetch = async (input, init = {}) => {
     return json({ events: EVENTS, refreshed: new Date().toISOString() });
   }
   if (url.includes("open-meteo")) return json(weather());
-  if (url.includes("/api/image")) return json({ src: null, kind: "none" });
+  // Preview only: a stable stock photo per event, so image treatments can be judged
+  if (url.includes("/api/image")) { let h = 0; for (const ch of url) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return json({ src: "https://picsum.photos/seed/gp" + (h % 997) + "/640/640", kind: "event" }); }
   if (url.includes("/api/enrich")) return json(enrichReply(JSON.parse(init.body || "{}")));
   return new Response("", { status: 404 });
 };
