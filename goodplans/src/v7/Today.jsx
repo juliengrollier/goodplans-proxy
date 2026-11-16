@@ -274,32 +274,29 @@ function Tile({ t }) {
 
 // This week at a glance: one short row per day or moment, easy to skim
 function Glance({ highlights, data, onOpen, quick = [], onTile }) {
-  const [all, setAll] = React.useState(false);
+  // Each AI blurb goes next to the time tile it talks about (Tonight/Today, Tomorrow, Weekend, This/Next week)
   const segs = (highlights.text || "").split(/\s*▫️?\s*/).map((x) => x.trim()).filter(Boolean);
-  const rows = segs.length > 1 ? segs : highlights.text ? [highlights.text] : [];
-  const shown = all ? rows : rows.slice(0, 3);
+  const slot = (label) => { const l = label.toLowerCase(); return /tonight|today/.test(l) ? "today" : /tomorrow/.test(l) ? "tomorrow" : /weekend|saturday|sunday/.test(l) ? "weekend" : /week/.test(l) ? "week" : null; };
+  const blurbs = {};
+  segs.forEach((seg) => { const m = /^([^:\[]{2,22}):\s*([\s\S]*)$/.exec(seg); const k = m ? slot(m[1]) : null; if (k && !blurbs[k]) blurbs[k] = m[2]; });
+  const keyOf = (t) => (t.key === "tonight" ? "today" : t.key);
+  if (!quick.length) return null;
   return (
-    <div>
-      <Head title="This week's picks" sub={highlights.status === "loading" && !rows.length ? "Writing your week's highlights…" : "The few things worth knowing about, day by day."} />
-      {rows.length > 0 && (
-        <div style={{ margin: "0 16px", padding: "4px 16px", borderRadius: 20, background: "var(--card)" }}>
-          {shown.map((seg, i) => {
-            const m = /^([^:\[]{2,22}):\s*([\s\S]*)$/.exec(seg);
-            return (
-              <div key={i} style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "11px 0", borderTop: i ? "1px solid var(--line, rgba(128,128,128,.2))" : "none" }}>
-                {m && <span style={{ flexShrink: 0, width: 64, fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--ink3)" }}>{m[1]}</span>}
-                <span style={{ fontSize: 14.5, lineHeight: 1.45, color: "var(--ink)", ...(all ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{renderHighlights(m ? m[2] : seg, highlights.ids, data, onOpen)}</span>
-              </div>
-            );
-          })}
-          {rows.length > 3 && <button onClick={() => setAll(!all)} style={{ display: "block", border: "none", background: "none", padding: "2px 0 10px 76px", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{all ? "Show less" : "Show " + (rows.length - 3) + " more"}</button>}
-        </div>
-      )}
-      {quick.length > 0 && (
-        <div style={{ margin: "14px 16px 0", display: "grid", gridTemplateColumns: "repeat(" + quick.length + ", 1fr)", gap: 8 }}>
-          {quick.map((t) => <QuickTile key={t.key} t={{ ...t, open: () => onTile(t) }} />)}
-        </div>
-      )}
+    <div style={{ padding: "26px 16px 4px" }}>
+      <div style={{ padding: "0 4px 10px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>This week's picks</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {quick.map((t) => { const bl = blurbs[keyOf(t)]; return (
+          <div key={t.key} className="row" style={{ gap: 12, alignItems: "center" }}>
+            <button onClick={() => onTile(t)} style={{ flexShrink: 0, width: 96, height: 48, border: "none", borderRadius: 14, padding: "6px 10px", background: t.color, color: "#fff", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.05, whiteSpace: "nowrap" }}>{t.key === "weekend" ? "Weekend" : t.title}</span>
+              <span style={{ fontSize: 11.5, fontWeight: 700, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
+            </button>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.4, color: bl ? "var(--ink2)" : "var(--ink3)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+              {bl ? renderHighlights(bl, highlights.ids, data, onOpen) : highlights.status === "loading" ? "Picking highlights…" : "Tap to see what's on."}
+            </span>
+          </div>
+        ); })}
+      </div>
     </div>
   );
 }
@@ -496,15 +493,15 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
         </div>
       )}
 
-      {/* 1. This week at a glance: one short row per day */}
-      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
-
-      {/* 2. Your plans: saved only. Today first, then what is next, in the same row */}
+      {/* 1. Your plans, compact: the next two, then a link to the rest */}
       {!empty && mine.length > 0 && (
-        <>
-          <Head title={planToday.length ? "Your plans" : "Your next plans"} sub={planToday.length ? "What you saved for today, then what comes next." : "Nothing saved for today. Here is what is next."} />
-          <DotScroll>{mine.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
-        </>
+        <div style={{ padding: "18px 16px 0" }}>
+          <div className="row" style={{ padding: "0 4px 10px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>
+            <span>{planToday.length ? "Your plans today" : "Your next plans"}</span>
+            {mine.length > 2 && <button onClick={() => setTab("plans")} style={{ border: "none", background: "none", padding: 0, fontSize: 12, fontWeight: 800, letterSpacing: 0.4, textTransform: "none", color: "var(--ink2)" }}>All {mine.length}</button>}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{mine.slice(0, 2).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</div>
+        </div>
       )}
 
       {/* 3. Around you right now: a map of what is on or starting nearby */}
@@ -514,6 +511,9 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
           {mapEvs.length > 0 && <AroundMap evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
         </>
       )}
+
+      {/* 1. This week at a glance: one short row per day */}
+      {!empty && (highlights?.text || highlights?.status === "loading" || tiles?.quick?.length > 0) && <Glance highlights={highlights} data={data} onOpen={onOpen} quick={tiles?.quick || []} onTile={onTile} />}
 
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
       {!empty && tiles && (
@@ -549,6 +549,16 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
         </>
       )}
 
+      {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
+      {!empty && nyRows.length > 0 && (
+        <>
+          <Head title="New York right now" sub="What the city is up to: swipe each row." />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {nyRows.map((row, ri) => <NYRow key={row.key} row={row} ri={row.slot} onTile={onTile} />)}
+          </div>
+        </>
+      )}
+
       {/* 4b. Discover: activity tiles that fit the picked moods (or your taste), labelled and coloured by the mood they fit */}
       {!empty && discover.length > 0 && (
         <>
@@ -564,15 +574,6 @@ export default function Today({ tiles, moodFav = [], moodClicks = {}, moodHide =
         </>
       )}
 
-      {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
-      {!empty && nyRows.length > 0 && (
-        <>
-          <Head title="New York right now" sub="What the city is up to: swipe each row." />
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {nyRows.map((row, ri) => <NYRow key={row.key} row={row} ri={row.slot} onTile={onTile} />)}
-          </div>
-        </>
-      )}
 
       {!empty && (
         <div style={{ padding: "34px 20px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
