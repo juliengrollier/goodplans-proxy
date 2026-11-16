@@ -314,7 +314,7 @@ function EventRows({ evs, today, dark, onOpen, lead, max = 3, moreLabel, onMore 
       {shown.map((e, k) => (
         <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
           {lead(e, k)}
-          <CatBullet ev={e} size={18} dark={dark} />
+          <CatBullet ev={e} size={20} dark={dark} />
           <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span style={{ color: "var(--ink2)" }}>{" · " + actLabel(e)}</span></span>
           <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
         </button>
@@ -349,7 +349,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
       {legend && (
         <div style={{ marginTop: 10 }}>
           <EventRows evs={evs} today={today} dark={dark} onOpen={onOpen} max={all ? evs.length : 3} onMore={evs.length > 3 && !all ? () => setAll(true) : undefined} moreLabel={"Show " + (evs.length - 3) + " more"}
-            lead={(e, k) => <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, background: primaryIntent(e)?.color || evColor(e, dark), color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>} />
+            lead={(e, k) => <span style={{ width: 20, height: 20, borderRadius: 10, flexShrink: 0, background: primaryIntent(e)?.color || evColor(e, dark), color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{k + 1}</span>} />
         </div>
       )}
     </div>
@@ -514,7 +514,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
         <div style={{ padding: "18px 16px 0" }}>
           <div style={{ padding: "0 4px 6px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{planToday.length ? "Your plans today" : "Your next plans"}</div>
           <EventRows evs={mine} today={today} dark={dark} onOpen={onOpen} max={3} onMore={() => setTab("plans")} moreLabel={"See all " + mine.length}
-            lead={() => <span style={{ width: 22, height: 22, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}><Icon name="save" size={18} fill="currentColor" /></span>} />
+            lead={() => <span style={{ width: 20, height: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}><Icon name="save" size={18} fill="currentColor" /></span>} />
         </div>
       )}
 
@@ -533,7 +533,7 @@ export default function Today({ userName = "", tiles, moodFav = [], moodClicks =
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} />
           {bestNow.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
-              <DotScroll key={intentSel.join("+")} onMore={() => bestN < bestAll.length && setBestN(bestN + 10)}>{bestNow.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
+              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(156px, 1fr))", columnGap: 12, rowGap: 22 }}>{bestNow.slice(0, 6).map((ev) => <div key={ev.id} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
               {intentSel.length === 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
                   <button onClick={() => onTile({ key: "top-picks", title: "Top picks", list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
