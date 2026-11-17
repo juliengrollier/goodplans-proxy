@@ -14,7 +14,7 @@ const I = ({ n, fill }) => <span style={{ display: "inline-flex", verticalAlign:
 // Vocabulary: picks = what Good Plans suggests; plans = what you saved (bookmark); favourites = what you hearted
 export const TOUR_STEPS = [
   { title: () => (firstName() ? "Hi " + firstName() : "Hi there"),
-    text: () => "Never wonder what to do next. Good Plans knows you, the city, and how to make you love it. Quick tour?", next: "Show me", skip: "Skip" },
+    text: () => "Never wonder what or where next. Good Plans knows you, the city, and how to make you love it. Quick tour?", next: "Show me", skip: "Skip" },
   { sel: "#tour-around", from: "#tour-around .sec-h > span", title: "Right now, nearby",
     text: () => <>What's happening within a 25-minute walk, soonest first. Tap one for details, or <span style={{ display: "inline-flex", verticalAlign: "-3px" }}><Maximize2 size={15} strokeWidth={2.4} /></span> for the full map.</> },
   { sel: "#tour-card", title: "Picked for you",

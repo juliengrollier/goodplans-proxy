@@ -91,7 +91,7 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
               <Logo size={40} dark={dark} />
               <span className="disp" style={{ fontSize: 27, letterSpacing: -0.3 }}>good plans</span>
             </div>
-            <h1 className="disp" style={{ margin: 0, fontSize: 42, lineHeight: 1.02, letterSpacing: -1 }}>Never wonder what to do next.</h1>
+            <h1 className="disp" style={{ margin: 0, fontSize: 42, lineHeight: 1.02, letterSpacing: -1 }}>Never wonder what or where next.</h1>
             <p style={{ margin: "16px 0 0", fontSize: 17.5, lineHeight: 1.45, color: "var(--ink2)", maxWidth: 330 }}>Good Plans knows you, the city, and how to make you love it.</p>
           </div>
           <div style={{ padding: "0 0 calc(22px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 14, animation: "gpRise .5s .12s ease both" }}>
