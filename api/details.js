@@ -66,14 +66,14 @@ Rules: only what the page or listing states for THIS event on the given date (do
     body: JSON.stringify({ model: MODEL, max_tokens: 300, system, messages: [{ role: "user", content: user }] }),
   });
   const d = await r.json();
-  if (!r.ok) return null;
+  if (!r.ok) { if (b._dbg) return { error: "claude " + r.status + " " + (d?.error?.message || "") }; return null; }
   const t = (d.content || []).filter((x) => x.type === "text").map((x) => x.text).join("");
   try {
     const o = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
     if (o.ticketUrl) { try { o.ticketUrl = new URL(o.ticketUrl, finalUrl).href; } catch { o.ticketUrl = null; } }
     o.url = finalUrl;
     return o;
-  } catch { return null; }
+  } catch { return b._dbg ? { error: "parse", text: t.slice(0, 300), html: html.length } : null; }
 }
 
 export default async function handler(req, res) {
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST" && !test) return res.status(405).json({ error: "POST only" });
   if (!test && !ALLOWED.test(req.headers.origin || "")) return res.status(403).json({ error: "Origin not allowed" });
   try {
-    const b = test ? { ...req.query } : typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const b = test ? { ...req.query, _dbg: 1 } : typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
     const [pl, pg] = await Promise.all([place(b.venue).catch(() => null), page(b).catch(() => null)]);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({ place: pl, page: pg });
