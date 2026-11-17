@@ -154,7 +154,6 @@ export default function App() {
     const ms = moodSession.current;
     if ((kind === "save" || kind === "went") && ms && Date.now() - ms.at < 45 * 60000 && ms.ids.has(ev.id)) logMood("saved", ms.key, ms.adj, ms.title);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [who, setWhoState] = useState(() => localStorage.getItem("gp_who") || "");
   const [pastSaves, setPastSaves] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_past_saves") || "[]"); } catch { return []; } });
   const [mapsData, setMapsData] = useState(() => M.loadMaps());
   const [quiz, setQuiz] = useState(() => Q.loadQuiz());
@@ -393,8 +392,8 @@ export default function App() {
   const tasteMe = useMemo(() => tasteOf(space, modelRef.current), [space, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
   const [favMoods, setFavMoods] = useState(readFavMoods);
   useEffect(() => { const on = () => setFavMoods(readFavMoods()); window.addEventListener("gp-moodfav", on); window.addEventListener("storage", on); return () => { window.removeEventListener("gp-moodfav", on); window.removeEventListener("storage", on); }; }, []);
-  // Per person: measurement is tagged with who this is, and their own tuned weights (if any) are loaded
-  const userKey = account?.sub ? "g" + account.sub.slice(-10) : who ? "n" + who : "";
+  // Per person = per signed-in account (a short hash of the Google id); without an account, per phone
+  const userKey = account?.sub ? "g" + account.sub.slice(-10) : "";
   useEffect(() => { T.setUser(userKey); }, [userKey]);
   const [rankW, setRankW] = useState({});
   useEffect(() => { T.loadWeights().then((w) => setRankW(w && typeof w === "object" ? w : {})); }, [userKey]);
@@ -716,8 +715,6 @@ export default function App() {
     return { cats, subs };
   }, [taste, favs, scored]);
   // ── Whose phone this is (the learned taste is backed up to the Apps Script under that name)
-  const PEOPLE = ["Julien", "Theo"];
-  const setWho = (w) => { setWhoState(w); try { localStorage.setItem("gp_who", w); } catch { /* private mode */ } };
   const postBackend = useCallback(async (action, extra, body) => {
     if (!backend.url) throw new Error("No backend");
     // text/plain body: no CORS preflight, which Apps Script can't answer
@@ -726,10 +723,10 @@ export default function App() {
     return r.json();
   }, [backend]);
   useEffect(() => {
-    if (!ready || !who || !backend.url) return;
-    const t = setTimeout(() => { postBackend("tastePut", "&who=" + encodeURIComponent(who), L.compact(modelRef.current)).catch(() => { /* backend not updated yet */ }); }, 30000);
+    if (!ready || !userKey || !backend.url) return;
+    const t = setTimeout(() => { postBackend("tastePut", "&who=" + encodeURIComponent(userKey), L.compact(modelRef.current)).catch(() => { /* backend not updated yet */ }); }, 30000);
     return () => clearTimeout(t);
-  }, [ready, who, modelVer, backend.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, userKey, modelVer, backend.url]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Taste card: Claude puts the strongest learned patterns into a few plain lines
   const [cardBusy, setCardBusy] = useState(false);
@@ -980,7 +977,7 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today onIntentOrder={learnIntentOrder} userName={(() => { try { return localStorage.getItem("gp_name_v1") || who || ""; } catch { return who || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={navTab}
+        {tab === "today" && <Today onIntentOrder={learnIntentOrder} userName={(() => { try { return localStorage.getItem("gp_name_v1") || account?.name || ""; } catch { return account?.name || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={navTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
@@ -988,7 +985,7 @@ export default function App() {
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me devMode={devMode} onDevMode={toggleDev} moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz("retake")} account={account} onSignOut={signOut} onSignIn={() => setShowQuiz("auth")} onTour={() => { navTab("today"); setTimeout(() => setShowTour(true), 500); }} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
-          who={who} setWho={setWho} people={PEOPLE} prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
+          prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           pushState={pushState} pushInfo={pushInfo} onEnablePush={enablePush}
