@@ -3,10 +3,10 @@ import { createPortal } from "react-dom";
 import { Glyph, Icon, glyphSvgString } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
 import { evColor, evNode, LIcon, lIconString } from "./taxonomy.js";
-import { whenLabel, isFree, weatherBadge, startMinutes, endMinutes, nowMinutes, fmtClock } from "./engine.js";
+import { whenLabel, isFree, weatherBadge, startMinutes, endMinutes, nowMinutes, fmtClock, eventWindow } from "./engine.js";
 import { ACT } from "./activities.js";
 import { primaryIntent } from "./intents.js";
-import { daysUntil } from "../lib/core.js";
+import { daysUntil, nextOn } from "../lib/core.js";
 import { useEventImage, dropImage } from "./images.js";
 import { neighbourhoodOf } from "./tiles.js";
 
@@ -279,14 +279,23 @@ export function TravelMini({ ev, size = 13 }) {
   return <span className="row" style={{ gap: 2, color: "var(--ink3)", flexShrink: 0, whiteSpace: "nowrap" }}><Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={size} width={2.2} />{minsLabel(ev)}</span>;
 }
 export function shortWhen(ev, today) {
-  const d = Math.max(0, daysUntil(ev, today)), st = startMinutes(ev), now = nowMinutes();
+  // Runs show their next day and start time (never "until <date>"); a day whose session is already over skips to the next one
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const st = startMinutes(ev), now = nowMinutes();
   const multi = ev.X && ev.X > ev.E;
+  let nx = multi ? nextOn(ev, t0) : null;
+  let d = nx ? Math.round((nx - t0) / 86400000) : Math.max(0, daysUntil(ev, today));
   if (d === 0) {
-    if (st != null && st <= now && ((endMinutes(ev) ?? st + 120) > now)) return "On now";
-    if (st != null) return fmtClock(st);
-    return multi ? "Until " + new Date(ev.X + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Today";
+    const w = eventWindow(ev), end = endMinutes(ev) ?? (st != null ? st + 120 : null);
+    if (st != null && st <= now && (end ?? st + 120) > now) return "On now";
+    if (st == null && multi && w.s <= now && w.e > now) return "On now";
+    if (st != null && st > now) return fmtClock(st);
+    if (st == null) return "Today";
+    // today's session is over: next one
+    if (multi) { nx = nextOn(ev, new Date(t0.getTime() + 86400000)); if (nx) d = Math.round((nx - t0) / 86400000); }
+    if (d === 0) return fmtClock(st);
   }
-  const day = d === 1 ? "Tomorrow" : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long" });
+  const day = d === 1 ? "Tomorrow" : new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long" });
   return day + (st != null ? " " + fmtClock(st) : "");
 }
 
