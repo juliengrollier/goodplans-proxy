@@ -75,6 +75,7 @@ Rules: only what the page or listing states for THIS event on the given date (do
     const o = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
     if (o.ticketUrl) { try { o.ticketUrl = new URL(o.ticketUrl, finalUrl).href; } catch { o.ticketUrl = null; } }
     o.url = finalUrl;
+    if (b._dbg) { o._fetch = fetchNote; o._html = html.length; }
     return o;
   } catch { return b._dbg ? { error: "parse", text: t.slice(0, 300), html: html.length, fetch: fetchNote, blocks: (d.content || []).map((x) => x.type), stop: d.stop_reason } : null; }
 }
