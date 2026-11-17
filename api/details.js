@@ -63,14 +63,17 @@ async function page(b) {
 {"start":"7:30 PM" or null,"end":"10 PM" or null,"price":"Free" | "$25" | "$20–45" or null,"ticketUrl":"https://..." or null,"address":"street address" or null,"city":"city name" or null,"nyc":true|false|null}
 Rules: only what the page or listing states for THIS event on the given date (doors time counts as start if that is all there is). ticketUrl is the link to buy tickets or RSVP (an absolute URL found on the page), else null. nyc is false when the event takes place outside New York City (e.g. London, LA, a broadcast), true when clearly in NYC, null if unknown. Never guess.`;
   const user = `Event: ${clip(b.title, 160)}\nDate: ${clip(b.date, 20)}\nListing venue: ${clip(b.venue, 120)}\nListing time: ${clip(b.time, 40)}\nListing price: ${clip(b.price, 40)}\nListing description: ${clip(b.desc, 400)}\nPage URL: ${finalUrl}\n\nPage:\n${html ? pageText(html) : "(page not reachable)"}`;
+  // A page that blocks us (403, bot checks): let Claude look the event up on the web instead (two searches at most)
+  const tools = html ? undefined : [{ type: "web_search_20250305", name: "web_search", max_uses: 2, user_location: { type: "approximate", city: "New York", region: "New York", country: "US", timezone: "America/New_York" } }];
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 2500, system: system + (tools ? " The page could not be read: search the web for this event (title, venue, date) and answer from what you find. End with the JSON only." : ""), messages: [{ role: "user", content: user }], ...(tools ? { tools } : {}) }),
   });
   const d = await r.json();
   if (!r.ok) { if (b._dbg) return { error: "claude " + r.status + " " + (d?.error?.message || "") }; return null; }
-  const t = (d.content || []).filter((x) => x.type === "text").map((x) => x.text).join("");
+  const texts = (d.content || []).filter((x) => x.type === "text").map((x) => x.text);
+  const t = texts.reverse().find((x) => /\{[\s\S]*\}/.test(x)) || texts.join("");
   try {
     const o = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
     if (o.ticketUrl) { try { o.ticketUrl = new URL(o.ticketUrl, finalUrl).href; } catch { o.ticketUrl = null; } }
