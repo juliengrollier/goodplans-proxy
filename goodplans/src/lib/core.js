@@ -113,6 +113,8 @@ const DOW_RE="(sun|mon|tue|wed|thu|fri|sat)(?:day|s|\\.)?(?:s)?";
 const _dows=new Map();
 function runDows(ev){
   if(!ev||!ev.X||ev.X===ev.E)return null;
+  // Structured weekday list from the extraction (0=Sun..6=Sat) wins over the text guess below
+  if(Array.isArray(ev.dows)&&ev.dows.length&&ev.dows.length<7){const w=new Set(ev.dows.map(Number).filter((x)=>x>=0&&x<=6));if(w.size&&w.size<7)return w;}
   const key=(ev.id||ev.title)+"|"+ev.E+"|"+ev.X;
   if(_dows.has(key))return _dows.get(key);
   const t=[ev.time,ev.title,ev.desc,ev.recLabel].filter(Boolean).join(" ").toLowerCase().replace(/[–—]/g,"-");
@@ -133,7 +135,11 @@ function runDows(ev){
   _dows.set(key,r);
   return r;
 }
-const evCovers=(ev,d)=>{if(d<evStart(ev)||d>evEnd(ev))return false;const w=runDows(ev);return !w||w.has(d.getDay());};
+const _iso=(d)=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const evCovers=(ev,d)=>{if(d<evStart(ev)||d>evEnd(ev))return false;
+  // Exact dates from the extraction (irregular runs: "Nov 15, 22 and 29") beat any weekday pattern
+  if(Array.isArray(ev.dates)&&ev.dates.length)return ev.dates.includes(_iso(d));
+  const w=runDows(ev);return !w||w.has(d.getDay());};
 // The next day (from d) the event is on, or null once it's over
 const nextOn=(ev,d)=>{const s=evStart(ev),e=evEnd(ev);let x=new Date(Math.max(+s,+floorDay(d)));for(let k=0;k<400&&x<=e;k++){if(evCovers(ev,x))return x;x=new Date(x.getFullYear(),x.getMonth(),x.getDate()+1);}return null;};
 const evActive=(ev,d)=>evEnd(ev)>=d;
