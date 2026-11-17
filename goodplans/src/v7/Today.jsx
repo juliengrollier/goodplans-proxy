@@ -625,10 +625,10 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
 
       {/* 3. Around you right now: a map of what is on or starting nearby */}
       {!empty && mapEvs.length > 0 && (
-        <>
+        <div id="tour-around">
           <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
           {mapEvs.length > 0 && <AroundMap legend height={220} evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
-        </>
+        </div>
       )}
 
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
@@ -712,12 +712,12 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
 
       {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
       {!empty && nyRows.length > 0 && (
-        <>
+        <div id="tour-city">
           <Head title="New York right now" sub="What the city is up to." />
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div id="tour-city-first" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {nyRows.map((row, ri) => <NYRow key={row.key} row={row} ri={row.slot} onTile={onTile} />)}
           </div>
-        </>
+        </div>
       )}
 
 
