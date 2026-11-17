@@ -37,14 +37,17 @@ function explicit(e, c) {
   return x;
 }
 
-export function rankContext({ model, space, tasteVec, moodFav = [], favMoods = readFavMoods(), stars = {}, today = new Date() }) {
+// Default weights; each person's can be tuned from their own data (/api/telemetry, weights/<user>.json)
+export const DEFAULT_W = { aff: 55, moment: 20, rarity: 10, quality: 10, friction: 1 };
+export function rankContext({ model, space, tasteVec, moodFav = [], favMoods = readFavMoods(), stars = {}, today = new Date(), weights = {} }) {
   const favCats = new Set(moodFav.filter((k) => k.startsWith("gen-cat-")).map((k) => k.slice(8)));
   const favSubs = new Set(moodFav.filter((k) => k.startsWith("gen-sub-")).map((k) => k.slice(8)));
   const favActs = new Set(moodFav.filter((k) => /^(gen-act-|intent-act-)/.test(k)).map((k) => k.replace(/^(gen-act-|intent-act-[a-z]+-)/, "")));
   const strong = model?.strong || 0;
   // How much to trust the learned model vs what you told us: 0 signals → explicit leads; ~40 strong signals → learned leads
   const trust = clamp01(strong / 40);
-  return { model, space, tasteVec, favMoods: favMoods.filter((id) => INTENTS.some((m) => m.id === id)), favCats, favSubs, favActs, stars, today: floorDay(today), trust };
+  const W = { ...DEFAULT_W, ...Object.fromEntries(Object.entries(weights || {}).filter(([k, v]) => k in DEFAULT_W && Number.isFinite(v))) };
+  return { W, model, space, tasteVec, favMoods: favMoods.filter((id) => INTENTS.some((m) => m.id === id)), favCats, favSubs, favActs, stars, today: floorDay(today), trust };
 }
 
 // The score of one event (adds e.rk, e.aff and short reasons). `s` is the event after scoreEvent (has tt, rain, hidden…)
@@ -85,7 +88,8 @@ export function rank(s, c, extra = {}) {
 
   const jitter = 1.2 * hash(s.id + c.today.toDateString());
   const explore = lp.explore ? Math.min(4, lp.explore * 0.4) : 0; // a little room for the unknown
-  const rk = 55 * aff + 20 * moment + 10 * rarity + 10 * quality - friction + jitter + explore + (extra.boost || 0);
+  const W = c.W || DEFAULT_W;
+  const rk = W.aff * aff + W.moment * moment + W.rarity * rarity + W.quality * quality - W.friction * friction + jitter + explore + (extra.boost || 0);
 
   const why = [...(s.why || [])].filter((w) => !/^(Fits your taste|You like |Something new)/.test(w));
   if (ex >= 0.85 && c.favMoods.some((id) => member(s, id) >= 0.85)) { const m = INTENTS.find((x) => c.favMoods.includes(x.id) && member(s, x.id) >= 0.85); why.unshift("One of your moods · " + m.label); }
