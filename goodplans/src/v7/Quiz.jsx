@@ -106,7 +106,7 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
         <div key="moods" style={col}>
           <div className="row" style={{ height: 36, gap: 14 }}><Progress at={1} /></div>
           <div style={anim}>
-            <h1 className="disp" style={h1}>What are you usually in the mood for?</h1>
+            <h1 className="disp" style={h1}>What are you often in the mood for?</h1>
             <p style={sub}>Pick as many as you like. They'll always come first.</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "24px 0 16px" }}>
               {INTENTS.map((it) => { const on = moods.includes(it.id); return (
@@ -132,9 +132,9 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
           <div style={anim}>
             <h1 className="disp" style={h1}>Which would you rather?</h1>
             <p style={sub}>One tap per row. Skip any you can't decide.</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "24px 0 16px" }}>
-              {ROWS.map((r) => (
-                <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", margin: "16px 0 16px" }}>
+              {ROWS.map((r, ri) => (
+                <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "18px 0", borderTop: ri ? "1px solid var(--line)" : "none" }}>
                   {r.opts.map((o, i) => {
                     const a = o.acts && ACT[o.acts[0]], c = a && CATI[a.ncat], m = a ? primaryIntent({ act: o.acts[0], ncat: a.ncat }) : null;
                     const color = m ? m.color : "#475569";
