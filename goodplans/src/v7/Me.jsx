@@ -84,6 +84,7 @@ export default function Me(p) {
           <span className="row" style={{ gap: 6 }}>
             <button className="chip" onClick={onRetakeQuiz}>{quiz ? "Retake quiz" : "Take the quiz"}</button>
             {onTour && <button className="chip" onClick={onTour}>Show the tour</button>}
+            {p.onDevMode && <button className={"chip" + (p.devMode ? " on" : "")} onClick={p.onDevMode}>Dev mode{p.devMode ? " · on" : ""}</button>}
             <button className="chip" onClick={() => { if (confirm("Forget everything learned from your activity? Thumbs, saves and boosts stay.")) onResetLearning(); }}>Reset learning</button>
           </span>
         </div>
