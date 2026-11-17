@@ -146,8 +146,6 @@ export default function App() {
     if ((kind === "save" || kind === "went") && ms && Date.now() - ms.at < 45 * 60000 && ms.ids.has(ev.id)) logMood("saved", ms.key, ms.adj, ms.title);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [who, setWhoState] = useState(() => localStorage.getItem("gp_who") || "");
-  const [together, setTogetherState] = useState(false); // the Together mode was removed
-  const [partner, setPartner] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_partner_model") || "null"); } catch { return null; } });
   const [pastSaves, setPastSaves] = useState(() => { try { return JSON.parse(localStorage.getItem("gp_past_saves") || "[]"); } catch { return []; } });
   const [mapsData, setMapsData] = useState(() => M.loadMaps());
   const [quiz, setQuiz] = useState(() => Q.loadQuiz());
@@ -373,7 +371,6 @@ export default function App() {
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
-  const partnerModel = useMemo(() => (partner ? L.fromCompact(partner) : null), [partner]);
   const scored = useMemo(() => {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
     return allEvents.map((e0) => {
@@ -387,9 +384,8 @@ export default function App() {
       // Learned taste (v2): what you do, how events feel, the moment; held back where the two of you disagree in Together
       const own = L.learnedPoints(modelRef.current, s, today);
       let pts = own.pts;
-      if (together && partnerModel) pts = L.togetherPoints(own.pts, L.learnedPoints(partnerModel, s, today).pts);
-      s.lp = Math.round(pts); s.sc = Math.max(0, Math.min(100, Math.round(s.sc + pts + (together ? 0 : own.explore))));
-      if (pts >= 8) s.why = [together ? "Suits you both" : "Fits your taste", ...s.why];
+      s.lp = Math.round(pts); s.sc = Math.max(0, Math.min(100, Math.round(s.sc + pts + own.explore)));
+      if (pts >= 8) s.why = ["Fits your taste", ...s.why];
       // At a place saved in Google Maps: a "want to go" list counts most
       const place = M.matchSaved(mapsIdx, s);
       if (place) {
@@ -397,11 +393,11 @@ export default function App() {
         s.sc = Math.min(100, s.sc + (want ? 10 : 7)); s.savedPlace = place;
         s.why = [want ? "On your “" + want + "” list" : "A place you saved · " + place.lists[0], ...s.why];
       }
-      else if (!together && own.explore >= 5) { s.why = [...s.why, "Something new for you"]; s.explore = true; }
+      else if (own.explore >= 5) { s.why = [...s.why, "Something new for you"]; s.explore = true; }
       s.calChecked = calStatus === "ok";
       return s;
     }).sort((a, b) => b.sc - a.sc);
-  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, together, partnerModel, mapsIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, mapsIdx]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoredRef = useRef([]); scoredRef.current = scored;
   const scoreOne = useCallback((e0) => {
     const e = { ...e0, ncat: e0.ncat && CAT[e0.ncat] ? e0.ncat : classify(e0) }; e.fam = CAT[e.ncat].fam; e.nsub = e0.nsub || classifySub(e, e.ncat);
@@ -688,9 +684,8 @@ export default function App() {
     Object.values(favs).forEach((e) => { const x = byId[e.id] || e; add(cats, x.ncat, 5); add(subs, x.nsub, 5); });
     return { cats, subs };
   }, [taste, favs, scored]);
-  // ── Two people: each phone learns its owner; Together blends both tastes (shared through the Apps Script)
+  // ── Whose phone this is (the learned taste is backed up to the Apps Script under that name)
   const PEOPLE = ["Julien", "Theo"];
-  const otherPerson = who ? PEOPLE.find((p) => p !== who) : null;
   const setWho = (w) => { setWhoState(w); try { localStorage.setItem("gp_who", w); } catch { /* private mode */ } };
   const postBackend = useCallback(async (action, extra, body) => {
     if (!backend.url) throw new Error("No backend");
@@ -704,21 +699,6 @@ export default function App() {
     const t = setTimeout(() => { postBackend("tastePut", "&who=" + encodeURIComponent(who), L.compact(modelRef.current)).catch(() => { /* backend not updated yet */ }); }, 30000);
     return () => clearTimeout(t);
   }, [ready, who, modelVer, backend.url]); // eslint-disable-line react-hooks/exhaustive-deps
-  const loadPartner = useCallback(async (quiet) => {
-    if (!otherPerson) { if (!quiet) toast("Pick whose phone this is in Me first"); return null; }
-    try {
-      const d = await api("tasteGet", "&who=" + encodeURIComponent(otherPerson), 20000);
-      if (d?.w) { setPartner(d); try { localStorage.setItem("gp_partner_model", JSON.stringify(d)); } catch { /* full */ } return d; }
-      if (!quiet) toast(otherPerson + "'s phone hasn't shared a taste yet");
-    } catch { if (!quiet) toast("Couldn't reach the backend for " + otherPerson + "'s taste"); }
-    return null;
-  }, [otherPerson, api, toast]);
-  const setTogether = async (on) => {
-    if (on) { const p = partner || await loadPartner(false); if (!p) return; }
-    setTogetherState(on); try { localStorage.setItem("gp_together", on ? "1" : "0"); } catch { /* private mode */ }
-    toast(on ? "Together: picks that suit you both" : "Back to your own picks");
-  };
-  useEffect(() => { if (false) loadPartner(true); }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Taste card: Claude puts the strongest learned patterns into a few plain lines
   const [cardBusy, setCardBusy] = useState(false);
@@ -816,18 +796,15 @@ export default function App() {
   const [embVer, setEmbVer] = useState(0);
   useEffect(() => { const ready2 = visible.filter((e) => tags[e.id] || aiOff.current); if (ready2.length && ingest(ready2, today)) setEmbVer((v) => v + 1); }, [visible, tags]); // eslint-disable-line react-hooks/exhaustive-deps
   const space = useMemo(() => getSpace(), [embVer]);
-  const [moodsTwo, setMoodsTwo] = useState(() => ls("gp_moods2p_v1", "false"));
-  const setTwo = (v) => { setMoodsTwo(v); try { localStorage.setItem("gp_moods2p_v1", JSON.stringify(v)); } catch { /* full */ } };
   const tasteMe = useMemo(() => tasteOf(space, modelRef.current), [space, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tasteTheo = useMemo(() => (moodsTwo && partnerModel ? tasteOf(space, partnerModel) : null), [space, moodsTwo, partnerModel]);
   // Me → How your moods learn: stats, and for each of your top interests its nearest neighbours you haven't tried
   const moodLab = useMemo(() => {
     if (tab !== "me") return null;
     const map = (tasteMe?.anchors || []).filter((a) => /^(act|sub):/.test(a.f)).slice(0, 5).map((a) => [a.label, neighbours(space, a.f, 8, a.f.split(":")[0] + ":").filter(([f]) => !(L.weightOf(modelRef.current, f) > 0.05)).slice(0, 3).map(([f]) => labelOf(f))]).filter(([, ns]) => ns.length);
-    return { stats: moodStats(14), events: space.n, map, canTwo: !!partnerModel, two: moodsTwo, setTwo, partner: otherPerson || "your partner" };
-  }, [tab, space, tasteMe, moodsTwo, partnerModel]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tileSet = useMemo(() => buildTiles({ space, taste: tasteMe, tasteB: tasteTheo, wOf: (f) => L.weightOf(modelRef.current, f), clicks: moodClicks, favs: moodFav, visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
-    [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark, moodFb, space, tasteMe, tasteTheo]); // eslint-disable-line react-hooks/exhaustive-deps
+    return { stats: moodStats(14), events: space.n, map };
+  }, [tab, space, tasteMe]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tileSet = useMemo(() => buildTiles({ space, taste: tasteMe, tasteB: null, wOf: (f) => L.weightOf(modelRef.current, f), clicks: moodClicks, favs: moodFav, visible, today, filters, youR, youA, youTitle: moodProps.you?.title, picks, pool: pickPool, meet, fb: moodFb, book: sections.book || [], dark }),
+    [visible, today, filters.xcats, filters.xsubs, youR, youA?.id, moodProps.you?.title, picks, pickPool, sections, dark, moodFb, space, tasteMe]); // eslint-disable-line react-hooks/exhaustive-deps
   // Thumbs and hearts on mood tiles teach the taste model (picks: their features; archetype moods: the You store)
   const learnTile = (t, d) => {
     if (t.f) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.3 * d); putModel(m, true); }
@@ -886,14 +863,14 @@ export default function App() {
     if (/^(mood|pick|gen)-/.test(t.key || "") && t.list) { moodSession.current = { key: t.key, ids: new Set(t.list.map((e) => e.id)), at: Date.now(), adj: !!t.adj, title: t.title }; logMood("opened", t.key, !!t.adj, t.title); }
     if (t.f && /^gen-/.test(t.key || "")) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.08); putModel(m); } // opening is a light vote
     if (/^(mood|pick|gen)-/.test(t.key || "")) { const c = { ...moodClicks, [t.key]: { n: (moodClicks[t.key]?.n || 0) + 1, at: Date.now() } }; setMoodClicks(c); try { localStorage.setItem("gp_moodclicks_v1", JSON.stringify(c)); } catch { /* full */ } if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } } }
-    const base = { ...filters, fam: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
+    const base = { ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
     setFilters(t.list ? { ...base, ids: t.list.map((e) => e.id), when: "any" } : { ...base, ...t.patch });
     setTab("explore"); window.scrollTo(0, 0);
   };
   // Map-only "Around you right now": open the full Map tab on the same pins
   // Closing a mood page: filters back to default, then Home at the "For you" section
   const closeList = () => { setViewStack([]); setFilters({ ...EMPTY_FILTERS, xcats: filters.xcats || [], xsubs: filters.xsubs || [] }); setTab("today"); setTimeout(() => { const el = document.getElementById("for-you"); if (el) el.scrollIntoView(); else window.scrollTo(0, 0); }, 60); };
-  const openFullMap = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
+  const openFullMap = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
   // ── Taste chart in Me: each dimension as an axis; a nudge moves it a notch
   const axes = useMemo(() => ({
     axes: L.AXES.map(([dim, loL, lo, hiL, hi]) => ({ dim, loL, lo, hiL, hi, v: L.axisScore(modelRef.current, dim, lo, hi) })),
@@ -962,7 +939,7 @@ export default function App() {
     <ActionsCtx.Provider value={actions}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {tab === "today" && <Today onIntentOrder={learnIntentOrder} userName={(() => { try { return localStorage.getItem("gp_name_v1") || who || ""; } catch { return who || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} together={together} setTogether={null} partnerName={otherPerson} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={navTab}
+        {tab === "today" && <Today onIntentOrder={learnIntentOrder} userName={(() => { try { return localStorage.getItem("gp_name_v1") || who || ""; } catch { return who || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={navTab}
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}

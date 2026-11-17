@@ -99,12 +99,6 @@ export default function Me(p) {
                 {p.moodLab.map.map(([a, ns]) => <div key={a} style={{ fontSize: 13, lineHeight: 1.4 }}><b>{a}</b> <span className="muted">→ {ns.join(", ")}</span></div>)}
               </div>
             )}
-            {p.moodLab.canTwo && (
-              <button className="card-sm" aria-pressed={!!p.moodLab.two} onClick={() => p.moodLab.setTwo(!p.moodLab.two)} style={{ border: p.moodLab.two ? "2px solid var(--navy)" : "2px solid transparent", padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start", textAlign: "left", color: "var(--ink)" }}>
-                <span style={{ width: 22, height: 22, borderRadius: 7, border: p.moodLab.two ? "none" : "2px solid var(--line)", background: p.moodLab.two ? "var(--navy)" : "transparent", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{p.moodLab.two && <Icon name="check" size={14} />}</span>
-                <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>Moods for two<span className="muted" style={{ display: "block", fontSize: 12.5, fontWeight: 500 }}>Blend {p.moodLab.partner}'s taste in, favouring what you both like.</span></span>
-              </button>
-            )}
           </Card>
         );
       })()}

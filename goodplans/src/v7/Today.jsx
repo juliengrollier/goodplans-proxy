@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods, primaryIntent } from "./intents.js";
+import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods, primaryIntent, SOCIAL, SOCIAL_BY, applySocial } from "./intents.js";
 import { markSeen } from "./moods2.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
@@ -440,7 +440,7 @@ function IntentChips({ data, today, sel, put, onOrder }) {
   if (sel[0] && !drag) shown = [...shown.filter((it) => it.id === sel[0]), ...shown.filter((it) => it.id !== sel[0])];
   return (
     <div style={{ margin: "2px 0 0" }}>
-      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? "Drag to reorder" : "I'm in the mood to…"}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
+      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? "Drag to reorder" : "I'm in the mood for…"}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
       <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }} onPointerMove={pm} onPointerUp={pu}>
         {shown.map((it) => { const on = sel.includes(it.id), dragging = drag === it.id; return (
           <button key={it.id} ref={(el) => { btns.current[it.id] = el; }} aria-pressed={on} onPointerDown={pd(it.id)} onTouchStart={(e) => begin(it.id, e.touches[0].clientX, e.touches[0].clientY)} onContextMenu={(e) => e.preventDefault()}
@@ -454,12 +454,16 @@ function IntentChips({ data, today, sel, put, onOrder }) {
   );
 }
 
-export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, together, setTogether, partnerName, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]").slice(0, 1); } catch { return []; } });
   const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
-  const intentAll = React.useMemo(() => intentEvents(data || [], intentSel, today), [data, intentSel, today]);
+  // Who with: Anyone (null) · Date · Meet people. Reranks For you, the mood lists and Top picks; not a mood.
+  const [social, setSocial] = useState(() => { try { return sessionStorage.getItem("gp_social") || null; } catch { return null; } });
+  const putSocial = (x) => { setSocial(x); try { if (x) sessionStorage.setItem("gp_social", x); else sessionStorage.removeItem("gp_social"); } catch { /* private */ } };
+  const socialTag = social ? " · " + SOCIAL_BY[social].label : "";
+  const intentAll = React.useMemo(() => applySocial(intentEvents(data || [], intentSel, today), social), [data, intentSel, today, social]);
   const intentTitle = joinMoods(intentSel);
-  const topAll = React.useMemo(() => (data || []).filter((e) => daysUntil(e, today) >= 0).slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)), [data, today]);
+  const topAll = React.useMemo(() => applySocial((data || []).filter((e) => daysUntil(e, today) >= 0).slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)), social), [data, today, social]);
   const [discN, setDiscN] = useState(6);
   const [favN, setFavN] = useState(12);
   const favList = React.useMemo(() => { const all = [...(tiles?.all || []), ...(tiles?.every || [])]; return moodFav.slice().reverse().map((k) => all.find((t) => t.key === k)).filter(Boolean).map((t) => { const b = t.list?.length ? primaryIntent(t.list[0]) : null; return b ? { ...t, color: b.color } : t; }); }, [tiles, moodFav]);
@@ -483,10 +487,10 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     const ok = (data || []).filter((e) => { const d = daysUntil(e, today); if (d < 0) return false; if (d > 0) return true; const st = startMinutes(e), en = endMinutes(e); return st == null ? true : st >= now - 20 || (en != null && en > now + 30); });
     const pool = intentSel.length ? ok.filter((e) => blend(e, intentSel) >= 0.45) : ok;
     const ranked = pool.map((e) => { const d = daysUntil(e, today); return [e, (e.sc || 0) * (d === 0 ? 1 : d === 1 ? 0.88 : Math.max(0.5, 0.97 ** d * 0.85)) * (intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1)]; }).sort((a, b) => b[1] - a[1]).map(([e]) => e);
-    const seen = new Set(); return ranked.filter((e) => { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; });
-  }, [data, today, intentSel]);
+    const seen = new Set(); return applySocial(ranked, social).filter((e) => { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; });
+  }, [data, today, intentSel, social]);
   const [bestN, setBestN] = useState(10);
-  React.useEffect(() => setBestN(10), [intentSel.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => setBestN(10), [intentSel.join(), social]); // eslint-disable-line react-hooks/exhaustive-deps
   const bestNow = bestAll.slice(0, bestN);
   const [moreN, setMoreN] = useState(0);
   // My moods: pinned ones (newest first), then the lists you open most (recent opens count more); four at most
@@ -613,18 +617,24 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
         <>
           <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Best picks for your next outing." />
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} onOrder={onIntentOrder} />
+          <div className="row" style={{ padding: "12px 20px 0", gap: 14, flexWrap: "wrap", rowGap: 4 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>With</span>
+            {[{ id: null, label: "Any" }, ...SOCIAL].map((m) => { const on = social === m.id; return (
+              <button key={m.label} aria-pressed={on} onClick={() => putSocial(m.id)} style={{ border: "none", background: "none", padding: "4px 0", fontSize: 13.5, fontWeight: on ? 800 : 600, color: on ? "var(--ink)" : "var(--ink3)", opacity: on ? 1 : 0.8, textDecoration: on ? "underline" : "none", textUnderlineOffset: 4, textDecorationThickness: 2 }}>{m.label}</button>
+            ); })}
+          </div>
           {bestNow.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
               <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev) => <div key={ev.id} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
               {intentSel.length === 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
-                  <button onClick={() => onTile({ key: "top-picks", title: "Top picks", list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
+                  <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: "Top picks" + socialTag, list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
                     className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}>Explore top picks</button>
                 </div>
               )}
               {intentSel.length > 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
-                  <button onClick={() => onTile({ key: "intent-" + intentSel.join("+"), title: intentTitle, list: intentAll, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Everything that fits over the next two weeks, ranked by your taste.", verb: "In the mood for" })}
+                  <button onClick={() => onTile({ key: "intent-" + intentSel.join("+") + (social ? "-" + social : ""), title: intentTitle + socialTag, list: intentAll, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Everything that fits over the next two weeks, ranked by your taste.", verb: "In the mood for" })}
                     className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: INTENT[intentSel[0]].color, color: "#fff", fontWeight: 800, fontSize: 14.5 }}>
                     {React.createElement(INTENT[intentSel[0]].icon, { size: 17, strokeWidth: 2.2 })} Explore {intentTitle.toLowerCase()} · {new Set(intentAll.map((e) => String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24))).size}
                   </button>
