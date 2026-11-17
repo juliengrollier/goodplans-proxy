@@ -13,6 +13,7 @@ import { API_BASE } from "./images.js";
 import Today, { clearForyouSeen } from "./Today.jsx";
 import DevFlag, { DEV_KEY } from "./DevFlag.jsx";
 import { loadDetails, withDetails, outsideNYC, fetchDetails, syncDetailsIndex } from "./details.js";
+import { rank, rankContext, readFavMoods } from "./rank.js";
 import Explore from "./Explore.jsx";
 import MapView from "./MapView.jsx";
 import Plans from "./Plans.jsx";
@@ -383,6 +384,13 @@ export default function App() {
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
+  // Ranking inputs: the taste space, your point in it, and the moods you favourited (kept live across screens)
+  const [embVer, setEmbVer] = useState(0);
+  const space = useMemo(() => getSpace(), [embVer]);
+  const tasteMe = useMemo(() => tasteOf(space, modelRef.current), [space, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [favMoods, setFavMoods] = useState(readFavMoods);
+  useEffect(() => { const on = () => setFavMoods(readFavMoods()); window.addEventListener("gp-moodfav", on); window.addEventListener("storage", on); return () => { window.removeEventListener("gp-moodfav", on); window.removeEventListener("storage", on); }; }, []);
+  const rankCtx = useMemo(() => rankContext({ model: modelRef.current, space, tasteVec: tasteMe, moodFav, favMoods, stars: taste.stars || {}, today }), [space, tasteMe, moodFav, favMoods, taste, today, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
   const scored = useMemo(() => {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
     return allEvents.map((e0) => {
@@ -393,29 +401,25 @@ export default function App() {
       e.act = actOf({ ...e, act: t?.a });
       if (t?.h) e.hook = t.h;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
-      // Learned taste (v2): what you do, how events feel, the moment; held back where the two of you disagree in Together
-      const own = L.learnedPoints(modelRef.current, s, today);
-      let pts = own.pts;
-      s.lp = Math.round(pts); s.sc = Math.max(0, Math.min(100, Math.round(s.sc + pts + own.explore)));
-      if (pts >= 8) s.why = ["Fits your taste", ...s.why];
       // At a place saved in Google Maps: a "want to go" list counts most
       const place = M.matchSaved(mapsIdx, s);
+      let boost = 0;
       if (place) {
         const want = place.lists.find(M.isWantList);
-        s.sc = Math.min(100, s.sc + (want ? 10 : 7)); s.savedPlace = place;
+        boost = want ? 6 : 3; s.savedPlace = place;
         s.why = [want ? "On your “" + want + "” list" : "A place you saved · " + place.lists[0], ...s.why];
       }
-      else if (own.explore >= 5) { s.why = [...s.why, "Something new for you"]; s.explore = true; }
       s.calChecked = calStatus === "ok";
-      return s;
-    }).sort((a, b) => b.sc - a.sc);
-  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, mapsIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+      // One score for "how much would I want this, now" (rank.js); every screen orders by it
+      return rank(s, rankCtx, { boost });
+    }).sort((a, b) => b.rk - a.rk);
+  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, mapsIdx, rankCtx]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoredRef = useRef([]); scoredRef.current = scored;
   const scoreOne = useCallback((e0) => {
     const e = { ...e0, ncat: e0.ncat && CAT[e0.ncat] ? e0.ncat : classify(e0) }; e.fam = CAT[e.ncat].fam; e.nsub = e0.nsub || classifySub(e, e.ncat);
     const s = scoreEvent({ ...e, coord: safeCoord(e) }, { eprof, beh, today, home, taste, weather, busySlots });
-    s.calChecked = calStatus === "ok"; return s;
-  }, [eprof, beh, today, home, taste, weather, busySlots, calStatus]);
+    s.calChecked = calStatus === "ok"; return rank(s, rankCtx);
+  }, [eprof, beh, today, home, taste, weather, busySlots, calStatus, rankCtx]);
 
   // Gone: thumbed down, over, or today and you couldn't get there in time any more. A saved plan stays until it has ended.
   // clashes with the calendar are hidden (saved ones stay: they are in the calendar themselves)
@@ -814,10 +818,7 @@ export default function App() {
   // ── Home tiles (quick time tiles + moods/picks); reused as "More ideas" in Explore
   useMemo(() => setKeywordDf(visible), [visible]); // keyword rarity, so cards show the most telling word
   // Taste space: grows with every enriched event; your taste (and Theo's, when blended) is a point in it
-  const [embVer, setEmbVer] = useState(0);
   useEffect(() => { const ready2 = visible.filter((e) => tags[e.id] || aiOff.current); if (ready2.length && ingest(ready2, today)) setEmbVer((v) => v + 1); }, [visible, tags]); // eslint-disable-line react-hooks/exhaustive-deps
-  const space = useMemo(() => getSpace(), [embVer]);
-  const tasteMe = useMemo(() => tasteOf(space, modelRef.current), [space, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
   // Me → How your moods learn: stats, and for each of your top interests its nearest neighbours you haven't tried
   const moodLab = useMemo(() => {
     if (tab !== "me") return null;
@@ -973,7 +974,7 @@ export default function App() {
           freeUntil={effFree} autoFree={autoFree} openFree={() => setShowFree(true)} weather={weather}
           weekPicks={weekPicks} eprof={eprof} hiddenCats={filters.xcats || []} hiddenSubs={filters.xsubs || []} onHideCat={(c, kind = "xcats") => { const x = filters[kind] || []; setFilters({ ...filters, [kind]: x.includes(c) ? x.filter((y) => y !== c) : [...x, c] }); }} {...moodProps} onMore={(patch) => { setFilters({ ...filters, fam: null, cats: [], subs: [], ids: [], list: null, price: "any", when: EMPTY_FILTERS.when, ...patch }); setTab("explore"); window.scrollTo(0, 0); }} onSurprise={() => setSurprise(pickSurprise())} onRefresh={() => refresh(false)} refreshing={refreshing}
           highlights={hl?.day === isoDay(today) ? { text: hl.text, ids: hl.ids || [], status: hlStatus } : { text: null, status: hlStatus }} />}
-        {tab === "explore" && <Explore listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} home={home} onFullMap={openFullMap} moodFb={moodFb} onMoodFb={reactMood} />}
+        {tab === "explore" && <Explore rankCtx={rankCtx} listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} home={home} onFullMap={openFullMap} moodFb={moodFb} onMoodFb={reactMood} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
         {tab === "me" && <Me devMode={devMode} onDevMode={toggleDev} moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz("retake")} account={account} onSignOut={signOut} onSignIn={() => setShowQuiz("auth")} onTour={() => { navTab("today"); setTimeout(() => setShowTour(true), 500); }} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}

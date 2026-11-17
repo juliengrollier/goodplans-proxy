@@ -190,7 +190,7 @@ export function FilterHeader({ filters, setFilters, sort, setSort, dark, items, 
 }
 
 export function sortEvents(r, sort) {
-  if (sort === "best") r.sort((a, b) => b.sc - a.sc);
+  if (sort === "best") r.sort((a, b) => (b.rk ?? b.sc) - (a.rk ?? a.sc));
   if (sort === "soonest") r.sort((a, b) => (evStart(a) - evStart(b)) || ((startMinutes(a) ?? 720) - (startMinutes(b) ?? 720)));
   if (sort === "closest") r.sort((a, b) => (a.tt?.mins ?? 99) - (b.tt?.mins ?? 99));
   return r;

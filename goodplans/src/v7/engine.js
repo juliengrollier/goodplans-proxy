@@ -357,7 +357,7 @@ export function scoreEvent(ev, ctx) {
   if (runLen(ev) === 1) why.push("One night only");
   else if (Math.round((evEnd(ev) - today) / 86400000) <= 5 && runLen(ev) > 3) why.push(Math.round((evEnd(ev) - today) / 86400000) <= 3 ? "Last chance" : "Ends soon");
   if (ev.tier === 1 && ev.src) why.push("Picked by " + ev.src);
-  return { ...ev, sc: Math.max(0, Math.min(100, Math.round(s))), raw: Math.round(s), bd, hidden, why, followed, rain, dark, busy, outdoor, tt: bd.tt, wx: w || null };
+  return { ...ev, sc: Math.max(0, Math.min(100, Math.round(s))), bd, hidden, why, followed, rain, dark, busy, outdoor, tt: bd.tt, wx: w || null };
 }
 
 // ── Weather badge for an outdoor event (null when nothing worth saying)
@@ -396,7 +396,7 @@ export function buildToday(scored, { today, freeUntil, eprof }) {
     if (!evCovers(e, today) || isImprecise(e) || !hasKnownTime(e)) return false;
     const sm = startMinutes(e); if (sm == null) return false;
     return (onNow(e) || (sm > now && sm <= now + 150)) && (e.tt?.mins ?? 99) <= 25 && fitsFree(e, freeUntil, today);
-  })).sort((a, b) => (onNow(b) - onNow(a)) || (startMinutes(a) - startMinutes(b)) || (b.sc - a.sc)).slice(0, 12);
+  })).sort((a, b) => (onNow(b) - onNow(a)) || (startMinutes(a) - startMinutes(b)) || ((b.rk ?? b.sc) - (a.rk ?? a.sc))).slice(0, 12);
   nowSoon.forEach((e) => used.add(e.id));
 
   const tonightPool = dedupe(live.filter((e) => {
@@ -404,7 +404,7 @@ export function buildToday(scored, { today, freeUntil, eprof }) {
     const sm = startMinutes(e);
     const evening = sm != null ? sm >= Math.max(now - 30, 16 * 60) : eHour(e.time, e.cat) >= 17 && now < 21 * 60;
     return evening && fitsFree(e, freeUntil, today);
-  })).sort((a, b) => b.sc - a.sc);
+  })).sort((a, b) => (b.rk ?? b.sc) - (a.rk ?? a.sc));
   const tonight = take(tonightPool, 8);
 
   const dow = today.getDay();
@@ -412,9 +412,9 @@ export function buildToday(scored, { today, freeUntil, eprof }) {
   const sun = new Date(fri); sun.setDate(fri.getDate() + 2);
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const wkStart = dow === 5 || dow === 6 || dow === 0 ? tomorrow : fri;
-  const weekend = take(dedupe(live.filter((e) => evStart(e) <= sun && evEnd(e) >= wkStart)).sort((a, b) => b.sc - a.sc), 5);
+  const weekend = take(dedupe(live.filter((e) => evStart(e) <= sun && evEnd(e) >= wkStart)).sort((a, b) => (b.rk ?? b.sc) - (a.rk ?? a.sc)), 5);
 
-  const book = take(live.filter((e) => bookSoon(e, today)).sort((a, b) => b.sc - a.sc), 3);
+  const book = take(live.filter((e) => bookSoon(e, today)).sort((a, b) => (b.rk ?? b.sc) - (a.rk ?? a.sc)), 3);
 
   const wildcard = take(live.filter((e) => (eprof.categories?.[e.cat] ?? 30) < 45 && (e.tier || 2) === 1 && daysUntil(e, today) <= 7 && evActive(e, today))
     .sort((a, b) => (b.bd.qual + b.bd.urg + b.bd.near) - (a.bd.qual + a.bd.urg + a.bd.near)), 1)[0] || null;

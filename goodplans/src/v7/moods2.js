@@ -131,7 +131,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
   for (const [lk, L] of Object.entries(LENS)) for (const [fam, title] of Object.entries(L.t)) { const l = (byFam.get(fam) || []).filter(L.test); if (l.length >= 3) add({ kind: "lens", id: lk + "-" + fam, parent: "fam-" + fam, fam, fixedTitle: title, note: L.teaser, list: l }); }
   // One-offs: strong matches that belong to no group of three or more specific things
   const grouped = new Set(C.filter((c) => (c.kind === "act" || c.kind === "sub" || c.kind === "term") && c.list.length >= 3).flatMap((c) => [...c.ids]));
-  const lone = ok.filter((e) => !grouped.has(e.id) && runLen(e) <= 2 && (e.sc || 0) >= mu).sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 6);
+  const lone = ok.filter((e) => !grouped.has(e.id) && runLen(e) <= 2 && (e.sc || 0) >= mu).sort((a, b) => (b.rk ?? b.sc ?? 0) - (a.rk ?? a.sc ?? 0)).slice(0, 6);
   if (lone.length >= 2) add({ kind: "rare", id: "oneoffs", fixedTitle: "One-offs and oddities", note: "things you won't see twice this month", list: lone });
 
   // Same events twice: keep the most specific name
@@ -181,7 +181,7 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
     const novelty = runLen(l[0]) > 20 && share(l, (e) => runLen(e) > 20) > 0.7 ? 0.8 : 1; // long-running shows are less of a "find"
     // Engagement multiplies: a liked mood (θ≈0.9) is lifted ~45%, an ignored one (θ≈0.25) sinks ~30%; likes also lift the family
     const rel = (0.68 * fit + 0.32 * moment) * (0.4 + 1.2 * theta) * LEVEL[c.kind] * size * (BOOST[fam] || 1) * novelty * c.semMul * (c.adj ? 1.3 : 1) * (1 + 1.5 * Math.max(-0.4, Math.min(0.5, c.direct))) * (fb[c.key] < 0 ? 0.2 : 1);
-    Object.assign(c, { fam, ncat, rel: moment === 0 ? 0 : rel, top: new Set(l.slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)).slice(0, 10).map((e) => e.id)) });
+    Object.assign(c, { fam, ncat, rel: moment === 0 ? 0 : rel, top: new Set(l.slice().sort((a, b) => (b.rk ?? b.sc ?? 0) - (a.rk ?? a.sc ?? 0)).slice(0, 10).map((e) => e.id)) });
   }
 
   // ── 4. Submodular selection
