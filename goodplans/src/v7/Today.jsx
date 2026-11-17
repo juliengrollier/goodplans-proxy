@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods, primaryIntent, SOCIAL, SOCIAL_BY, applySocial } from "./intents.js";
 import { markSeen } from "./moods2.js";
+import * as T from "./telemetry.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
 import { HeroCard, CompactCard, PosterCard, MiniCard, TravelMini, preciseLabel, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
@@ -596,7 +597,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   }, [data, today, intentSel, social, moodFavs, shuf]);
   // Remember what headed For you today (once per day per event), so ignored picks fade on later days
   // (waits until the list has settled, so a half-loaded feed isn't what gets recorded)
-  React.useEffect(() => { if (intentSel.length || social) return undefined; const ids = bestAll.slice(0, 4).map((e) => e.id); const t = setTimeout(() => markForyouSeen(ids, today), 8000); return () => clearTimeout(t); }, [bestAll]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (intentSel.length || social) return undefined; const ids = bestAll.slice(0, 4).map((e) => e.id); const top4 = bestAll.slice(0, 4); const t = setTimeout(() => { markForyouSeen(ids, today); top4.forEach((e, i) => T.track("fy", e, { s: "foryou", p: i })); }, 8000); return () => clearTimeout(t); }, [bestAll]); // eslint-disable-line react-hooks/exhaustive-deps
   const [bestN, setBestN] = useState(10);
   React.useEffect(() => setBestN(10), [intentSel.join(), social]); // eslint-disable-line react-hooks/exhaustive-deps
   const bestNow = bestAll.slice(0, bestN);
@@ -738,7 +739,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
                 <div className="row" style={{ padding: "18px 16px 0", gap: 8 }}>
                   <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: "Top picks" + socialTag, list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
                     className="row" style={{ flex: 1, justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}><Icon name="explore" size={17} />Explore top picks</button>
-                  <button aria-label="Show me four others" onClick={() => setShuf((x) => [...x, ...bestNow.slice(0, 4).map((e) => e.id)])}
+                  <button aria-label="Show me four others" onClick={() => { bestNow.slice(0, 4).forEach((e, i) => T.track("shuffle", e, { s: "foryou", p: i })); setShuf((x) => [...x, ...bestNow.slice(0, 4).map((e) => e.id)]); }}
                     style={{ width: 48, flexShrink: 0, alignSelf: "stretch", borderRadius: 14, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="refresh" size={19} /></button>
                 </div>
               )}

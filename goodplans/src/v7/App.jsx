@@ -14,6 +14,7 @@ import Today, { clearForyouSeen } from "./Today.jsx";
 import DevFlag, { DEV_KEY } from "./DevFlag.jsx";
 import { loadDetails, withDetails, outsideNYC, fetchDetails, syncDetailsIndex } from "./details.js";
 import { rank, rankContext, readFavMoods } from "./rank.js";
+import * as T from "./telemetry.js";
 import Explore from "./Explore.jsx";
 import MapView from "./MapView.jsx";
 import Plans from "./Plans.jsx";
@@ -83,6 +84,7 @@ const fetchJSON = async (url, ms = 30000) => {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState("today");
+  const tabRef = useRef("today"); tabRef.current = tab;
   const [devMode, setDevMode] = useState(() => { try { return localStorage.getItem(DEV_KEY) === "1"; } catch { return false; } });
   const toggleDev = () => setDevMode((d) => { try { localStorage.setItem(DEV_KEY, d ? "0" : "1"); } catch { /* private */ } return !d; });
   const [events, setEvents] = useState([]);
@@ -147,6 +149,7 @@ export default function App() {
   const moodSession = useRef(null); // the mood you opened last, so saves from its list can be credited to it
   const signal = useCallback((ev, kind) => {
     if (!ev) return;
+    T.track(kind, ev, { s: tabRef.current });
     putModel(L.learn(modelRef.current, ev, kind, floorDay(new Date())), L.SIGNALS[kind]?.s >= 0.7);
     const ms = moodSession.current;
     if ((kind === "save" || kind === "went") && ms && Date.now() - ms.at < 45 * 60000 && ms.ids.has(ev.id)) logMood("saved", ms.key, ms.adj, ms.title);
@@ -587,6 +590,7 @@ export default function App() {
   const openEvent = useCallback((ev) => {
     if (ev?.id) clearForyouSeen(ev.id);
     if (ev?.id) getDetails([ev]);
+    T.track("open", ev, { s: tabRef.current });
     setOpenEv(ev.id); track(ev, "viewedCats");
     putModel(L.learn(L.markOpened(modelRef.current, ev.id), ev, "open", floorDay(new Date())));
   }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -658,6 +662,7 @@ export default function App() {
   // tasteRef keeps a thumb and the reason picked right after it from overwriting each other
   const tasteRef = useRef(taste); tasteRef.current = taste;
   const react = (ev, kind, reason, quiet) => {
+    if (kind === "up" || kind === "down" || kind === "nfm") T.track(kind, ev, { s: tabRef.current });
     const t = applyReaction(tasteRef.current, prof, ev, kind, reason);
     tasteRef.current = t; saveTaste(t);
     // Same thumb in the v2 model: a flip or an undo takes back exactly what the earlier thumb added
@@ -940,7 +945,7 @@ export default function App() {
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
   const actions = {
-    onSeen: (ev) => putModel(L.seen(modelRef.current, ev, today)),
+    onSeen: (ev) => { putModel(L.seen(modelRef.current, ev, today)); T.track("imp", ev, { s: tabRef.current }); },
     prefOf: (kind, id) => prefs[kind]?.[id] || 0,
     onReact: (ev, kind, reason, quiet) => react(ev, kind, reason, quiet),
     askWhy: (ev, dir) => setWhyAsk({ ev, dir }),
