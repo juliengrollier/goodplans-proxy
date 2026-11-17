@@ -91,7 +91,8 @@ export function rank(s, c, extra = {}) {
   if (ex >= 0.85 && c.favMoods.some((id) => member(s, id) >= 0.85)) { const m = INTENTS.find((x) => c.favMoods.includes(x.id) && member(s, x.id) >= 0.85); why.unshift("One of your moods · " + m.label); }
   else if (lp.pts >= 8 || sim >= 0.8) why.unshift("Fits your taste");
   else if (explore >= 2) why.push("Something new for you");
-  return { ...s, rk: Math.round(rk * 10) / 10, sc: Math.max(0, Math.min(100, Math.round(rk))), aff: Math.round(aff * 100) / 100, why, lp: Math.round(lp.pts), explore: explore >= 2 };
+  const comp = { ex, learned, sim, moment, rarity, quality, friction, trust: c.trust };
+  return { ...s, comp, rk: Math.round(rk * 10) / 10, sc: Math.max(0, Math.min(100, Math.round(rk))), aff: Math.round(aff * 100) / 100, why, lp: Math.round(lp.pts), explore: explore >= 2 };
 }
 
 // How much you like a category as a whole (orders category groups in Explore and elsewhere), 0–1
