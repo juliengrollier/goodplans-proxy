@@ -90,7 +90,7 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
       </div>
 
       <div style={{ margin: "16px 16px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {[["When", <When key="w" text={whenLabel(ev, today)} />], ["Getting there", ev.tt ? <Travel tt={ev.tt} size={16} /> : "—"], ["Price", null], ["Booking", ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
+        {[["When", <When key="w" text={whenLabel(ev, today, { until: true })} />], ["Getting there", ev.tt ? <Travel tt={ev.tt} size={16} /> : "—"], ["Price", null], ["Booking", ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
           <div key={k} className="card-sm" style={{ padding: "12px 14px", borderRadius: 20 }}>
             <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>{k}</div>
             {v != null ? <div className="disp" style={{ fontSize: 17, marginTop: 2 }}>{v}</div> : <div style={{ marginTop: 4 }}><PriceTag ev={ev} /></div>}

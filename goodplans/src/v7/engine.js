@@ -248,17 +248,22 @@ export const fmtClock = (mins) => {
   return h12 + (m ? ":" + String(m).padStart(2, "0") : "") + " " + ap;
 };
 export const isoDay = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-export function whenLabel(ev, today) {
-  // Always the day (Today / Tomorrow / weekday + date) and the time when known; runs add "until <date>"
+export function whenLabel(ev, today, opts = {}) {
+  // The next day it's on (Today / Tomorrow / weekday + date) and the time when known. Runs: the event page adds
+  // "until <date>" (opts.until); cards don't. If today's session is already over, the next one.
   const tom = new Date(today); tom.setDate(today.getDate() + 1);
   const multi = ev.X && ev.X !== ev.E;
   const time = hasKnownTime(ev) ? ev.time.replace(":00", "") : "";
   const t = time ? " " + time : "";
   if (multi) {
-    const end = mkDate(ev.X), until = " · until " + MONTHS[end.getMonth()] + " " + end.getDate();
-    if (evCovers(ev, today)) return "Today" + t + until;
-    if (evCovers(ev, tom) && mkDate(ev.E) <= tom) return "Tomorrow" + t + until;
-    const s = nextOn(ev, today) || mkDate(ev.E); // next day it's actually on (runs limited to some weekdays)
+    const end = mkDate(ev.X), until = opts.until ? " · until " + MONTHS[end.getMonth()] + " " + end.getDate() : "";
+    const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let s = nextOn(ev, t0) || mkDate(ev.E);
+    const st = startMinutes(ev), en = endMinutes(ev) ?? (st != null ? st + 120 : null);
+    if (+s === +t0 && st != null && en != null && en <= nowMinutes()) s = nextOn(ev, new Date(+t0 + 86400000)) || s;
+    const tm = new Date(+t0 + 86400000);
+    if (+s === +t0) return "Today" + t + until;
+    if (+s === +tm) return "Tomorrow" + t + until;
     return DAYS[s.getDay()] + " " + MONTHS[s.getMonth()] + " " + s.getDate() + t + until;
   }
   if (evCovers(ev, today)) return "Today" + t;
