@@ -26,7 +26,7 @@ import * as L from "./learn.js";
 import * as M from "./maps.js";
 import * as Q from "./quiz.js";
 import Tour, { TOUR_KEY } from "./Tour.jsx";
-import Quiz from "./Quiz.jsx";
+import Quiz, { loadAccount, ACCOUNT_KEY } from "./Quiz.jsx";
 import { buildPicks, poolPicks } from "./picks.js";
 import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
 const FAM_IDS = FAMILIES.map((f) => f.id);
@@ -156,7 +156,9 @@ export default function App() {
   const [moodHide, setMoodHide] = useState(() => ls("gp_moodhide_v1", "[]"));
   const [moodFb, setMoodFb] = useState(() => ls("gp_moodfb_v1", "{}"));
   const [meet, setMeetState] = useState(() => { try { return localStorage.getItem("gp_meet_v1") === "1"; } catch { return false; } });
-  const [showQuiz, setShowQuiz] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false); // false | "auth" | "moods"
+  const [account, setAccount] = useState(loadAccount);
+  const signOut = () => { try { localStorage.removeItem(ACCOUNT_KEY); window.google?.accounts?.id?.disableAutoSelect?.(); } catch { /* private */ } setAccount(null); setShowQuiz("auth"); };
   const [showTour, setShowTour] = useState(false);
   const mapsIdx = useMemo(() => M.buildIndex(mapsData), [mapsData]);
   const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
@@ -763,8 +765,10 @@ export default function App() {
 
   // ── Onboarding quiz: first open on a phone that has learned little, and any time from Me
   useEffect(() => {
-    if (!ready || quiz) return;
-    if ((modelRef.current.strong || 0) < 5 && !sessionStorage.getItem("gp_quiz_later")) setShowQuiz(true);
+    if (!ready) return;
+    if (!account) { setShowQuiz("auth"); return; } // everyone signs in (or chooses not to) once
+    if (quiz) return;
+    if ((modelRef.current.strong || 0) < 5 && !sessionStorage.getItem("gp_quiz_later")) setShowQuiz("moods");
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
   // Meeting new people as a goal: boosts events built for it (mingle, group, solo-friendly) and pins the "Meet new people" pick
   const setMeetOn = (on) => {
@@ -899,7 +903,7 @@ export default function App() {
   if (openEv) layers.push(() => setOpenEv(null));
   if (whyAsk) layers.push(() => setWhyAsk(null));
   if (showTour) layers.push(() => { try { localStorage.setItem(TOUR_KEY, "1"); } catch { /* private */ } setShowTour(false); });
-  if (showQuiz) layers.push(() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); });
+  if (showQuiz && account) layers.push(() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); });
   const layersRef = useRef(layers); layersRef.current = layers;
   const histDepth = useRef(0), skipPop = useRef(0);
   useEffect(() => {
@@ -951,7 +955,7 @@ export default function App() {
         {tab === "explore" && <Explore listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} home={home} onFullMap={openFullMap} moodFb={moodFb} onMoodFb={reactMood} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz(true)} onTour={() => { navTab("today"); setTimeout(() => setShowTour(true), 500); }} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
+        {tab === "me" && <Me moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz("moods")} account={account} onSignOut={signOut} onSignIn={() => setShowQuiz("auth")} onTour={() => { navTab("today"); setTimeout(() => setShowTour(true), 500); }} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
           who={who} setWho={setWho} people={PEOPLE} prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
@@ -963,7 +967,7 @@ export default function App() {
       <TabBar tab={tab} setTab={navTab} plansCount={plansCount} />
 
       {showTour && <Tour onDone={() => setShowTour(false)} />}
-      {showQuiz && <Quiz dark={dark} initial={quiz?.v === Q.QUIZ_VERSION ? quiz.answers || {} : {}} onDone={finishQuiz} onClose={() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); }} onImportMaps={() => { setTab("me"); setTimeout(() => window.scrollTo(0, 0), 50); }} />}
+      {showQuiz && <Quiz dark={dark} startAt={showQuiz === "auth" || !account ? "auth" : "moods"} needQuiz={!quiz} onAuth={setAccount} onDone={(ans, prof, meet) => { if (!ans) { setShowQuiz(false); return; } finishQuiz(ans, prof, meet); }} />}
       {sheetEv && <EventSheet favs={moodFav} onFav={favMood} tiles={tileSet} onTile={(t) => { setOpenEv(null); openTile(t); }} ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
