@@ -5,7 +5,7 @@ import { Icon } from "./icons.jsx";
 import { CatBullet, Media, PriceTag, Dialog, Travel, CompactCard, LeafletMap, When, DotScroll, MoodTile } from "./components.jsx";
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge, fmtT } from "./engine.js";
-import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord, isImprecise } from "../lib/core.js";
+import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord, isImprecise, nextOn } from "../lib/core.js";
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
@@ -53,7 +53,7 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
     const multi = ev.X && ev.X > ev.E, t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const pat = ev.recurring ? ev.recLabel || "Recurring" : ev.moreDates ? "Several dates" : multi ? "Ongoing" : null;
     if (!pat) return null;
-    const nx = new Date(ev.E + "T12:00:00"); const next = nx < t0 ? t0 : nx;
+    const next = nextOn(ev, t0) || new Date(ev.E + "T12:00:00");
     return [pat, "next " + fd(next), multi ? "until " + new Date(ev.X + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null].filter(Boolean).join(" · ");
   })();
 

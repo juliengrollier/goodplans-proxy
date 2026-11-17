@@ -106,7 +106,42 @@ const mkDate=s=>new Date(s+"T00:00:00");
 const floorDay=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x;};
 const evEnd=ev=>mkDate(ev.X||ev.E);
 const evStart=ev=>mkDate(ev.E);
-const evCovers=(ev,d)=>d>=evStart(ev)&&d<=evEnd(ev);
+// Runs over several days are often on certain weekdays only ("Sundays Nov 15 and 22", "Thu–Sun", "weekends",
+// "closed Mondays"); read that from the listing so the event only counts on those days. Cached per listing.
+const DOWK=["sun","mon","tue","wed","thu","fri","sat"];
+const DOW_RE="(sun|mon|tue|wed|thu|fri|sat)(?:day|s|\\.)?(?:s)?";
+const _dows=new Map();
+function runDows(ev){
+  if(!ev||!ev.X||ev.X===ev.E)return null;
+  // Structured weekday list from the extraction (0=Sun..6=Sat) wins over the text guess below
+  if(Array.isArray(ev.dows)&&ev.dows.length&&ev.dows.length<7){const w=new Set(ev.dows.map(Number).filter((x)=>x>=0&&x<=6));if(w.size&&w.size<7)return w;}
+  const key=(ev.id||ev.title)+"|"+ev.E+"|"+ev.X;
+  if(_dows.has(key))return _dows.get(key);
+  const t=[ev.time,ev.title,ev.desc,ev.recLabel].filter(Boolean).join(" ").toLowerCase().replace(/[–—]/g,"-");
+  const on=new Set(), off=new Set();
+  const idx=(w)=>DOWK.indexOf(w.slice(0,3));
+  // closed days first, so "closed Mondays" doesn't count as open
+  let rest=t.replace(new RegExp("closed (?:on )?"+DOW_RE+"(?:\\s*(?:and|&|,)\\s*"+DOW_RE+")?","g"),(m,a,b)=>{off.add(idx(a));if(b)off.add(idx(b));return " ";});
+  rest.replace(new RegExp("\\b"+DOW_RE+"\\s*(?:-|to|through|thru)\\s*"+DOW_RE+"\\b","g"),(m,a,b)=>{let i=idx(a);const j=idx(b);for(let k=0;k<7;k++){on.add(i);if(i===j)break;i=(i+1)%7;}return " ";});
+  if(/\b(every )?weekends?\b/.test(rest))[6,0].forEach((x)=>on.add(x));
+  if(/\bweekdays\b/.test(rest))[1,2,3,4,5].forEach((x)=>on.add(x));
+  // "Sundays", "every Sunday", "on Sunday(s)"; a bare single weekday name alone isn't enough
+  for(const m of rest.matchAll(/\b(?:every |on )?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)(s)?\b/g)){
+    if(m[2]||/^(every|on) /.test(m[0]))on.add(idx(m[1]));
+  }
+  let r=null;
+  if(on.size&&on.size<7)r=on;
+  else if(off.size)r=new Set([0,1,2,3,4,5,6].filter((x)=>!off.has(x)));
+  _dows.set(key,r);
+  return r;
+}
+const _iso=(d)=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const evCovers=(ev,d)=>{if(d<evStart(ev)||d>evEnd(ev))return false;
+  // Exact dates from the extraction (irregular runs: "Nov 15, 22 and 29") beat any weekday pattern
+  if(Array.isArray(ev.dates)&&ev.dates.length)return ev.dates.includes(_iso(d));
+  const w=runDows(ev);return !w||w.has(d.getDay());};
+// The next day (from d) the event is on, or null once it's over
+const nextOn=(ev,d)=>{const s=evStart(ev),e=evEnd(ev);let x=new Date(Math.max(+s,+floorDay(d)));for(let k=0;k<400&&x<=e;k++){if(evCovers(ev,x))return x;x=new Date(x.getFullYear(),x.getMonth(),x.getDate()+1);}return null;};
 const evActive=(ev,d)=>evEnd(ev)>=d;
 const runLen=ev=>Math.round((evEnd(ev)-evStart(ev))/86400000)+1;
 const daysUntil=(ev,d)=>Math.round((evStart(ev)-d)/86400000);
@@ -898,4 +933,4 @@ async function fetchBusyWithToken(token,selectedId){
 
 
 
-export {CATS,VIBES,DP,SK_P,SK_F,SK_B,VAPID_PUBLIC_KEY,getSWRegistration,subscribePush,registerSubWithAppsScript,DEFAULT_SUBS,sg,ss,mkDate,floorDay,evEnd,evStart,evCovers,evActive,runLen,daysUntil,DAYS,MONTHS,fmtD,friendlyDate,eHour,hasKnownTime,parseT,toGC,HOOD_COORD,isImprecise,safeCoord,kmdist,SUBWAY,LINE_COLOR,nearestSubways,transitTime,isEventBusy,similarToSaved,calcBd,calcScore,matchV,bookSoon,withTimeout,loadGIS,fetchBusyWithToken};
+export {runDows,nextOn,CATS,VIBES,DP,SK_P,SK_F,SK_B,VAPID_PUBLIC_KEY,getSWRegistration,subscribePush,registerSubWithAppsScript,DEFAULT_SUBS,sg,ss,mkDate,floorDay,evEnd,evStart,evCovers,evActive,runLen,daysUntil,DAYS,MONTHS,fmtD,friendlyDate,eHour,hasKnownTime,parseT,toGC,HOOD_COORD,isImprecise,safeCoord,kmdist,SUBWAY,LINE_COLOR,nearestSubways,transitTime,isEventBusy,similarToSaved,calcBd,calcScore,matchV,bookSoon,withTimeout,loadGIS,fetchBusyWithToken};

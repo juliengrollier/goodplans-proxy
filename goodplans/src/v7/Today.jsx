@@ -9,7 +9,7 @@ import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
 import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay, whenLabel, eventWindow, canMake } from "./engine.js";
-import { DAYS, MONTHS, evCovers, evStart, CATS, daysUntil, isImprecise } from "../lib/core.js";
+import { DAYS, MONTHS, evCovers, evStart, evEnd, runLen, nextOn, bookSoon, CATS, daysUntil, isImprecise } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
 import { Travel, catLabel } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, evColor, LIcon, CatChip } from "./taxonomy.js";
@@ -463,6 +463,23 @@ function IntentChips({ data, today, sel, put, onOrder, favs, toggleFav: toggleFa
   );
 }
 
+// For you impressions: { day: "YYYY-MM-DD", n: { id: days shown } }, kept 3 weeks; opening or saving an event resets it
+const FY_KEY = "gp_foryou_seen_v1";
+// counts only earlier days, so today's ranking doesn't shift as it's being shown
+function foryouSeen() { try { const st = JSON.parse(localStorage.getItem(FY_KEY)) || {}; const n = { ...(st.n || {}) }; (st.ids || []).forEach((id) => { if (n[id]) n[id]--; }); return n; } catch { return {}; } }
+function markForyouSeen(ids, today) {
+  try {
+    const day = isoDay(today), st = JSON.parse(localStorage.getItem(FY_KEY) || "{}");
+    if (!ids.length || st.day === day) return;
+    const n = st.n || {}, seenAt = st.at || {};
+    ids.forEach((id) => { n[id] = (n[id] || 0) + 1; seenAt[id] = day; });
+    const cut = isoDay(new Date(today.getTime() - 21 * 86400000));
+    Object.keys(seenAt).forEach((id) => { if (seenAt[id] < cut) { delete seenAt[id]; delete n[id]; } });
+    localStorage.setItem(FY_KEY, JSON.stringify({ day, ids, n, at: seenAt }));
+  } catch { /* storage off */ }
+}
+export function clearForyouSeen(id) { try { const st = JSON.parse(localStorage.getItem(FY_KEY) || "{}"); if (st.n && st.n[id]) { delete st.n[id]; localStorage.setItem(FY_KEY, JSON.stringify(st)); } } catch { /* storage off */ } }
+
 export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]").slice(0, 1); } catch { return []; } });
   const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
@@ -501,13 +518,82 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   const intentWithin = React.useMemo(() => { const m = {}; intentAll.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 10); }, [intentAll]);
   // Best for you right now: what is still to come today (or on now), else tomorrow, by your score, sooner first on ties
   // Best for you: everything still to come, ranked by your score with a gentle preference for sooner; the carousel loads more as you scroll
+  // For you: if the app could show only four things right now, which four? Taste score × how soon × how rare the chance is.
+  // Things on every day for weeks are always "today", so they only rise when they're about to close ("Last chance");
+  // otherwise they're fallback. Picks shown on earlier days and ignored fade, and the top four avoid repeating a category.
   const bestAll = React.useMemo(() => {
-    const now = nowMinutes();
-    const ok = (data || []).filter((e) => { const d = daysUntil(e, today); if (d < 0) return false; if (d > 0) return true; const st = startMinutes(e), en = endMinutes(e); return st == null ? true : st >= now - 20 || (en != null && en > now + 30); });
-    const pool = intentSel.length ? ok.filter((e) => blend(e, intentSel) >= 0.45) : ok;
-    const ranked = pool.map((e) => { const d = daysUntil(e, today); return [e, (e.sc || 0) * (d === 0 ? 1 : d === 1 ? 0.88 : Math.max(0.5, 0.97 ** d * 0.85)) * (intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1)]; }).sort((a, b) => b[1] - a[1]).map(([e]) => e);
-    const seen = new Set(); return applySocial(ranked, social).filter((e) => { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; });
+    const now = nowMinutes(), t0 = today.getTime();
+    const seen = foryouSeen();
+    const scored = [];
+    (data || []).forEach((e) => {
+      // next day it's on (today counts only if it's still worth heading out)
+      let nx = nextOn(e, today);
+      if (nx && +nx === t0) { const st = startMinutes(e), en = endMinutes(e); if (!(st == null || st >= now - 20 || (en != null && en > now + 30))) nx = nextOn(e, new Date(t0 + 86400000)); }
+      if (!nx) return;
+      if (intentSel.length && blend(e, intentSel) < 0.45) return;
+      const d = Math.round((+nx - t0) / 86400000);
+      const left = Math.round((+evEnd(e) - t0) / 86400000), len = runLen(e);
+      const soon = d === 0 ? 1 : d === 1 ? 0.9 : Math.max(0.45, 0.93 ** d * 0.9);
+      // how rare the chance is
+      let rare = 1;
+      if (len <= 1) rare = 1.08;                       // one date only
+      else if (len <= 4) rare = 1.02;                  // a few days
+      else if (e.recurring) rare = 0.8;                // comes back every week
+      else if (left <= 3) rare = 1.12;                 // long run about to close: last chance
+      else if (left <= 7) rare = 0.95;
+      else if (left <= 14) rare = 0.72;
+      else rare = 0.5;                                 // on for weeks more: fallback
+      const fatigue = Math.max(0.55, 0.85 ** (seen[e.id] || 0));
+      const fit = intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1;
+      const base = (e.sc || 0) * rare * fatigue * fit;
+      scored.push([e, base * soon, len > 4 && !e.recurring && left > 3, base, d, left]);
+    });
+    scored.sort((a, b) => b[1] - a[1]);
+    const titles = new Set();
+    const uniq = applySocial(scored.map(([e]) => e), social).filter((e) => { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (titles.has(k)) return false; titles.add(k); return true; });
+    const info = new Map(scored.map(([e, v, long, base, d, left]) => [e.id, { v, long, base, d, left }]));
+    // Four slots, each filled with its own best pick (no label on the card):
+    // 1 today · 2 tomorrow · 3 the coming weekend (on Sat/Sun: the rest of the week) · 4 on your radar
+    // (3+ days out, ticket or RSVP, one you'd love). A slot with nothing good enough (under 60% of the best
+    // pick overall) gives its place to the best remaining pick. Same category or activity twice loses 20%;
+    // at most one long run unless it's closing.
+    const dow = today.getDay();
+    const later = (n) => new Date(t0 + n * 86400000);
+    // each event competes for the slot of its next date, so something on every day can't show up twice as "on now"
+    const slotOffs = dow === 6 || dow === 0
+      ? [2, 3, 4, 5, 6]                                              // weekend now: the week ahead
+      : [2, 3, 4, 5, 6].filter((n) => [6, 0].includes(later(n).getDay())); // Fri: Sunday
+    const scs = uniq.map((e) => e.sc || 0).sort((x, y) => y - x);
+    const loveBar = Math.max(60, scs[Math.floor(scs.length * 0.15)] || 0);
+    const slots = [
+      (e) => info.get(e.id).d === 0,
+      (e) => info.get(e.id).d === 1,
+      (e) => slotOffs.includes(info.get(e.id).d),
+      (e) => { const i = info.get(e.id); return i.d >= 3 && i.d <= 60 && !i.long && (e.ticket === true || bookSoon(e, today)) && (e.sc || 0) >= loveBar; },
+    ];
+    const best = Math.max(0, ...uniq.slice(0, 40).map((e) => info.get(e.id).base));
+    const top = [], used = new Set(), cats = {}, acts = {};
+    let longs = 0;
+    const adj = (e, v) => v * 0.8 ** ((cats[e.ncat || e.cat] || 0) + (e.act && acts[e.act] || 0)) * (info.get(e.id).long && longs >= 1 ? 0.4 : 1);
+    const take = (e) => { top.push(e); used.add(e.id); cats[e.ncat || e.cat] = (cats[e.ncat || e.cat] || 0) + 1; if (e.act) acts[e.act] = (acts[e.act] || 0) + 1; if (info.get(e.id).long) longs++; };
+    const pick = (ok, key) => { let bi = null, bv = -1; for (const e of uniq) { if (used.has(e.id) || !ok(e)) continue; const v = adj(e, info.get(e.id)[key]); if (v > bv) { bv = v; bi = e; } } return [bi, bv]; };
+    const open = [];
+    slots.forEach((ok, k) => { const [e, v] = pick(ok, "base"); if (e && v >= best * 0.6) take(e); else open.push(k); });
+    // fill-ins: best remaining pick, preferring a day the other cards don't cover yet
+    open.forEach(() => {
+      const days = new Set(top.map((x) => info.get(x.id).d));
+      let bi = null, bv = -1;
+      for (const e of uniq) { if (used.has(e.id)) continue; const i = info.get(e.id); const v = adj(e, i.base) * (days.has(i.d) ? 0.6 : 1) * (i.d > 14 ? 0.8 : 1); if (v > bv) { bv = v; bi = e; } }
+      if (bi) take(bi);
+    });
+    // keep the slot order for display: today, tomorrow, weekend, radar (fill-ins slot in where they're dated)
+    top.sort((x, y) => info.get(x.id).d - info.get(y.id).d);
+    const rest = uniq.filter((e) => !used.has(e.id));
+    return [...top, ...rest];
   }, [data, today, intentSel, social]);
+  // Remember what headed For you today (once per day per event), so ignored picks fade on later days
+  // (waits until the list has settled, so a half-loaded feed isn't what gets recorded)
+  React.useEffect(() => { if (intentSel.length || social) return undefined; const ids = bestAll.slice(0, 4).map((e) => e.id); const t = setTimeout(() => markForyouSeen(ids, today), 8000); return () => clearTimeout(t); }, [bestAll]); // eslint-disable-line react-hooks/exhaustive-deps
   const [bestN, setBestN] = useState(10);
   React.useEffect(() => setBestN(10), [intentSel.join(), social]); // eslint-disable-line react-hooks/exhaustive-deps
   const bestNow = bestAll.slice(0, bestN);
