@@ -51,11 +51,14 @@ function pageText(html) {
 
 async function page(b) {
   if (!process.env.ANTHROPIC_API_KEY || !/^https?:\/\//.test(b.url || "")) return null;
-  let html = "", finalUrl = b.url;
+  let html = "", finalUrl = b.url, fetchNote = "";
   try {
-    const r = await withTimeout(fetch(b.url, { redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36", Accept: "text/html" } }), 8000);
-    if (r.ok && /html/i.test(r.headers.get("content-type") || "")) { html = await r.text(); finalUrl = r.url || b.url; }
-  } catch { /* unreachable page: answer from the listing alone */ }
+    const r = await withTimeout(fetch(b.url, { redirect: "follow", headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9" } }), 10000);
+    fetchNote = r.status + " " + (r.headers.get("content-type") || "") + " " + r.url;
+    if (r.ok) { const t = await r.text(); if (/<html|<body|<div/i.test(t)) { html = t; finalUrl = r.url || b.url; } }
+  } catch (e) { fetchNote = String(e.message || e); /* unreachable page: answer from the listing alone */ }
   const system = `You read an event web page for a New York City events app and fill in missing practical details. Answer with JSON only:
 {"start":"7:30 PM" or null,"end":"10 PM" or null,"price":"Free" | "$25" | "$20–45" or null,"ticketUrl":"https://..." or null,"address":"street address" or null,"city":"city name" or null,"nyc":true|false|null}
 Rules: only what the page or listing states for THIS event on the given date (doors time counts as start if that is all there is). ticketUrl is the link to buy tickets or RSVP (an absolute URL found on the page), else null. nyc is false when the event takes place outside New York City (e.g. London, LA, a broadcast), true when clearly in NYC, null if unknown. Never guess.`;
@@ -63,7 +66,7 @@ Rules: only what the page or listing states for THIS event on the given date (do
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 300, system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, messages: [{ role: "user", content: user }] }),
   });
   const d = await r.json();
   if (!r.ok) { if (b._dbg) return { error: "claude " + r.status + " " + (d?.error?.message || "") }; return null; }
@@ -73,7 +76,7 @@ Rules: only what the page or listing states for THIS event on the given date (do
     if (o.ticketUrl) { try { o.ticketUrl = new URL(o.ticketUrl, finalUrl).href; } catch { o.ticketUrl = null; } }
     o.url = finalUrl;
     return o;
-  } catch { return b._dbg ? { error: "parse", text: t.slice(0, 300), html: html.length } : null; }
+  } catch { return b._dbg ? { error: "parse", text: t.slice(0, 300), html: html.length, fetch: fetchNote, blocks: (d.content || []).map((x) => x.type), stop: d.stop_reason } : null; }
 }
 
 export default async function handler(req, res) {
