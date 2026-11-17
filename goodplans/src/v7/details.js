@@ -69,3 +69,17 @@ export async function fetchDetails(evs, onDone) {
     inflight.delete(e.id);
   }
 }
+
+// Everything the daily server job looked up (/api/feed-enrich), merged into what this phone already has
+export async function syncDetailsIndex() {
+  try {
+    const r = await fetch(API_BASE + "/api/details?index=1");
+    if (!r.ok) return false;
+    const idx = await r.json();
+    const cur = loadDetails();
+    let n = 0;
+    for (const [id, v] of Object.entries(idx || {})) { if (!cur[id] || (v.at || 0) > (cur[id].at || 0)) { cur[id] = { ...v, day: "server" }; n++; } }
+    if (n) saveDetails(cur);
+    return n > 0;
+  } catch { return false; }
+}
