@@ -26,7 +26,7 @@ export default function Me(p) {
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
-    locSt, onRetryGPS, resetTaste, axes, onNudge, quiz, onRetakeQuiz, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
+    locSt, onRetryGPS, resetTaste, axes, onNudge, quiz, onRetakeQuiz, onTour, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
   const [fine, setFine] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
   const cats = Object.keys(CATS).filter((c) => c !== "Other");
@@ -76,6 +76,7 @@ export default function Me(p) {
           <span className="muted" style={{ fontSize: 12.5 }}>{learned.count || 0} signals learned{learned.muted ? " · " + learned.muted + " switched off" : ""}</span>
           <span className="row" style={{ gap: 6 }}>
             <button className="chip" onClick={onRetakeQuiz}>{quiz ? "Retake quiz" : "Take the quiz"}</button>
+            {onTour && <button className="chip" onClick={onTour}>Show the tour</button>}
             <button className="chip" onClick={() => { if (confirm("Forget everything learned from your activity? Thumbs, saves and boosts stay.")) onResetLearning(); }}>Reset learning</button>
           </span>
         </div>
