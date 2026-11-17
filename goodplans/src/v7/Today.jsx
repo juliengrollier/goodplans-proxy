@@ -9,7 +9,7 @@ import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
 import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay, whenLabel, eventWindow, canMake } from "./engine.js";
-import { DAYS, MONTHS, evCovers, evStart, evEnd, runLen, nextOn, CATS, daysUntil, isImprecise } from "../lib/core.js";
+import { DAYS, MONTHS, evCovers, evStart, evEnd, runLen, nextOn, bookSoon, CATS, daysUntil, isImprecise } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
 import { Travel, catLabel } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, evColor, LIcon, CatChip } from "./taxonomy.js";
@@ -545,26 +545,50 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       else rare = 0.5;                                 // on for weeks more: fallback
       const fatigue = Math.max(0.55, 0.85 ** (seen[e.id] || 0));
       const fit = intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1;
-      scored.push([e, (e.sc || 0) * soon * rare * fatigue * fit, len > 4 && !e.recurring && left > 3]);
+      const base = (e.sc || 0) * rare * fatigue * fit;
+      scored.push([e, base * soon, len > 4 && !e.recurring && left > 3, base, d, left]);
     });
     scored.sort((a, b) => b[1] - a[1]);
     const titles = new Set();
     const uniq = applySocial(scored.map(([e]) => e), social).filter((e) => { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (titles.has(k)) return false; titles.add(k); return true; });
-    const val = new Map(scored.map(([e, v, long]) => [e.id, [v, long]]));
-    // Top four picked greedily: a second card of the same category or activity loses 20%, and at most one long run
-    const top = [], rest = uniq.slice(), cats = {}, acts = {};
+    const info = new Map(scored.map(([e, v, long, base, d, left]) => [e.id, { v, long, base, d, left }]));
+    // Four slots, each filled with its own best pick (no label on the card):
+    // 1 today · 2 tomorrow · 3 the coming weekend (on Sat/Sun: the rest of the week) · 4 on your radar
+    // (3+ days out, ticket or RSVP, one you'd love). A slot with nothing good enough (under 60% of the best
+    // pick overall) gives its place to the best remaining pick. Same category or activity twice loses 20%;
+    // at most one long run unless it's closing.
+    const dow = today.getDay();
+    const later = (n) => new Date(t0 + n * 86400000);
+    // each event competes for the slot of its next date, so something on every day can't show up twice as "on now"
+    const slotOffs = dow === 6 || dow === 0
+      ? [2, 3, 4, 5, 6]                                              // weekend now: the week ahead
+      : [2, 3, 4, 5, 6].filter((n) => [6, 0].includes(later(n).getDay())); // Fri: Sunday
+    const scs = uniq.map((e) => e.sc || 0).sort((x, y) => y - x);
+    const loveBar = Math.max(60, scs[Math.floor(scs.length * 0.15)] || 0);
+    const slots = [
+      (e) => info.get(e.id).d === 0,
+      (e) => info.get(e.id).d === 1,
+      (e) => slotOffs.includes(info.get(e.id).d),
+      (e) => { const i = info.get(e.id); return i.d >= 3 && i.d <= 60 && !i.long && (e.ticket === true || bookSoon(e, today)) && (e.sc || 0) >= loveBar; },
+    ];
+    const best = Math.max(0, ...uniq.slice(0, 40).map((e) => info.get(e.id).base));
+    const top = [], used = new Set(), cats = {}, acts = {};
     let longs = 0;
-    while (top.length < 4 && rest.length) {
-      let bi = 0, bv = -1;
-      rest.slice(0, 40).forEach((e, i) => {
-        const [v, long] = val.get(e.id) || [0, false];
-        const adj = v * 0.8 ** ((cats[e.ncat || e.cat] || 0) + (e.act && acts[e.act] || 0)) * (long && longs >= 1 ? 0.4 : 1);
-        if (adj > bv) { bv = adj; bi = i; }
-      });
-      const [e] = rest.splice(bi, 1);
-      top.push(e); cats[e.ncat || e.cat] = (cats[e.ncat || e.cat] || 0) + 1; if (e.act) acts[e.act] = (acts[e.act] || 0) + 1;
-      if ((val.get(e.id) || [])[1]) longs++;
-    }
+    const adj = (e, v) => v * 0.8 ** ((cats[e.ncat || e.cat] || 0) + (e.act && acts[e.act] || 0)) * (info.get(e.id).long && longs >= 1 ? 0.4 : 1);
+    const take = (e) => { top.push(e); used.add(e.id); cats[e.ncat || e.cat] = (cats[e.ncat || e.cat] || 0) + 1; if (e.act) acts[e.act] = (acts[e.act] || 0) + 1; if (info.get(e.id).long) longs++; };
+    const pick = (ok, key) => { let bi = null, bv = -1; for (const e of uniq) { if (used.has(e.id) || !ok(e)) continue; const v = adj(e, info.get(e.id)[key]); if (v > bv) { bv = v; bi = e; } } return [bi, bv]; };
+    const open = [];
+    slots.forEach((ok, k) => { const [e, v] = pick(ok, "base"); if (e && v >= best * 0.6) take(e); else open.push(k); });
+    // fill-ins: best remaining pick, preferring a day the other cards don't cover yet
+    open.forEach(() => {
+      const days = new Set(top.map((x) => info.get(x.id).d));
+      let bi = null, bv = -1;
+      for (const e of uniq) { if (used.has(e.id)) continue; const i = info.get(e.id); const v = adj(e, i.base) * (days.has(i.d) ? 0.6 : 1) * (i.d > 14 ? 0.8 : 1); if (v > bv) { bv = v; bi = e; } }
+      if (bi) take(bi);
+    });
+    // keep the slot order for display: today, tomorrow, weekend, radar (fill-ins slot in where they're dated)
+    top.sort((x, y) => info.get(x.id).d - info.get(y.id).d);
+    const rest = uniq.filter((e) => !used.has(e.id));
     return [...top, ...rest];
   }, [data, today, intentSel, social]);
   // Remember what headed For you today (once per day per event), so ignored picks fade on later days
