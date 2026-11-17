@@ -121,7 +121,6 @@ export function PicOverlay({ ev, size = 36, mood }) {
         <Icon name="save" size={Math.round(size * 0.46)} fill={saved ? "currentColor" : "none"} />
       </button>
       {mood && m && <span className="row" style={{ position: "absolute", left: 0, top: 0, gap: 6, padding: "7px 12px 7px 11px", borderBottomRightRadius: 14, background: m.color, color: "#fff", fontSize: 12.5, fontWeight: 500 }}>{React.createElement(m.icon, { size: 14, strokeWidth: 2.2 })}{m.label}</span>}
-      {ev.busy && <span className="tag tag-warn" style={{ position: "absolute", left: 8, bottom: 8 }}>Clash</span>}
     </>
   );
 }
@@ -155,7 +154,6 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit, t
 export function Flags({ ev }) {
   return (
     <>
-      {ev.busy && <span className="tag tag-warn">Clashes with your calendar</span>}
       {ev.recurring && <span className="tag tag-plain">{(ev.recLabel || "Recurring").split(" · ")[0]}</span>}
       <WeatherTag ev={ev} />
     </>
@@ -199,7 +197,7 @@ const tap = (fn, ev) => ({ role: "button", tabIndex: 0, onClick: () => fn(ev), o
 export function HeroCard({ ev, dark, today, onOpen, label }) {
   const seenRef = useSeen(ev);
   return (
-    <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 10, width: "100%", opacity: 1, cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Media ev={ev} dark={dark} height={190} big />
         <PicOverlay ev={ev} size={40} />
@@ -253,7 +251,7 @@ export function DotScroll({ children, className = "hscroll", style, onMore }) {
 export function CompactCard({ ev, dark, today, onOpen, label, when }) {
   const seenRef = useSeen(ev);
   return (
-    <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: ev.busy ? 0.6 : 1, cursor: "pointer" }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: 1, cursor: "pointer" }}>
       <div style={{ width: 96, flexShrink: 0, position: "relative" }}><Media ev={ev} dark={dark} height={112} radius={16} hideTitle /><PicOverlay ev={ev} size={28} /></div>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet ev={ev} size={16} dark={dark} />{catLabel(ev)}</span>}
@@ -305,7 +303,7 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
   if (fluid) {
     const line = [act, area].filter(Boolean).join(" · ");
     return (
-      <div {...tap(onOpen, ev)} ref={seenRef} style={{ position: "relative", width: "100%", borderRadius: 20, overflow: "hidden", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
+      <div {...tap(onOpen, ev)} ref={seenRef} style={{ position: "relative", width: "100%", borderRadius: 20, overflow: "hidden", cursor: "pointer", opacity: 1 }}>
         <Media ev={ev} dark={dark} height={210} radius={20} hideTitle />
         <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 30%, rgba(10,12,30,.72) 100%)" }} />
         <PicOverlay ev={ev} size={30} mood />
@@ -322,7 +320,7 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
   }
   const top = area && (act + " · " + area).length <= 24 ? act + " · " + area : act; // the area only when it fits
   return (
-    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: fluid ? "100%" : 168, minWidth: 0, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: ev.busy ? 0.6 : 1 }}>
+    <div {...tap(onOpen, ev)} ref={seenRef} style={{ width: fluid ? "100%" : 168, minWidth: 0, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, color: "var(--ink)", cursor: "pointer", opacity: 1 }}>
       <div style={{ position: "relative" }}><Media ev={ev} dark={dark} height={fluid ? 200 : 140} radius={18} hideTitle /><PicOverlay ev={ev} size={30} /></div>
       <span className="row" style={{ gap: 5, minWidth: 0, height: 18, marginTop: 2 }}><CatBullet ev={ev} size={16} dark={dark} /><span className="ell" style={{ fontSize: 12, fontWeight: 400, color: "var(--ink2)" }}>{top}</span></span>
       <div className="disp ell" style={{ fontSize: fluid ? 18 : 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>{ev.title}</div>
