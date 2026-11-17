@@ -617,10 +617,10 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
         <>
           <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Best picks for your next outing." />
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} onOrder={onIntentOrder} />
-          <div className="row" style={{ padding: "12px 20px 0", gap: 14, flexWrap: "wrap", rowGap: 4 }}>
+          <div className="hscroll" style={{ padding: "12px 20px 0", gap: 11, alignItems: "center", flexWrap: "nowrap" }}>
             <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>With</span>
             {[{ id: null, label: "Any" }, ...SOCIAL].map((m) => { const on = social === m.id; return (
-              <button key={m.label} aria-pressed={on} onClick={() => putSocial(m.id)} style={{ border: "none", background: "none", padding: "4px 0", fontSize: 13.5, fontWeight: on ? 800 : 600, color: on ? "var(--ink)" : "var(--ink3)", opacity: on ? 1 : 0.8, textDecoration: on ? "underline" : "none", textUnderlineOffset: 4, textDecorationThickness: 2 }}>{m.label}</button>
+              <button key={m.label} aria-pressed={on} onClick={() => putSocial(m.id)} className="row" style={{ gap: 5, border: "none", background: "none", padding: "4px 0", fontSize: 13, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", color: on ? "var(--ink)" : "var(--ink3)", opacity: on ? 1 : 0.6 }}>{m.icon && React.createElement(m.icon, { size: 14, strokeWidth: 2.2 })}{m.label}</button>
             ); })}
           </div>
           {bestNow.length > 0 ? (
