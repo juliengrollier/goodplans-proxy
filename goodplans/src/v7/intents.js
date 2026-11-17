@@ -7,40 +7,49 @@ import { daysUntil } from "../lib/core.js";
 // Ten moods. Each category has exactly one home mood (its label and colour); "acts" lists activities that also belong
 // to a second mood, each for a stated reason. lateActs count only when they start at 9 PM or later.
 export const INTENTS = [
-  { id: "music", label: "Live music", color: "#7C3AED", icon: Music, cats: ["Concerts"], acts: [], dims: {} },
-  { id: "show", label: "Showtime", color: "#2563EB", icon: Drama, cats: ["Theater", "Dance & Opera", "Film", "Live Sports"], acts: [], dims: {} },
+  { id: "music", label: "Live music", short: "Music", color: "#7C3AED", icon: Music, cats: ["Concerts"], acts: [], dims: {} },
+  { id: "show", label: "Showtime", short: "Showtime", color: "#DC2626", icon: Drama, cats: ["Theater", "Dance & Opera", "Film", "Live Sports"], acts: [], dims: {} },
   // Drag, magic and circus are variety entertainment as much as theatre
-  { id: "laugh", label: "Have a laugh", color: "#D97706", icon: Laugh, cats: ["Comedy"], acts: ["drag", "magic", "circus"], dims: {} },
+  { id: "laugh", label: "A laugh", short: "A laugh", color: "#F97316", icon: Laugh, cats: ["Comedy"], acts: ["drag", "magic", "circus"], dims: {} },
   // Improv jams and comedy open mics: you can get up yourself
-  { id: "play", label: "Play", color: "#CA8A04", icon: Dices, cats: ["Trivia & Quizzes", "Board & Card Games", "Arcades & VR", "Bar Games & Bowling", "Escape Rooms & Puzzles", "Karaoke"], acts: ["open-mic-comedy"], dims: {} },
+  { id: "play", label: "Play", short: "Play", color: "#EAB308", icon: Dices, cats: ["Trivia & Quizzes", "Board & Card Games", "Arcades & VR", "Bar Games & Bowling", "Escape Rooms & Puzzles", "Karaoke"], acts: ["open-mic-comedy"], dims: {} },
   // Gardens, birding, stargazing: learning as much as being outdoors
-  { id: "curious", label: "Get curious", color: "#4F46E5", icon: Lightbulb, cats: ["Talks & Panels", "Books & Readings", "Tours", "Museums & Galleries"], acts: ["botanic-garden", "birding", "stargazing", "documentary", "film-qa", "readings-theatre"], dims: { "tone=thoughtful": 0.3 } },
+  { id: "curious", label: "Get curious", short: "Curious", color: "#4F46E5", icon: Lightbulb, cats: ["Talks & Panels", "Books & Readings", "Tours", "Museums & Galleries"], acts: ["botanic-garden", "birding", "stargazing", "documentary", "film-qa", "readings-theatre"], dims: { "tone=thoughtful": 0.3 } },
   // Walking, history, architecture and harbour tours: discovering the city on foot
-  { id: "explore", label: "Explore", color: "#0891B2", icon: Compass, cats: ["Parks & Nature", "Markets", "Festivals & Parades"], acts: ["walking-tour", "history-tour", "architecture", "harbor-history", "ghost-tour", "food-tour"], dims: {} },
+  { id: "explore", label: "Explore", short: "Explore", color: "#0891B2", icon: Compass, cats: ["Parks & Nature", "Markets", "Festivals & Parades"], acts: ["walking-tour", "history-tour", "architecture", "harbor-history", "ghost-tour", "food-tour"], dims: {} },
   // Galleries and art openings: the art scene and inspiration; zines and maker fairs: making things
-  { id: "create", label: "Get creative", color: "#BE185D", icon: Palette, cats: ["Arts & Crafts", "Cooking & Cocktails"], acts: ["gallery", "art-opening", "art-fair", "immersive-art", "zines", "maker-fair"], dims: { "mode=take-part": 0.3 } },
+  { id: "create", label: "Get creative", short: "Creative", color: "#EC4899", icon: Palette, cats: ["Arts & Crafts", "Cooking & Cocktails"], acts: ["gallery", "art-opening", "art-fair", "immersive-art", "zines", "maker-fair"], dims: { "mode=take-part": 0.3 } },
   // Dance classes and socials: you're moving all evening
-  { id: "active", label: "Get active", color: "#16A34A", icon: Activity, cats: ["Running", "Cycling", "Pickup Sports", "Climbing & Skating", "Hiking & Walks", "Water Sports", "Yoga & Wellness"], acts: ["dance-class", "salsa", "swing-dance", "tango", "contra", "bar-sports-league"], dims: { "body=active": 0.6, "body=seated": -0.4 } },
+  { id: "active", label: "Get active", short: "Active", color: "#16A34A", icon: Activity, cats: ["Running", "Cycling", "Pickup Sports", "Climbing & Skating", "Hiking & Walks", "Water Sports", "Yoga & Wellness"], acts: ["dance-class", "salsa", "swing-dance", "tango", "contra", "bar-sports-league"], dims: { "body=active": 0.6, "body=seated": -0.4 } },
   // Loud, late and social; a late gig is a night out
-  { id: "party", label: "Party", color: "#C026D3", icon: PartyPopper, cats: ["Clubs & DJs", "Dance Socials"], acts: ["karaoke", "drag", "burlesque", "silent-disco", "queer-party"], lateActs: ["indie", "punk", "hiphop", "electronic", "latin-music"], dims: { "energy=wild": 0.4, "energy=calm": -0.4 }, late: 0.2 },
+  { id: "party", label: "Party", short: "Party", color: "#C026D3", icon: PartyPopper, cats: ["Clubs & DJs", "Dance Socials"], acts: ["karaoke", "drag", "burlesque", "silent-disco", "queer-party"], lateActs: ["indie", "punk", "hiphop", "electronic", "latin-music"], dims: { "energy=wild": 0.4, "energy=calm": -0.4 }, late: 0.2 },
   // Food is the point; you eat what you make in a class
-  { id: "eat", label: "Eat & drink", color: "#EA580C", icon: Utensils, cats: ["Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours"], acts: ["food-tour", "farmers-market", "holiday-market", "cooking-class", "baking-class", "cocktail-class"], dims: {} },
+  { id: "eat", label: "Eat & drink", short: "Eat & drink", color: "#B45309", icon: Utensils, cats: ["Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours"], acts: ["food-tour", "farmers-market", "holiday-market", "cooking-class", "baking-class", "cocktail-class"], dims: {} },
 ];
 
-// Who with: a switch, not a mood. It reranks whatever is shown toward dates or toward meeting people.
+// Who with: a switch, not a mood. It reranks whatever is shown toward the company you're in (Kids also filters out
+// anything adults-only).
 export const SOCIAL = [
-  { id: "date", label: "Date", icon: Heart, color: "#E11D48",
-    acts: ["wine", "cocktails", "rooftop", "jazz", "classical", "cabaret", "repertory", "foreign-film", "opera", "ballet", "dance-performance", "immersive-theatre", "pottery", "painting-class", "cooking-class", "cocktail-class", "supper-club", "museum-late", "art-opening", "stargazing", "tango", "salsa", "chocolate", "cheese", "standup", "improv", "singer-songwriter", "botanic-garden"],
-    dims: { "social=date": 0.8, "tone=romantic": 0.6, "crowd=intimate": 0.3, "noise=quiet": 0.2, "crowd=big": -0.3, "audience=kids": -0.8 } },
-  { id: "meet", label: "Meet people", icon: Users, color: "#DB2777",
+  { id: "meet", label: "Meet people",
     acts: ["language-exchange", "speed-dating", "run-club", "bar-sports-league", "kickball", "volleyball", "frisbee", "potluck", "volunteering", "gardening", "board-games", "dnd", "mahjong", "chess", "trivia", "dance-class", "salsa", "swing-dance", "contra", "tango", "cooking-class", "book-club", "open-mic-music", "jam-session", "open-mic-comedy", "cycling-ride", "workshop-career", "karaoke"],
     dims: { "mode=mingle": 0.8, "social=group": 0.3, "mode=take-part": 0.2, "mode=watch": -0.3 } },
+  { id: "date", label: "Date",
+    acts: ["wine", "cocktails", "rooftop", "jazz", "classical", "cabaret", "repertory", "foreign-film", "opera", "ballet", "dance-performance", "immersive-theatre", "pottery", "painting-class", "cooking-class", "cocktail-class", "supper-club", "museum-late", "art-opening", "stargazing", "tango", "salsa", "chocolate", "cheese", "standup", "improv", "singer-songwriter", "botanic-garden"],
+    dims: { "social=date": 0.8, "tone=romantic": 0.6, "crowd=intimate": 0.3, "noise=quiet": 0.2, "crowd=big": -0.3, "audience=kids": -0.8 } },
+  { id: "friends", label: "Friends",
+    acts: ["trivia", "bowling", "karaoke", "board-games", "escape-room", "mini-golf", "pinball", "arcade", "skee-ball", "ping-pong", "bocce", "darts", "pool", "shuffleboard", "axe-throwing", "beer-garden", "dive-bar", "happy-hour", "brewery", "food-crawl", "watch-party", "standup", "improv", "dj-party", "puzzle-hunt", "murder-mystery"],
+    dims: { "social=group": 0.8, "energy=lively": 0.3, "mode=take-part": 0.2, "social=date": -0.3, "audience=kids": -0.5 } },
+  { id: "kids", label: "Kids", strict: true,
+    acts: ["puppets", "circus", "magic", "animation", "parade", "tree-lighting", "ice-skating", "roller-skating", "botanic-garden", "museum", "mini-golf", "skee-ball", "arcade", "bowling", "street-fair", "cultural-festival", "fireworks", "holiday-market", "farmers-market", "birding", "stargazing", "outdoor-film", "gardening", "baking-class", "pottery", "hiking", "kayaking"],
+    dims: { "audience=kids": 1, "audience=all-ages": 0.45, "audience=adults": -0.6, "audience=21+": -2, "energy=wild": -0.3, "noise=loud": -0.2 } },
 ];
+const ADULT_ONLY = new Set(["Clubs & DJs", "Bars & Happy Hours", "Tastings"]);
 export const SOCIAL_BY = Object.fromEntries(SOCIAL.map((m) => [m.id, m]));
 const SOC_SETS = Object.fromEntries(SOCIAL.map((m) => [m.id, new Set(m.acts)]));
 // 0 … 1: how well an event fits a date / meeting people
 export function socialFit(e, id) {
   const m = SOCIAL_BY[id]; if (!m) return 1;
+  if (id === "kids" && (e.dims?.audience === "21+" || ADULT_ONLY.has(e.ncat) || /21\+|18\+|adults only/i.test([e.title, e.desc, ...(e.tags || [])].join(" ")))) return 0;
   let f = SOC_SETS[id].has(e.act) ? 0.8 : 0;
   for (const [k, w] of Object.entries(m.dims)) { const [d, v] = k.split("="); if (e.dims?.[d] === v) f += w * 0.6; }
   return Math.max(0, Math.min(1, f));
@@ -50,7 +59,7 @@ export function applySocial(list, id) {
   if (!id || !SOCIAL_BY[id]) return list;
   const fit = new Map(list.map((e) => [e.id, socialFit(e, id)]));
   const good = list.filter((e) => fit.get(e.id) >= 0.3);
-  const base = good.length >= 4 ? good : list;
+  const base = SOCIAL_BY[id].strict || good.length >= 4 ? good : list;
   return base.map((e, i) => [e, i - 40 * fit.get(e.id)]).sort((a, b) => a[1] - b[1]).map(([e]) => e);
 }
 export const INTENT = Object.fromEntries(INTENTS.map((i) => [i.id, i]));

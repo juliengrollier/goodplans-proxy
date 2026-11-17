@@ -863,14 +863,14 @@ export default function App() {
     if (/^(mood|pick|gen)-/.test(t.key || "") && t.list) { moodSession.current = { key: t.key, ids: new Set(t.list.map((e) => e.id)), at: Date.now(), adj: !!t.adj, title: t.title }; logMood("opened", t.key, !!t.adj, t.title); }
     if (t.f && /^gen-/.test(t.key || "")) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.08); putModel(m); } // opening is a light vote
     if (/^(mood|pick|gen)-/.test(t.key || "")) { const c = { ...moodClicks, [t.key]: { n: (moodClicks[t.key]?.n || 0) + 1, at: Date.now() } }; setMoodClicks(c); try { localStorage.setItem("gp_moodclicks_v1", JSON.stringify(c)); } catch { /* full */ } if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } } }
-    const base = { ...filters, fam: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
+    const base = { ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids: [], list: t.title, price: "any", when: EMPTY_FILTERS.when, noClash: false, q: "" };
     setFilters(t.list ? { ...base, ids: t.list.map((e) => e.id), when: "any" } : { ...base, ...t.patch });
     setTab("explore"); window.scrollTo(0, 0);
   };
   // Map-only "Around you right now": open the full Map tab on the same pins
   // Closing a mood page: filters back to default, then Home at the "For you" section
   const closeList = () => { setViewStack([]); setFilters({ ...EMPTY_FILTERS, xcats: filters.xcats || [], xsubs: filters.xsubs || [] }); setTab("today"); setTimeout(() => { const el = document.getElementById("for-you"); if (el) el.scrollIntoView(); else window.scrollTo(0, 0); }, 60); };
-  const openFullMap = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
+  const openFullMap = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("map"); window.scrollTo(0, 0); };
   // ── Taste chart in Me: each dimension as an axis; a nudge moves it a notch
   const axes = useMemo(() => ({
     axes: L.AXES.map(([dim, loL, lo, hiL, hi]) => ({ dim, loL, lo, hiL, hi, v: L.axisScore(modelRef.current, dim, lo, hi) })),
