@@ -782,6 +782,7 @@ export default function App() {
     const qz = { answers: ans, profile: prof, v: Q.QUIZ_VERSION, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
     setShowQuiz(false); setTab("today"); window.scrollTo(0, 0); { let nm = ""; try { nm = localStorage.getItem("gp_name_v1") || ""; } catch { /* private */ } toast("Nice to meet you" + (nm ? ", " + nm : "") + ". Here are your good plans."); }
     if (wantMeet != null) setTimeout(() => setMeetOn(wantMeet), 0);
+    if (ans.moods?.length) setTimeout(() => learnIntentOrder(ans.moods), 0); // favourite moods teach taste like the custom order
   };
 
   // ── Picks: personal lists from your strongest taste combinations (next 7 days)
