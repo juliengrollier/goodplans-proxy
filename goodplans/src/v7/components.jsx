@@ -293,7 +293,8 @@ export function shortWhen(ev, today) {
     if (multi) { nx = nextOn(ev, new Date(t0.getTime() + 86400000)); if (nx) d = Math.round((nx - t0) / 86400000); }
     if (d === 0) return fmtClock(st);
   }
-  const day = d === 1 ? "Tomorrow" : new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long" });
+  // a weekday name only within the coming week; further out, the date ("Thu Nov 26")
+  const day = d === 1 ? "Tomorrow" : d < 7 ? new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long" }) : new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "");
   return day + (st != null ? " " + fmtClock(st) : "");
 }
 
@@ -363,12 +364,13 @@ export function SectionHead({ title, n, color, icon, onMore }) {
 }
 
 export function TabBar({ tab, setTab, plansCount }) {
-  const items = [["today", new Date().getHours() >= 18 ? "Tonight" : "Today"], ["explore", "Explore"], ["map", "Map"], ["plans", "Plans"], ["me", "Me"]];
+  const night = new Date().getHours() >= 18;
+  const items = [["today", night ? "Tonight" : "Today"], ["explore", "Explore"], ["map", "Map"], ["plans", "Plans"], ["me", "Me"]];
   return (
     <nav className="tabbar" aria-label="Main">
       {items.map(([k, l]) => (
         <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)} style={{ position: "relative" }}>
-          <span className="tab-ic"><Icon name={k} size={22} width={tab === k ? 2.4 : 2.2} /></span>
+          <span className="tab-ic"><Icon name={k === "today" && night ? "moon" : k} size={22} width={tab === k ? 2.4 : 2.2} /></span>
           <span>{l}</span>
           {k === "plans" && plansCount > 0 && tab !== "plans" && <span style={{ position: "absolute", top: 2, right: "24%", minWidth: 16, height: 16, borderRadius: 8, background: "#F2611D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{plansCount}</span>}
         </button>

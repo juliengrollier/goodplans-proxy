@@ -2,6 +2,8 @@ import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, CatBullet, ActionsCtx } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { LIcon } from "./taxonomy.js";
+import { Star } from "lucide";
+import { INTENTS } from "./intents.js";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
 import { startMinutes, whenLabel } from "./engine.js";
@@ -57,6 +59,11 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
     if (groupBy === "area") { const a = neighbourhoodOf(e) || (e.hood ? String(e.hood).split(",")[0].trim() : "") || "Elsewhere"; return [a, 0]; }
     return [e.ncat || e.cat || "Other", 0];
   };
+  // For me, now: the raw taste score (not capped at 100), sooner first, and a lift for the moods and categories you favourited
+  const favMoods = useMemo(() => { try { return JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); } catch { return []; } }, [moodFav]); // eslint-disable-line react-hooks/exhaustive-deps
+  const favCats = useMemo(() => new Set([...INTENTS.filter((m) => favMoods.includes(m.id)).flatMap((m) => m.cats || []), ...moodFav.filter((k) => k.startsWith("gen-cat-")).map((k) => k.slice(8))]), [favMoods, moodFav]);
+  const favCatBonus = (e) => (e && favCats.has(e.ncat) ? 14 : 0);
+  const personal = (e) => (e.raw ?? e.sc ?? 0) - 2.5 * Math.min(10, Math.max(0, daysUntil(e, today)));
   const groupUp = (list) => {
     const by = new Map(), ord = {};
     list.forEach((e) => { const [k, o] = keyOf(e); if (!by.has(k)) { by.set(k, []); ord[k] = o; } by.get(k).push(e); });
@@ -64,7 +71,7 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
     if (groupBy === "day") out = out.sort((a, b) => ord[a[0]] - ord[b[0]]).map(([k, l]) => [k, l.slice().sort((x, y) => (startMinutes(x) ?? 9999) - (startMinutes(y) ?? 9999))]);
     if (groupBy === "area") out = out.sort((a, b) => (a[0] === "Elsewhere") - (b[0] === "Elsewhere") || b[1].length - a[1].length);
     // Categories you like come first: ranked by the average score of their best three events (your taste is in the score)
-    if (groupBy === "cat") { const fit = (l) => { const t = l.map((e) => e.sc || 0).sort((a, b) => b - a).slice(0, 3); return t.reduce((a, b) => a + b, 0) / t.length; }; out = out.sort((a, b) => fit(b[1]) - fit(a[1])); }
+    if (groupBy === "cat") { const fit = (l) => { const t = l.map(personal).sort((a, b) => b - a).slice(0, 3); return t.reduce((a, b) => a + b, 0) / t.length + favCatBonus(l[0]); }; out = out.sort((a, b) => fit(b[1]) - fit(a[1])).map(([k, l]) => [k, l.slice().sort((x, y) => personal(y) - personal(x))]); }
     return out;
   };
   const catGroups = useMemo(() => groupUp(results.slice(0, 160).filter((e) => !(fromTile && act.isSaved(e.id)))), [results, fromTile, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -101,8 +108,12 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
       {!filters.list && (<FilterHeader filters={filters} setFilters={(f) => { setFilters((f.ids || []).length ? f : { ...f, list: null }); setLimit(40); }} sort={sort} setSort={setSort} dark={dark} items={scored} today={today} style={{ position: "sticky", top: 0, zIndex: 20 }} />)}
       {filters.list && (() => {
         const meta = listTile || (listMeta && listMeta.title === filters.list ? listMeta : null);
-        const col = meta?.color || "#1F2A5C";
-        const ico = (n) => (meta?.node ? <LIcon node={meta.node} size={n} color="#fff" stroke={2.2} /> : meta?.icon ? React.createElement(meta.icon, { size: n, strokeWidth: 2.2 }) : null);
+        // very dark list colours (navy) vanish on the dark theme: swap for a readable indigo there
+        const raw = meta?.color || "#1F2A5C";
+        const lum = (() => { const m = /^#?([0-9a-f]{6})$/i.exec(raw); if (!m) return 1; const n = parseInt(m[1], 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; })();
+        const col = dark && lum < 0.3 ? "#818CF8" : raw;
+        const forYou = /^for you$/i.test(meta?.verb || "");
+        const ico = (n) => (forYou ? <LIcon node={Star} size={n} color="#fff" stroke={2.2} fill="#fff" /> : meta?.node ? <LIcon node={meta.node} size={n} color="#fff" stroke={2.2} /> : meta?.icon ? React.createElement(meta.icon, { size: n, strokeWidth: 2.2 }) : null);
         const btn = { width: 38, height: 38, borderRadius: 19, border: "1px solid var(--line, rgba(128,128,128,.25))", background: "var(--card)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 };
         const on = listTile && moodFav.includes(listTile.key);
         const first = results[0];
@@ -147,22 +158,18 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
           </div>
         );
       })()}
-      {!filters.list && <div className="row" style={{ padding: "20px 16px 12px", gap: 6 }} role="tablist">
-        <button role="tab" aria-selected={view === "all"} className={"chip" + (view === "all" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("all")}>All · {results.length}</button>
-        <button role="tab" aria-selected={view === "regulars"} className={"chip" + (view === "regulars" ? " on" : "")} style={{ height: 32 }} onClick={() => setView("regulars")}>Recurring · {nReg}</button>
-        {view === "all" && (
-          <span className="row" style={{ marginLeft: "auto", gap: 4 }} role="group" aria-label="Layout">
-            <span className="chip" style={{ height: 32, padding: 0, position: "relative", gap: 0 }}>
-              <select aria-label="Group by" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ appearance: "none", WebkitAppearance: "none", border: "none", background: "transparent", color: "inherit", font: "inherit", fontSize: 13, fontWeight: 800, height: "100%", padding: "0 26px 0 12px" }}>
-                <option value="cat">Category</option><option value="day">Day</option><option value="area">Area</option>
-              </select>
-              <span style={{ position: "absolute", right: 8, top: 8, pointerEvents: "none", display: "flex" }}><Icon name="chevdown" size={15} /></span>
+      {!filters.list && (
+        // Same layout row as the results pages: a count, then one segmented switch (Recurring is the fourth way to look)
+        <div className="row" style={{ padding: "20px 12px 12px 20px", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", whiteSpace: "nowrap" }}>{view === "regulars" ? nReg : results.length}</span>
+          <span className="row" style={{ gap: 6, alignItems: "center" }}>
+            <span className="row" role="group" aria-label="Group by" style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)" }}>
+              {[["cat", "Category"], ["day", "Date"], ["area", "Area"], ["rec", "Recurring"]].map(([k, l]) => { const on = k === "rec" ? view === "regulars" : view === "all" && groupBy === k; return <button key={k} aria-pressed={on} onClick={() => { if (k === "rec") setView("regulars"); else { setView("all"); setGroupBy(k); } }} style={{ height: 26, padding: "0 7px", borderRadius: 12, border: "none", background: on ? "var(--card)" : "transparent", color: on ? "var(--ink)" : "var(--ink3)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>{l}</button>; })}
             </span>
-            <button className={"chip" + (style === "carousel" ? " on" : "")} aria-pressed={style === "carousel"} aria-label="Carousels" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("carousel")}><Icon name="rows" size={16} /></button>
-            <button className={"chip" + (style === "list" ? " on" : "")} aria-pressed={style === "list"} aria-label="List" style={{ height: 32, width: 36, padding: 0, justifyContent: "center" }} onClick={() => setStyle("list")}><Icon name="list" size={16} /></button>
+            {view === "all" && <button className="chip" aria-label={style === "list" ? "Show as carousels" : "Show as a list"} style={{ height: 30, width: 32, padding: 0, justifyContent: "center" }} onClick={() => setStyle(style === "list" ? "carousel" : "list")}><Icon name={style === "list" ? "rows" : "list"} size={15} /></button>}
           </span>
-        )}
-      </div>}
+        </div>
+      )}
 
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 8, marginBottom: 14 }}>

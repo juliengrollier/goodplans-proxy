@@ -4,7 +4,7 @@
 import React from "react";
 import {
   Popcorn, Headphones, UtensilsCrossed, PartyPopper, Scissors, Activity, Compass, GraduationCap,
-  Drama, Laugh, Clapperboard, Sparkles, Trophy, Guitar, Music2, Piano, Star, Wine, Soup, Martini, Disc3, Footprints, MicVocal,
+  Drama, Laugh, Clapperboard, Sparkles, Trophy, Guitar, Music2, Piano, Star, Heart, Wine, Soup, Martini, Disc3, Footprints, MicVocal,
   Palette, ChefHat, Bike, Flower2, Volleyball, Landmark, ShoppingBasket, FerrisWheel, Trees, Presentation, BookOpen, Signpost,
   Gamepad2, Dices, Joystick, KeyRound, Target, Brain, Waves, Mountain, MountainSnow, Timer,
 } from "lucide";
@@ -143,8 +143,8 @@ export function CatChip({ c, label, n, on, off, starred, dark, onPick, onHide, o
   const seg = { display: "inline-flex", alignItems: "center", justifyContent: "center", height: "100%", border: "none", background: "none", color: "inherit", font: "inherit" };
   const name = label || c.id;
   return React.createElement("span", { className: "chip", style: { height: 32, flexShrink: 0, gap: 0, padding: 0, overflow: "hidden", background: on ? col : undefined, color: on ? "#fff" : undefined, borderColor: on ? col : starred ? col : undefined, opacity: off ? 0.5 : 1 } },
-    onStar && React.createElement("button", { onClick: onStar, "aria-pressed": !!starred, "aria-label": (starred ? "Remove boost: " : "Boost: ") + name, style: { ...seg, width: 30, paddingLeft: 4 } },
-      React.createElement(LIcon, { node: Star, size: 15, color: on ? "#fff" : starred ? col : "var(--ink3)", stroke: 2.2, fill: starred ? (on ? "#fff" : col) : "none" })),
+    onStar && React.createElement("button", { onClick: onStar, "aria-pressed": !!starred, "aria-label": (starred ? "Remove from favorites: " : "Add to favorites: ") + name, style: { ...seg, width: 30, paddingLeft: 4 } },
+      React.createElement(LIcon, { node: Heart, size: 15, color: on ? "#fff" : starred ? col : "var(--ink3)", stroke: 2.2, fill: starred ? (on ? "#fff" : col) : "none" })),
     React.createElement("button", { onClick: onPick, "aria-pressed": on, disabled: off, style: { ...seg, gap: 6, padding: onStar ? "0 6px 0 2px" : "0 6px 0 12px", textDecoration: off ? "line-through" : "none", fontWeight: starred ? 800 : undefined } },
       !label && React.createElement(LIcon, { node: c.icon, size: 14, color: on ? "#fff" : col }), name, React.createElement("span", { style: { opacity: 0.7, fontWeight: 700 } }, n)),
     React.createElement("button", { onClick: onHide, "aria-label": (off ? "Show " : "Hide ") + name, style: { ...seg, width: 30, borderLeft: "1px solid " + (on ? "rgba(255,255,255,.35)" : "var(--line)"), fontSize: 15, fontWeight: 700 } }, off ? "↺" : "×"));

@@ -357,7 +357,7 @@ export function scoreEvent(ev, ctx) {
   if (runLen(ev) === 1) why.push("One night only");
   else if (Math.round((evEnd(ev) - today) / 86400000) <= 5 && runLen(ev) > 3) why.push(Math.round((evEnd(ev) - today) / 86400000) <= 3 ? "Last chance" : "Ends soon");
   if (ev.tier === 1 && ev.src) why.push("Picked by " + ev.src);
-  return { ...ev, sc: Math.max(0, Math.min(100, Math.round(s))), bd, hidden, why, followed, rain, dark, busy, outdoor, tt: bd.tt, wx: w || null };
+  return { ...ev, sc: Math.max(0, Math.min(100, Math.round(s))), raw: Math.round(s), bd, hidden, why, followed, rain, dark, busy, outdoor, tt: bd.tt, wx: w || null };
 }
 
 // ── Weather badge for an outdoor event (null when nothing worth saying)

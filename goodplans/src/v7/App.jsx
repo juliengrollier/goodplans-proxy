@@ -12,6 +12,7 @@ import { hoodCards, genericCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
 import Today, { clearForyouSeen } from "./Today.jsx";
 import DevFlag, { DEV_KEY } from "./DevFlag.jsx";
+import { loadDetails, withDetails, outsideNYC, fetchDetails } from "./details.js";
 import Explore from "./Explore.jsx";
 import MapView from "./MapView.jsx";
 import Plans from "./Plans.jsx";
@@ -374,7 +375,10 @@ export default function App() {
   }, [ready, events, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const merged = useMemo(() => mergeDuplicates(events), [events]);
   // Regulars added from memory can repeat a listing from the feed: merge again after adding them
-  const allEvents = useMemo(() => mergeDuplicates(withRegulars(merged, rec, today)), [merged, rec, today]);
+  // Looked-up details (exact place, start time, price, ticket link); events outside the city are dropped
+  const [detailsVer, setDetailsVer] = useState(0);
+  const allEvents = useMemo(() => { const det = loadDetails(); return mergeDuplicates(withRegulars(merged, rec, today)).map((e) => withDetails(e, det)).filter((e) => !e.outside && !outsideNYC(e)); }, [merged, rec, today, detailsVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const getDetails = useCallback((list) => { fetchDetails(list, () => setDetailsVer((v) => v + 1)); }, []);
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
@@ -434,6 +438,8 @@ export default function App() {
   const effFree = freeUntil != null && freeUntil > nowMinutes() ? freeUntil : null;
 
   const visible = useMemo(() => scored.filter((e) => !gone(e)), [scored, today, tick, favs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Look up missing details for the top picks and saved plans in the background (a few per day)
+  useEffect(() => { if (!visible.length) return undefined; const t = setTimeout(() => getDetails([...visible.filter((e) => favs[e.id]), ...visible.slice(0, 10)]), 4000); return () => clearTimeout(t); }, [visible.length]); // eslint-disable-line react-hooks/exhaustive-deps
   // Yearly NYC events as standing regulars (nyc.js), scored like any event
   const annual = useMemo(() => annualItems(today, visible).map((e) => scoreOne(e)).filter((e) => !e.hidden), [today, visible, scoreOne]);
   // The week's top picks: shown on Today and used as the only source for the "don't miss" paragraph, so the text never mentions something that is not on screen
@@ -575,6 +581,7 @@ export default function App() {
   // ── Event sheet and deep links
   const openEvent = useCallback((ev) => {
     if (ev?.id) clearForyouSeen(ev.id);
+    if (ev?.id) getDetails([ev]);
     setOpenEv(ev.id); track(ev, "viewedCats");
     putModel(L.learn(L.markOpened(modelRef.current, ev.id), ev, "open", floorDay(new Date())));
   }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -944,7 +951,15 @@ export default function App() {
       if (st[kind][id]) delete st[kind][id]; else st[kind][id] = true;
       const t = { ...tasteRef.current, stars: st };
       tasteRef.current = t; saveTaste(t);
-      toast(st[kind][id] ? "Boosted " + id + ": you'll see more of it" : "Boost removed");
+      // the heart also puts the category or sub-type in My favorites (when it has a list of its own)
+      const pool = [...(tileSet?.all || []), ...(tileSet?.every || [])];
+      const tile = pool.find((x) => x.key === "gen-cat-" + id) || pool.find((x) => kind === "subs" && /^gen-sub-/.test(x.key) && x.key.endsWith("|" + id));
+      const on = !!st[kind][id];
+      if (tile && on !== moodFav.includes(tile.key)) {
+        const f = on ? [...moodFav, tile.key].slice(-30) : moodFav.filter((k) => k !== tile.key);
+        setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
+      }
+      toast(on ? "Added to your favorites" : "Removed from your favorites");
     },
     thumbOf: (id) => taste.thumbs[id] || 0,
   };
@@ -969,7 +984,7 @@ export default function App() {
           locSt={locSt} onRetryGPS={() => locate(true)} />}
       </div>
 
-      <TabBar tab={tab} setTab={navTab} plansCount={plansCount} />
+      <TabBar tab={tab} setTab={(t) => { if (t === "explore" || t === "map") setFilters((f) => ({ ...EMPTY_FILTERS, xcats: f.xcats || [], xsubs: f.xsubs || [] })); navTab(t); }} plansCount={plansCount} />
 
       {showTour && <Tour onDone={() => setShowTour(false)} />}
       {devMode && <DevFlag events={scored} screen={tab} openEv={openEv} />}
