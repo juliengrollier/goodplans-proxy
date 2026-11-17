@@ -71,6 +71,8 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
     if (groupBy === "area") out = out.map(([k, l]) => [k, l.slice().sort((x, y) => (y.rk ?? 0) - (x.rk ?? 0))]);
     return out;
   };
+  // Ranked: one list in your ranking order (rank.js), no grouping
+  const ranked = useMemo(() => results.filter((e) => !(fromTile && act.isSaved(e.id))).slice().sort((a, b) => (b.rk ?? b.sc ?? 0) - (a.rk ?? a.sc ?? 0)), [results, fromTile, act]);
   const catGroups = useMemo(() => groupUp(results.slice(0, 160).filter((e) => !(fromTile && act.isSaved(e.id)))), [results, fromTile, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
   const groups = useMemo(() => (fromTile ? groupUp(results.slice(0, limit).filter((e) => !act.isSaved(e.id))) : null), [results, fromTile, limit, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -149,7 +151,7 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
             <div className="row" style={{ padding: "0 16px 12px 20px", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Coming up</span>
               <span className="row" role="group" aria-label="Group by" style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)" }}>
-                {[["cat", "Category"], ["day", "Date"]].map(([k, l]) => <button key={k} aria-pressed={groupBy === k} onClick={() => setGroupBy(k)} style={{ height: 26, padding: "0 11px", borderRadius: 12, border: "none", background: groupBy === k ? "var(--card)" : "transparent", color: groupBy === k ? "var(--ink)" : "var(--ink3)", fontSize: 12.5, fontWeight: 700, boxShadow: groupBy === k ? "0 1px 3px rgba(0,0,0,.12)" : "none" }}>{l}</button>)}
+                {[["rank", "Ranked"], ["cat", "Category"], ["day", "Date"]].map(([k, l]) => <button key={k} aria-pressed={groupBy === k} onClick={() => setGroupBy(k)} style={{ height: 26, padding: "0 11px", borderRadius: 12, border: "none", background: groupBy === k ? "var(--card)" : "transparent", color: groupBy === k ? "var(--ink)" : "var(--ink3)", fontSize: 12.5, fontWeight: 700, boxShadow: groupBy === k ? "0 1px 3px rgba(0,0,0,.12)" : "none" }}>{l}</button>)}
               </span>
             </div>
           </div>
@@ -159,11 +161,11 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
         // Same layout row as the results pages: a count, then one segmented switch (Recurring is the fourth way to look)
         <div className="row" style={{ padding: "20px 12px 12px 20px", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", whiteSpace: "nowrap" }}>{view === "regulars" ? nReg : results.length}</span>
-          <span className="row" style={{ gap: 6, alignItems: "center" }}>
-            <span className="row" role="group" aria-label="Group by" style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)" }}>
-              {[["cat", "Category"], ["day", "Date"], ["area", "Area"], ["rec", "Recurring"]].map(([k, l]) => { const on = k === "rec" ? view === "regulars" : view === "all" && groupBy === k; return <button key={k} aria-pressed={on} onClick={() => { if (k === "rec") setView("regulars"); else { setView("all"); setGroupBy(k); } }} style={{ height: 26, padding: "0 7px", borderRadius: 12, border: "none", background: on ? "var(--card)" : "transparent", color: on ? "var(--ink)" : "var(--ink3)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>{l}</button>; })}
+          <span className="row" style={{ gap: 6, alignItems: "center", minWidth: 0 }}>
+            <span className="row hscroll" role="group" aria-label="Group by" style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)", minWidth: 0, overflowX: "auto", flexWrap: "nowrap" }}>
+              {[["rank", "Ranked"], ["cat", "Category"], ["day", "Date"], ["area", "Area"], ["rec", "Recurring"]].map(([k, l]) => { const on = k === "rec" ? view === "regulars" : view === "all" && groupBy === k; return <button key={k} aria-pressed={on} onClick={() => { if (k === "rec") setView("regulars"); else { setView("all"); setGroupBy(k); } }} style={{ height: 26, padding: "0 7px", borderRadius: 12, border: "none", background: on ? "var(--card)" : "transparent", color: on ? "var(--ink)" : "var(--ink3)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>{l}</button>; })}
             </span>
-            {view === "all" && <button className="chip" aria-label={style === "list" ? "Show as carousels" : "Show as a list"} style={{ height: 30, width: 32, padding: 0, justifyContent: "center" }} onClick={() => setStyle(style === "list" ? "carousel" : "list")}><Icon name={style === "list" ? "rows" : "list"} size={15} /></button>}
+            {view === "all" && groupBy !== "rank" && <button className="chip" aria-label={style === "list" ? "Show as carousels" : "Show as a list"} style={{ height: 30, width: 32, flexShrink: 0, padding: 0, justifyContent: "center" }} onClick={() => setStyle(style === "list" ? "carousel" : "list")}><Icon name={style === "list" ? "rows" : "list"} size={15} /></button>}
           </span>
         </div>
       )}
@@ -176,7 +178,7 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
             : <DotScroll>{savedHere.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
         </div>
       )}
-      {view === "all" && style === "carousel" ? (
+      {view === "all" && style === "carousel" && groupBy !== "rank" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 30, paddingTop: 12 }}>
           {catGroups.map(([cat, list]) => (
             <div key={cat}>
@@ -188,14 +190,14 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
         </div>
       ) : view === "all" ? (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-          {groups
+          {groups && groupBy !== "rank"
             ? groups.map(([cat, list]) => (
               <React.Fragment key={cat}>
                 <button aria-expanded={!collapsed[cat]} className="row" onClick={() => setCollapsed({ ...collapsed, [cat]: !collapsed[cat] })} style={{ gap: 8, padding: "6px 4px 0", alignItems: "center", background: "transparent", border: "none", color: "var(--ink)", width: "100%", textAlign: "left" }}><span className="disp" style={{ fontSize: 19 }}>{cat}</span><span className="muted" style={{ fontSize: 13, fontWeight: 800 }}>{list.length}</span><span style={{ marginLeft: "auto", display: "flex", transform: collapsed[cat] ? "rotate(-90deg)" : "none", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span></button>
                 {!collapsed[cat] && list.map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
               </React.Fragment>
             ))
-            : results.slice(0, limit).map((ev) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
+            : (groupBy === "rank" ? ranked : results).slice(0, limit).map((ev, i) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
           {!results.length && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
           {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>Show more</button>}
         </div>
