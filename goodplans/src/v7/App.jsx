@@ -393,7 +393,12 @@ export default function App() {
   const tasteMe = useMemo(() => tasteOf(space, modelRef.current), [space, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
   const [favMoods, setFavMoods] = useState(readFavMoods);
   useEffect(() => { const on = () => setFavMoods(readFavMoods()); window.addEventListener("gp-moodfav", on); window.addEventListener("storage", on); return () => { window.removeEventListener("gp-moodfav", on); window.removeEventListener("storage", on); }; }, []);
-  const rankCtx = useMemo(() => rankContext({ model: modelRef.current, space, tasteVec: tasteMe, moodFav, favMoods, stars: taste.stars || {}, today }), [space, tasteMe, moodFav, favMoods, taste, today, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Per person: measurement is tagged with who this is, and their own tuned weights (if any) are loaded
+  const userKey = account?.sub ? "g" + account.sub.slice(-10) : who ? "n" + who : "";
+  useEffect(() => { T.setUser(userKey); }, [userKey]);
+  const [rankW, setRankW] = useState({});
+  useEffect(() => { T.loadWeights().then((w) => setRankW(w && typeof w === "object" ? w : {})); }, [userKey]);
+  const rankCtx = useMemo(() => rankContext({ model: modelRef.current, space, tasteVec: tasteMe, moodFav, favMoods, stars: taste.stars || {}, today, weights: rankW }), [space, tasteMe, moodFav, favMoods, taste, today, modelVer, rankW]); // eslint-disable-line react-hooks/exhaustive-deps
   const scored = useMemo(() => {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
     return allEvents.map((e0) => {

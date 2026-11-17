@@ -3,11 +3,13 @@
  *
  * POST { device, items: [{ t, k, id, cat, act, rk, c: {ex,le,si,mo,ra,qu,fr}, s, p }] }   from the app
  *   k: imp (card seen 1 s) · fy (For you pick, p = position) · shuffle · open · save · link · share · dwell · bounce · up · down
- * GET  ?key=FLAGS_KEY[&days=14]  → summary:
+ * GET  ?weights=<user>            → that person's tuned score weights ({} until tuned), read by the app
+ * GET  ?key=FLAGS_KEY&setw=<user>&w={"aff":60,…} → store tuned weights for one person
+ * GET  ?key=FLAGS_KEY[&days=14][&user=<user>]  → summary per person (or one person):
  *   counts, For you hit rate by position (acted on within 24 h), open rate by screen and by score decile,
  *   and for each score part: average when opened vs ignored, plus weights fitted by logistic regression.
  */
-import { blobApi, putJSON } from "./_blob.js";
+import { blobApi, putJSON, getJSON } from "./_blob.js";
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
 const POS = new Set(["open", "save", "link", "share", "dwell", "up", "directions", "went"]);
@@ -49,6 +51,11 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: "Blob store not connected" });
   try {
+    if (req.method === "GET" && req.query.weights) {
+      const u = String(req.query.weights).replace(/[^a-z0-9]/gi, "").slice(0, 17);
+      res.setHeader("Cache-Control", "public, max-age=600");
+      return res.status(200).json((await getJSON(`weights/${u}.json`).catch(() => null)) || {});
+    }
     if (req.method === "POST") {
       if (!ALLOWED.test(req.headers.origin || "")) return res.status(403).json({ error: "Origin not allowed" });
       const b = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
@@ -56,17 +63,26 @@ export default async function handler(req, res) {
       if (!items.length) return res.status(200).json({ ok: true, n: 0 });
       const day = new Date().toISOString().slice(0, 10);
       const dev = String(b.device || "anon").replace(/[^a-z0-9]/gi, "").slice(0, 12);
-      await putJSON(`telemetry/${day}/${dev}-${Date.now()}.json`, { device: dev, items });
+      const user = String(b.user || "p" + dev).replace(/[^a-z0-9]/gi, "").slice(0, 17);
+      await putJSON(`telemetry/${day}/${user}-${dev}-${Date.now()}.json`, { device: dev, user, items });
       return res.status(200).json({ ok: true, n: items.length });
     }
     if (!process.env.FLAGS_KEY || req.query.key !== process.env.FLAGS_KEY) return res.status(401).json({ error: "Unauthorized" });
+    if (req.query.setw) {
+      const u = String(req.query.setw).replace(/[^a-z0-9]/gi, "").slice(0, 17);
+      const w = JSON.parse(req.query.w || "{}");
+      await putJSON(`weights/${u}.json`, { ...w, at: new Date().toISOString() });
+      return res.status(200).json({ ok: true, user: u, w });
+    }
     if (req.query.test) { await putJSON(`telemetry/${new Date().toISOString().slice(0, 10)}/test-${Date.now()}.json`, { device: "test", items: [{ t: Date.now(), k: "fy", id: "test", p: 0, rk: 50, c: { ex: 1, le: 0.5, si: 0.5, mo: 1, ra: 1, qu: 0.5, fr: 0 }, s: "foryou" }] }); }
     const days = Math.min(60, Number(req.query.days) || 14);
     const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
     const blobs = (await listAll("telemetry/")).filter((x) => x.pathname.slice(10, 20) >= since);
     const token = process.env.BLOB_READ_WRITE_TOKEN;
     const files = await Promise.all(blobs.map(async (x) => { const r = await fetch(x.url, { headers: { authorization: "Bearer " + token } }); return r.ok ? r.json() : null; }));
-    const ev = files.filter(Boolean).flatMap((f) => f.items.map((i) => ({ ...i, dev: f.device }))).sort((a, b) => a.t - b.t);
+    const all = files.filter(Boolean).flatMap((f) => f.items.map((i) => ({ ...i, dev: f.device, user: f.user || "p" + f.device }))).sort((a, b) => a.t - b.t);
+    const users = [...new Set(all.map((e) => e.user))].filter((u) => !req.query.user || u === req.query.user);
+    const summarize = (ev) => {
 
     const counts = {}; ev.forEach((e) => { counts[e.k] = (counts[e.k] || 0) + 1; });
     // acted on: a positive action on the same event by the same phone within 24 h after being shown
@@ -90,7 +106,11 @@ export default async function handler(req, res) {
     const w = enough ? fitLogistic(rows) : null;
     if (w) parts.forEach((x, j) => { x.fittedWeight = w[j]; });
 
-    return res.status(200).json({ days, events: ev.length, phones: [...new Set(ev.map((e) => e.dev))].length, counts, forYou: { byPos, shuffles }, openRateByScreen: byScreen, openRateByScore: dec.filter((d) => d.shown), parts, note: enough ? "Fitted weights: how much each part predicts an open (bigger = stronger)." : `Need more data to fit weights (have ${yes.length} opened / ${no.length} ignored impressions; want 25 / 100).` });
+    return { events: ev.length, phones: [...new Set(ev.map((e) => e.dev))].length, counts, forYou: { byPos, shuffles }, openRateByScreen: byScreen, openRateByScore: dec.filter((d) => d.shown), parts, note: enough ? "Fitted weights: how much each part predicts an open (bigger = stronger)." : `Need more data to fit weights (have ${yes.length} opened / ${no.length} ignored impressions; want 25 / 100).` };
+    };
+    const out = {};
+    for (const u of users) { out[u] = summarize(all.filter((e) => e.user === u)); out[u].weights = (await getJSON(`weights/${u}.json`).catch(() => null)) || "default"; }
+    return res.status(200).json({ days, users: out });
   } catch (e) {
     return res.status(500).json({ error: String(e.message || e) });
   }
