@@ -10,7 +10,7 @@ import { actOf } from "./activities.js";
 import { ingest, getSpace, tasteOf, neighbours, labelOf } from "./embed.js";
 import { hoodCards, genericCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
-import Today from "./Today.jsx";
+import Today, { clearForyouSeen } from "./Today.jsx";
 import Explore from "./Explore.jsx";
 import MapView from "./MapView.jsx";
 import Plans from "./Plans.jsx";
@@ -570,6 +570,7 @@ export default function App() {
 
   // ── Event sheet and deep links
   const openEvent = useCallback((ev) => {
+    if (ev?.id) clearForyouSeen(ev.id);
     setOpenEv(ev.id); track(ev, "viewedCats");
     putModel(L.learn(L.markOpened(modelRef.current, ev.id), ev, "open", floorDay(new Date())));
   }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
