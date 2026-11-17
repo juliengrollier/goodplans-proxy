@@ -666,8 +666,8 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
           )}
 
           {favGroups.length > 0 && (
-            <div id="my-favs" style={{ marginTop: 26, scrollMarginTop: 12 }}>
-              <div style={{ padding: "0 20px 8px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>My favorites</div>
+            <div id="my-favs" style={{ scrollMarginTop: 12 }}>
+              <Head title="My favorites" sub="Your moods and activities, one tap away." />
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {favGroups.slice(0, favRows).map((g) => (
                   <div key={g.id} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }}>
