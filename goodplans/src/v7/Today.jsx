@@ -435,19 +435,33 @@ function IntentChips({ data, today, sel, put, onOrder }) {
   const pd = (id) => (e) => { if (e.pointerType === "mouse") begin(id, e.clientX, e.clientY); };
   const pm = (e) => { if (e.pointerType !== "mouse") return; if (!dragRef.current) { clearTimeout(timer.current); return; } moved.current = true; reorderAt(e.clientX); };
   const pu = (e) => { if (e.pointerType === "mouse") finish(); };
-  // The active mood always comes first
-  let shown = order.map((id) => INTENT[id]).filter((it) => counts[it.id] || sel.includes(it.id));
-  if (sel[0] && !drag) shown = [...shown.filter((it) => it.id === sel[0]), ...shown.filter((it) => it.id !== sel[0])];
+  // Favourite moods (heart) stay on the left, right after the active one
+  const [favs, setFavs] = useState(() => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); return Array.isArray(f) ? f.filter((id) => INTENT[id]) : []; } catch { return []; } });
+  const toggleFav = (id) => {
+    const f = favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id];
+    setFavs(f); try { localStorage.setItem("gp_intent_fav", JSON.stringify(f)); } catch { /* full */ }
+    onOrder?.([...orderRef.current.filter((x) => f.includes(x)), ...orderRef.current.filter((x) => !f.includes(x))]);
+  };
+  let shown = order.map((id) => INTENT[id]).filter((it) => counts[it.id] || sel.includes(it.id) || favs.includes(it.id));
+  if (!drag) {
+    const first = (it) => (it.id === sel[0] ? 0 : favs.includes(it.id) ? 1 : 2);
+    shown = shown.map((it, i) => [it, i]).sort((a, b) => first(a[0]) - first(b[0]) || a[1] - b[1]).map(([it]) => it);
+  }
   return (
     <div style={{ margin: "2px 0 0" }}>
       <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? "Drag to reorder" : "I'm in the mood for…"}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
       <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }} onPointerMove={pm} onPointerUp={pu}>
         {shown.map((it) => { const on = sel.includes(it.id), dragging = drag === it.id; return (
-          <button key={it.id} ref={(el) => { btns.current[it.id] = el; }} aria-pressed={on} onPointerDown={pd(it.id)} onTouchStart={(e) => begin(it.id, e.touches[0].clientX, e.touches[0].clientY)} onContextMenu={(e) => e.preventDefault()}
+          <div role="button" tabIndex={0} key={it.id} ref={(el) => { btns.current[it.id] = el; }} aria-pressed={on} onKeyDown={(e) => { if (e.key === "Enter") put(on ? [] : [it.id]); }} onPointerDown={pd(it.id)} onTouchStart={(e) => begin(it.id, e.touches[0].clientX, e.touches[0].clientY)} onContextMenu={(e) => e.preventDefault()}
             onClick={() => { if (moved.current || dragRef.current) { moved.current = false; return; } put(on ? [] : [it.id]); }}
-            style={{ width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (on ? it.color : "var(--line, rgba(128,128,128,.25))"), background: on ? it.color : "var(--card)", color: on ? "#fff" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: drag ? "none" : "pan-x", transform: dragging ? "scale(1.08)" : drag ? "scale(.96)" : "none", boxShadow: dragging ? "0 8px 20px rgba(20,24,51,.25)" : "none", transition: "transform .12s, box-shadow .12s", zIndex: dragging ? 2 : 0 }}>
+            style={{ position: "relative", cursor: "pointer", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (on ? it.color : "var(--line, rgba(128,128,128,.25))"), background: on ? it.color : "var(--card)", color: on ? "#fff" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: drag ? "none" : "pan-x", transform: dragging ? "scale(1.08)" : drag ? "scale(.96)" : "none", boxShadow: dragging ? "0 8px 20px rgba(20,24,51,.25)" : "none", transition: "transform .12s, box-shadow .12s", zIndex: dragging ? 2 : 0 }}>
+            <button aria-label={(favs.includes(it.id) ? "Remove " : "Add ") + it.label + (favs.includes(it.id) ? " from favourites" : " to favourites")} aria-pressed={favs.includes(it.id)}
+              onClick={(e) => { e.stopPropagation(); toggleFav(it.id); }} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}
+              style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: on ? "#fff" : it.color, opacity: favs.includes(it.id) ? 0.95 : 0.35 }}>
+              <Icon name="heart" size={12} fill={favs.includes(it.id) ? "currentColor" : "none"} />
+            </button>
             {React.createElement(it.icon, { size: 20, strokeWidth: 2.2, color: on ? "#fff" : it.color })}{it.label}
-          </button>
+          </div>
         ); })}
       </div>
     </div>
