@@ -1,7 +1,7 @@
 // v7 engine: taste learning, scoring wrapper, time helpers, weather, Today sections.
 import {
   calcBd, safeCoord, kmdist, transitTime, evCovers, evActive, evStart, evEnd, runLen, daysUntil,
-  hasKnownTime, eHour, isImprecise, isEventBusy, bookSoon, floorDay, mkDate, DAYS, MONTHS, DEFAULT_SUBS, matchV,
+  hasKnownTime, eHour, isImprecise, nextOn, isEventBusy, bookSoon, floorDay, mkDate, DAYS, MONTHS, DEFAULT_SUBS, matchV,
 } from "../lib/core.js";
 
 export const LES = [40.7186, -73.9865];
@@ -258,7 +258,7 @@ export function whenLabel(ev, today) {
     const end = mkDate(ev.X), until = " · until " + MONTHS[end.getMonth()] + " " + end.getDate();
     if (evCovers(ev, today)) return "Today" + t + until;
     if (evCovers(ev, tom) && mkDate(ev.E) <= tom) return "Tomorrow" + t + until;
-    const s = mkDate(ev.E);
+    const s = nextOn(ev, today) || mkDate(ev.E); // next day it's actually on (runs limited to some weekdays)
     return DAYS[s.getDay()] + " " + MONTHS[s.getMonth()] + " " + s.getDate() + t + until;
   }
   if (evCovers(ev, today)) return "Today" + t;
