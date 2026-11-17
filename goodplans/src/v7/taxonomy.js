@@ -74,7 +74,7 @@ export const migrateMap = (m) => { const o = {}; Object.entries(m || {}).forEach
 // Third level: sub-types for the bigger categories (Claude picks one; these patterns are the fallback)
 export const SUBTYPES = {
   "Concerts": [["Rock & Indie", /rock|indie|punk|garage|shoegaze|alt/], ["Hip-hop & R&B", /hip-?hop|rap\b|r&b|soul|neo-soul/], ["Electronic", /electronic|synth|ambient|techno|house/], ["Folk & Acoustic", /folk|acoustic|singer-?songwriter|americana|bluegrass|country/], ["Jazz", /jazz|bebop|big band|swing/], ["Blues", /blues/], ["Classical", /classical|orchestra|symphon|chamber|quartet|philharmonic|recital|choir|choral|organ|baroque|opera/], ["Pop", /\bpop\b/], ["World & Latin", /latin|salsa|cumbia|afro|world|reggae|k-?pop|bollywood|flamenco|klezmer|brazil/]],
-  "Theater": [["Broadway", /broadway(?! in bryant)/], ["Off-Broadway", /off-?broadway|off off/], ["Cabaret & Drag", /cabaret|drag|burlesque/], ["Immersive", /immersive|site-specific/]],
+  "Theater": [["Broadway", /broadway(?! in bryant)/], ["Off-Broadway", /off-?broadway|off off/], ["Cabaret & Drag", /cabaret|drag|burlesque|an evening (with|of)|benefit|54 below|feinstein|birdland|joe's pub|green room 42|don't tell mama|piano bar/], ["Immersive", /immersive|site-specific/]],
   "Comedy": [["Stand-up", /stand-?up|comic|showcase/], ["Improv", /improv/], ["Storytelling", /storytell|moth|story/], ["Variety", /variety|sketch|vaudeville|magic/]],
   "Film": [["New releases", /premiere|new release|opening night/], ["Repertory & Classics", /restored|classic|repertory|retrospective|35mm|double feature/], ["Documentary", /documentar/], ["Outdoor", /outdoor|rooftop|park|under the stars/]],
   "Clubs & DJs": [["House & Techno", /house|techno|rave/], ["Disco & Funk", /disco|funk|boogie/], ["Hip-hop", /hip-?hop|rap|r&b/], ["Queer parties", /queer|lgbt|gay|lesbian|drag/]],
@@ -109,7 +109,18 @@ export const SUB_NAMES = Object.fromEntries(Object.entries(SUBTYPES).map(([c, l]
 
 const FROM_OLD = { Music: "Concerts", Comedy: "Comedy", "Art & Culture": "Museums & Galleries", Film: "Film", "Food & Drink": "Food Markets & Pop-ups", Outdoors: "Parks & Nature", Sports: "Pickup Sports", Family: "Festivals & Parades", "Talk & Learn": "Talks & Panels", "Get Creative": "Arts & Crafts", Nightlife: "Clubs & DJs", Shopping: "Markets", Other: "Festivals & Parades" };
 
+// Sources that only list theatre-world events (Broadway Briefing, Playbill…): a cabaret night or benefit at a jazz club
+// is still theatre, unless the title plainly says concert. Wins over Claude's pick and the venue's genre.
+const THEATRE_SRC = /broadway ?briefing|playbill|theat(er|re) ?mania|broadway ?world/i;
+export const theatreSource = (ev) => THEATRE_SRC.test(String(ev.src || "")) && !/\bconcert\b|\bin concert\b|symphony|orchestra/i.test(String(ev.title || ""));
+const LISTEN_ONLY = new Set(["Concerts", "Clubs & DJs", "Festivals & Parades"]);
+
 export function classify(ev, claudeCat) {
+  const c = classifyText(ev, claudeCat);
+  return LISTEN_ONLY.has(c) && theatreSource(ev) ? "Theater" : c;
+}
+
+function classifyText(ev, claudeCat) {
   const title = (ev.title || "").toLowerCase();
   // Order: strong title signals, Claude's pick, then the rules on the title, sub and full text
   const early = EARLY.find(([, re]) => re.test(title));

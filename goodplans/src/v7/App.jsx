@@ -32,7 +32,7 @@ import * as Q from "./quiz.js";
 import Tour, { TOUR_KEY } from "./Tour.jsx";
 import Quiz, { loadAccount, ACCOUNT_KEY } from "./Quiz.jsx";
 import { buildPicks, poolPicks } from "./picks.js";
-import { classify, classifySub, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
+import { classify, classifySub, theatreSource, CAT, FAMILIES, migrateNames, migrateMap } from "./taxonomy.js";
 const FAM_IDS = FAMILIES.map((f) => f.id);
 import { REC_KEY, updateRecurring, withRegulars, nextDate, patternLabel } from "./recurring.js";
 import {
@@ -405,7 +405,7 @@ export default function App() {
       const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
       e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam; e.nsub = classifySub(e, e.ncat, t?.sub2);
       if (t?.d) e.dims = t.d;
-      e.act = actOf({ ...e, act: t?.a });
+      e.act = e.ncat === "Theater" && theatreSource(e) ? actOf({ ...e, act: t?.a }, "Theater") : actOf({ ...e, act: t?.a });
       if (t?.h) e.hook = t.h;
       const s = scoreEvent({ ...e, coord: safeCoord(e) }, ctx);
       // At a place saved in Google Maps: a "want to go" list counts most
@@ -557,7 +557,7 @@ export default function App() {
       let acc = { ...tags };
       for (let i = 0; i < todo.length; i += 40) {
         try {
-          const d = await postJSON("/api/enrich", { mode: "tags", events: todo.slice(i, i + 40).map(({ id, title, desc, cat, sub, venue, price, time }) => ({ id, title, desc, cat: cat, sub, venue, price, time })) });
+          const d = await postJSON("/api/enrich", { mode: "tags", events: todo.slice(i, i + 40).map(({ id, title, desc, cat, sub, venue, price, time, src }) => ({ id, title, desc, cat: cat, sub, venue, price, time, src })) });
           acc = { ...acc, ...(d.tags || {}) };
           // Events Claude skipped still get an entry, so they aren't sent again and again
           todo.slice(i, i + 40).forEach((e) => { if (!acc[e.id]) acc[e.id] = { k: [], cat: null, a: null }; else if (!("a" in acc[e.id])) acc[e.id] = { ...acc[e.id], a: null }; });

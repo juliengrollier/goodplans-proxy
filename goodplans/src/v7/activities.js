@@ -217,11 +217,13 @@ export const ACT = Object.fromEntries(ACTS.map(([id, label, ncat, re, rel]) => [
 export const ACT_IDS = ACTS.map((a) => a[0]);
 
 // Claude's tag wins when valid; otherwise the first pattern that matches the title, then title + sub-type + keywords
-export function actOf(e) {
-  if (e.act && ACT[e.act]) return e.act;
+// only: limit to the activities of one category (used when the category was set by a firm rule, e.g. a theatre-only source)
+export function actOf(e, only) {
+  const ok = (c) => !only || c === only;
+  if (e.act && ACT[e.act] && ok(ACT[e.act].ncat)) return e.act;
   const title = String(e.title || "").toLowerCase();
-  const full = [title, e.sub, e.nsub, ...(e.kw || [])].join(" ").toLowerCase();
-  for (const [id, , , re] of ACTS) if (re.test(title)) return id;
-  for (const [id, , , re] of ACTS) if (re.test(full)) return id;
+  const full = [title, only ? "" : e.sub, e.nsub, ...(e.kw || [])].join(" ").toLowerCase();
+  for (const [id, , c, re] of ACTS) if (ok(c) && re.test(title)) return id;
+  for (const [id, , c, re] of ACTS) if (ok(c) && re.test(full)) return id;
   return null;
 }
