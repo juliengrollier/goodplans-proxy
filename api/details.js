@@ -16,6 +16,11 @@ export default async function handler(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
   // GET ?index=1: everything the daily job has looked up so far (the app merges it in)
+  if (req.method === "GET" && req.query.stats && process.env.FLAGS_KEY && req.query.key === process.env.FLAGS_KEY) {
+    const v = Object.values(await readIndex());
+    const n = (f) => v.filter(f).length;
+    return res.status(200).json({ total: v.length, startTime: n((x) => x.page?.start), price: n((x) => x.page?.price), ticketLink: n((x) => x.page?.ticketUrl), outsideNYC: n((x) => x.page?.nyc === false), placeFound: n((x) => x.place?.coord), nothing: n((x) => !x.place && !(x.page && (x.page.start || x.page.price || x.page.ticketUrl))) });
+  }
   if (req.method === "GET" && req.query.index) {
     res.setHeader("Cache-Control", "public, max-age=300");
     try { return res.status(200).json(await readIndex()); } catch (e) { return res.status(200).json({}); }
