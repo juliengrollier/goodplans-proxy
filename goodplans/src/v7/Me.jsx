@@ -26,7 +26,7 @@ export default function Me(p) {
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
-    locSt, onRetryGPS, resetTaste, axes, onNudge, quiz, onRetakeQuiz, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
+    locSt, onRetryGPS, resetTaste, axes, onNudge, quiz, onRetakeQuiz, onTour, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning, who, setWho, people = [] } = p;
   const [fine, setFine] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
   const cats = Object.keys(CATS).filter((c) => c !== "Other");
@@ -63,6 +63,13 @@ export default function Me(p) {
             {learned.strong >= 5 ? (cardBusy ? "Writing your taste card…" : "Your taste card will appear here shortly.") : "The app learns from what you open, read, save, share and attend, not only thumbs. Your taste card appears after a few saves or thumbs (" + (learned.strong || 0) + " of 5)."}
           </p>
         )}
+        {p.account && (
+          <div className="row" style={{ gap: 10, alignItems: "center" }}>
+            {p.account.picture ? <img src={p.account.picture} alt="" referrerPolicy="no-referrer" style={{ width: 34, height: 34, borderRadius: 17 }} /> : <span style={{ width: 34, height: 34, borderRadius: 17, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="me" size={18} /></span>}
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.3 }}>{p.account.provider === "google" ? <><b>{p.account.name || "Signed in"}</b><span className="muted ell" style={{ display: "block", fontSize: 12.5 }}>{p.account.email}</span></> : <span className="muted">Not signed in</span>}</span>
+            {p.account.provider === "google" ? <button className="chip" onClick={p.onSignOut}>Sign out</button> : <button className="chip" onClick={p.onSignIn}>Sign in</button>}
+          </div>
+        )}
         <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>This phone is</span>
           {people.map((n) => <button key={n} className="chip" aria-pressed={who === n} onClick={() => setWho(n)} style={who === n ? { background: "var(--navy)", color: "var(--onnavy)", border: "none" } : undefined}>{n}'s</button>)}
@@ -76,6 +83,7 @@ export default function Me(p) {
           <span className="muted" style={{ fontSize: 12.5 }}>{learned.count || 0} signals learned{learned.muted ? " · " + learned.muted + " switched off" : ""}</span>
           <span className="row" style={{ gap: 6 }}>
             <button className="chip" onClick={onRetakeQuiz}>{quiz ? "Retake quiz" : "Take the quiz"}</button>
+            {onTour && <button className="chip" onClick={onTour}>Show the tour</button>}
             <button className="chip" onClick={() => { if (confirm("Forget everything learned from your activity? Thumbs, saves and boosts stay.")) onResetLearning(); }}>Reset learning</button>
           </span>
         </div>

@@ -443,7 +443,7 @@ function IntentChips({ data, today, sel, put, onOrder, favs, toggleFav: toggleFa
     shown = shown.map((it, i) => [it, i]).sort((a, b) => first(a[0]) - first(b[0]) || a[1] - b[1]).map(([it]) => it);
   }
   return (
-    <div style={{ margin: "2px 0 0" }}>
+    <div id="tour-moods" style={{ margin: "2px 0 0" }}>
       <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? "Drag to reorder" : "I'm in the mood for…"}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
       <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }} onPointerMove={pm} onPointerUp={pu}>
         {shown.map((it) => { const on = sel.includes(it.id), dragging = drag === it.id; return (
@@ -477,6 +477,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   const [favRows, setFavRows] = useState(3);
   // Favourite moods (hearts on the mood tiles)
   const [moodFavs, setMoodFavs] = useState(() => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); return Array.isArray(f) ? f.filter((id) => INTENT[id]) : []; } catch { return []; } });
+  React.useEffect(() => { const on = () => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); if (Array.isArray(f)) setMoodFavs(f.filter((id) => INTENT[id])); } catch { /* none */ } }; window.addEventListener("gp-moodfav", on); return () => window.removeEventListener("gp-moodfav", on); }, []);
   const toggleMoodFav = (id) => { const f = moodFavs.includes(id) ? moodFavs.filter((x) => x !== id) : [...moodFavs, id]; setMoodFavs(f); try { localStorage.setItem("gp_intent_fav", JSON.stringify(f)); } catch { /* full */ } return f; };
   const favList = React.useMemo(() => { const all = [...(tiles?.all || []), ...(tiles?.every || [])]; return moodFav.slice().reverse().map((k) => all.find((t) => t.key === k)).filter(Boolean).map((t) => { const b = t.list?.length ? primaryIntent(t.list[0]) : null; return b ? { ...t, color: b.color, mid: b.id } : t; }); }, [tiles, moodFav]);
   // My favorites: one row per mood — the mood first (when hearted), then the favourite activities that belong to it
@@ -568,7 +569,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
           <Logo size={28} dark={dark} />
           <span className="disp" style={{ fontSize: 23, whiteSpace: "nowrap" }}>good plans</span>
         </div>
-        <div className="row" style={{ gap: 6 }}>
+        <div id="tour-head" className="row" style={{ gap: 6 }}>
           {(() => {
             const hb = { position: "relative", width: 38, height: 38, borderRadius: 19, border: "none", background: "var(--chip)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 };
             const badge = (n) => n > 0 && <span style={{ position: "absolute", top: -3, right: -4, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: "var(--navy)", color: "var(--onnavy, #fff)", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>{n > 99 ? "99+" : n}</span>;
@@ -624,10 +625,10 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
 
       {/* 3. Around you right now: a map of what is on or starting nearby */}
       {!empty && mapEvs.length > 0 && (
-        <>
+        <div id="tour-around">
           <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
           {mapEvs.length > 0 && <AroundMap legend height={220} evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
-        </>
+        </div>
       )}
 
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
@@ -635,7 +636,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
         <>
           <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Best picks for your next outing." />
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} onOrder={onIntentOrder} favs={moodFavs} toggleFav={toggleMoodFav} />
-          <div className="hscroll" style={{ padding: "12px 20px 0", gap: 11, alignItems: "center", flexWrap: "nowrap" }}>
+          <div id="tour-with" className="hscroll" style={{ padding: "12px 20px 0", gap: 11, alignItems: "center", flexWrap: "nowrap" }}>
             <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>With</span>
             {[{ id: null, label: "Any" }, ...SOCIAL].map((m) => { const on = social === m.id; return (
               <button key={m.label} aria-pressed={on} onClick={() => putSocial(m.id)} className="row" style={{ gap: 5, border: "none", background: "none", padding: "4px 0", fontSize: 13, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", color: on ? "var(--ink)" : "var(--ink3)", opacity: on ? 1 : 0.6 }}>{m.icon && React.createElement(m.icon, { size: 14, strokeWidth: 2.2 })}{m.label}</button>
@@ -643,7 +644,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
           </div>
           {bestNow.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
-              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev) => <div key={ev.id} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
+              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev, k) => <div key={ev.id} id={k === 0 ? "tour-card" : undefined} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
               {intentSel.length === 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
                   <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: "Top picks" + socialTag, list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
@@ -711,12 +712,12 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
 
       {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
       {!empty && nyRows.length > 0 && (
-        <>
+        <div id="tour-city">
           <Head title="New York right now" sub="What the city is up to." />
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div id="tour-city-first" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {nyRows.map((row, ri) => <NYRow key={row.key} row={row} ri={row.slot} onTile={onTile} />)}
           </div>
-        </>
+        </div>
       )}
 
 
