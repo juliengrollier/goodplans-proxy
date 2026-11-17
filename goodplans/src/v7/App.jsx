@@ -12,7 +12,7 @@ import { hoodCards, genericCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
 import Today, { clearForyouSeen } from "./Today.jsx";
 import DevFlag, { DEV_KEY } from "./DevFlag.jsx";
-import { loadDetails, withDetails, outsideNYC, fetchDetails } from "./details.js";
+import { loadDetails, withDetails, outsideNYC, fetchDetails, syncDetailsIndex } from "./details.js";
 import Explore from "./Explore.jsx";
 import MapView from "./MapView.jsx";
 import Plans from "./Plans.jsx";
@@ -379,6 +379,7 @@ export default function App() {
   const [detailsVer, setDetailsVer] = useState(0);
   const allEvents = useMemo(() => { const det = loadDetails(); return mergeDuplicates(withRegulars(merged, rec, today)).map((e) => withDetails(e, det)).filter((e) => !e.outside && !outsideNYC(e)); }, [merged, rec, today, detailsVer]); // eslint-disable-line react-hooks/exhaustive-deps
   const getDetails = useCallback((list) => { fetchDetails(list, () => setDetailsVer((v) => v + 1)); }, []);
+  useEffect(() => { syncDetailsIndex().then((ch) => { if (ch) setDetailsVer((v) => v + 1); }); }, []); // daily server lookups
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
