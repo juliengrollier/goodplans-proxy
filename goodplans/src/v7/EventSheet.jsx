@@ -62,11 +62,11 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
       <div style={{ width: 44, height: 5, borderRadius: 3, background: "var(--line)", margin: "8px auto 0" }} aria-hidden="true" />
       <div style={{ position: "relative", margin: "calc(8px + env(safe-area-inset-top)) 12px 0" }}>
         <Media ev={ev} dark={dark} height={300} radius={30} big hideTitle credit />
-        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          {[["Save to plans", saved ? "In your plans" : "Add to plans", () => onSave(ev), <Icon key="s" name="save" size={22} fill={saved ? "currentColor" : "none"} />, saved],
-            ["Add to Google Calendar", "Add to Google Calendar", addCal, <Icon key="c" name="cal" size={21} />, false],
-            ["Share", "Share", share, <Icon key="h" name="share" size={21} />, false]].map(([al, , fn, ic, on]) => (
-            <button key={al} onClick={fn} aria-label={al} aria-pressed={al === "Save to plans" ? on : undefined} style={{ width: 46, height: 46, borderRadius: 23, border: "none", background: on ? "var(--navy)" : "#fff", color: on ? "var(--onnavy)" : "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>
+        <div style={{ position: "absolute", right: 80, bottom: -19, display: "flex", gap: 8, zIndex: 2 }}>
+          {[["Save to plans", saved ? "In your plans" : "Add to plans", () => onSave(ev), <Icon key="s" name="save" size={18} fill={saved ? "currentColor" : "none"} />, saved],
+            ["Add to Google Calendar", "Add to Google Calendar", addCal, <Icon key="c" name="cal" size={18} />, false],
+            ["Share", "Share", share, <Icon key="h" name="share" size={18} />, false]].map(([al, , fn, ic, on]) => (
+            <button key={al} onClick={fn} aria-label={al} aria-pressed={al === "Save to plans" ? on : undefined} style={{ width: 38, height: 38, borderRadius: 19, border: "3px solid var(--bg)", boxSizing: "content-box", background: on ? "var(--navy)" : "#fff", color: on ? "var(--onnavy)" : "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>
           ))}
         </div>
         {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: 21, left: 14, height: 30, fontSize: 13 }}>One night only</span>}
@@ -90,7 +90,7 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
       </div>
 
       <div style={{ margin: "16px 16px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {[["When", <When key="w" text={whenLabel(ev, today, { until: true })} />], ["Getting there", ev.tt ? <Travel tt={ev.tt} size={16} /> : "—"], ["Price", null], ["Booking", ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
+        {[["When", <When key="w" text={whenLabel(ev, today, { until: true })} />], ["Getting there", ev.tt ? <Travel tt={ev.tt} size={16} /> : "—"], ["Price", null], ["Booking", ev.ticketUrl || (ev.ticket && ev.url) ? <a key="b" href={ev.ticketUrl || ev.url} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} className="row" style={{ gap: 5 }}>{ev.ticketUrl ? "Get tickets" : "Tickets / RSVP"} <Icon name="link" size={15} /></a> : ev.ticket ? "Tickets / RSVP" : "Walk in"]].map(([k, v]) => (
           <div key={k} className="card-sm" style={{ padding: "12px 14px", borderRadius: 20 }}>
             <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>{k}</div>
             {v != null ? <div className="disp" style={{ fontSize: 17, marginTop: 2 }}>{v}</div> : <div style={{ marginTop: 4 }}><PriceTag ev={ev} /></div>}
@@ -105,7 +105,7 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
             <a href={"https://www.google.com/maps/search/?api=1&query=" + coord[0] + "," + coord[1]} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} className="row" style={{ gap: 5, fontSize: 13, fontWeight: 800 }}>Open in Maps <Icon name="link" size={14} /></a>
           </div>
           <LeafletMap events={[ev]} home={coord} dark={dark} height={220} interactive twoFinger rounded hideHome selectedId={ev.id} zoom={15} />
-          <div className="muted" style={{ fontSize: 13, padding: "0 4px" }}>{ev.venue}</div>
+          <div className="muted" style={{ fontSize: 13, padding: "0 4px" }}>{ev.venue}{ev.address && !String(ev.venue || "").includes(ev.address.split(",")[0]) ? " · " + ev.address : ""}</div>
         </div>
       )}
 

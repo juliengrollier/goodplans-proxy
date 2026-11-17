@@ -18,7 +18,7 @@ import { User, Users, Maximize2 } from "lucide";
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
   const part = h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
-  const blurb = h >= 17 ? "Let's find what's around for you tonight." : "Let's find what's around for you today.";
+  const blurb = "Let's find what's around for you!";
   return { line: (day === "Sat" ? "Saturday" : day === "Sun" ? "Sunday" : day === "Fri" ? "Friday" : ["Monday", "Tuesday", "Wednesday", "Thursday"][d.getDay() - 1]) + " " + part, blurb };
 }
 
@@ -521,6 +521,8 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   // For you: if the app could show only four things right now, which four? Taste score × how soon × how rare the chance is.
   // Things on every day for weeks are always "today", so they only rise when they're about to close ("Last chance");
   // otherwise they're fallback. Picks shown on earlier days and ignored fade, and the top four avoid repeating a category.
+  // "Show me four others": the four on screen step aside until the app is reopened
+  const [shuf, setShuf] = useState([]);
   const bestAll = React.useMemo(() => {
     const now = nowMinutes(), t0 = today.getTime();
     const seen = foryouSeen();
@@ -531,6 +533,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       if (nx && +nx === t0) { const st = startMinutes(e), en = endMinutes(e); if (!(st == null || st >= now - 20 || (en != null && en > now + 30))) nx = nextOn(e, new Date(t0 + 86400000)); }
       if (!nx) return;
       if (intentSel.length && blend(e, intentSel) < 0.45) return;
+      if (shuf.includes(e.id)) return;
       const d = Math.round((+nx - t0) / 86400000);
       const left = Math.round((+evEnd(e) - t0) / 86400000), len = runLen(e);
       const soon = d === 0 ? 1 : d === 1 ? 0.9 : Math.max(0.45, 0.93 ** d * 0.9);
@@ -545,7 +548,8 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       else rare = 0.5;                                 // on for weeks more: fallback
       const fatigue = Math.max(0.55, 0.85 ** (seen[e.id] || 0));
       const fit = intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1;
-      const base = (e.sc || 0) * rare * fatigue * fit;
+      const favLift = moodFavs.some((id) => INTENT[id]?.cats?.includes(e.ncat)) ? 1.12 : 1; // a mood you favourited
+      const base = (e.raw ?? e.sc ?? 0) * rare * fatigue * fit * favLift;
       scored.push([e, base * soon, len > 4 && !e.recurring && left > 3, base, d, left]);
     });
     scored.sort((a, b) => b[1] - a[1]);
@@ -590,7 +594,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     top.sort((x, y) => info.get(x.id).d - info.get(y.id).d);
     const rest = uniq.filter((e) => !used.has(e.id));
     return [...top, ...rest];
-  }, [data, today, intentSel, social]);
+  }, [data, today, intentSel, social, moodFavs, shuf]);
   // Remember what headed For you today (once per day per event), so ignored picks fade on later days
   // (waits until the list has settled, so a half-loaded feed isn't what gets recorded)
   React.useEffect(() => { if (intentSel.length || social) return undefined; const ids = bestAll.slice(0, 4).map((e) => e.id); const t = setTimeout(() => markForyouSeen(ids, today), 8000); return () => clearTimeout(t); }, [bestAll]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -696,7 +700,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {/* 1. Your plans: one-line rows like the map legend, a bookmark instead of a number; three, then See all */}
       {!empty && mine.length > 0 && (
         <div style={{ padding: "18px 16px 0" }}>
-          <div style={{ padding: "0 4px 6px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{planToday.length ? "Your plans today" : "Your next plans"}</div>
+          <div style={{ padding: "0 4px 6px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{planToday.length && mine.slice(0, 3).every((e) => planToday.includes(e)) ? "Your plans today" : "Your next plans"}</div>
           {mine.slice(0, 3).map((e, k) => (
             <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ width: "100%", gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
               <span style={{ width: 14, flexShrink: 0, display: "flex", justifyContent: "flex-end", color: "var(--ink3)" }}><Icon name="save" size={14} fill="currentColor" /></span>
@@ -732,9 +736,11 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
             <div style={{ margin: "22px 0 18px" }}>
               <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev, k) => <div key={ev.id} id={k === 0 ? "tour-card" : undefined} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
               {intentSel.length === 0 && (
-                <div style={{ padding: "18px 16px 0" }}>
+                <div className="row" style={{ padding: "18px 16px 0", gap: 8 }}>
                   <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: "Top picks" + socialTag, list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
-                    className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}>Explore top picks</button>
+                    className="row" style={{ flex: 1, justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}><Icon name="explore" size={17} />Explore top picks</button>
+                  <button aria-label="Show me four others" onClick={() => setShuf((x) => [...x, ...bestNow.slice(0, 4).map((e) => e.id)])}
+                    style={{ width: 48, flexShrink: 0, alignSelf: "stretch", borderRadius: 14, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="refresh" size={19} /></button>
                 </div>
               )}
               {intentSel.length > 0 && (
@@ -766,7 +772,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
                       </div>
                     )}
                     {g.items.map((t) => (
-                      <div key={t.key} role="button" tabIndex={0} onClick={() => onTile(t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid var(--line, rgba(128,128,128,.25))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
+                      <div key={t.key} role="button" tabIndex={0} onClick={() => onTile(t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + ((g.mood?.color || t.color || "#888888") + "55"), background: (g.mood?.color || t.color || "#888888") + "22", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
                         <button aria-label="Remove from favorites" onClick={(e) => { e.stopPropagation(); onMoodFav(t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
                         {t.node ? <LIcon node={t.node} size={20} color={t.color} stroke={2.2} /> : t.icon ? React.createElement(t.icon, { size: 20, strokeWidth: 2.2, color: t.color }) : null}
                         <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" }}>{t.short || t.title}</span>
