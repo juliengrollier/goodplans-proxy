@@ -192,7 +192,7 @@ function useSeen(ev) {
   }, [ev?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return ref;
 }
-const tap = (fn, ev) => ({ role: "button", tabIndex: 0, onClick: () => fn(ev), onKeyDown: (e) => { if (e.key === "Enter") fn(ev); } });
+const tap = (fn, ev) => ({ role: "button", tabIndex: 0, "data-ev": ev?.id, onClick: () => fn(ev), onKeyDown: (e) => { if (e.key === "Enter") fn(ev); } });
 
 export function HeroCard({ ev, dark, today, onOpen, label }) {
   const seenRef = useSeen(ev);
