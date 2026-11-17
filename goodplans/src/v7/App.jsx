@@ -782,7 +782,7 @@ export default function App() {
     const t = { ...tasteRef.current, priceSens: Math.max(tasteRef.current.priceSens || 0, price), farSens: Math.max(tasteRef.current.farSens || 0, far) };
     tasteRef.current = t; saveTaste(t);
     const qz = { answers: ans, profile: prof, v: Q.QUIZ_VERSION, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
-    setShowQuiz(false); setTab("today"); window.scrollTo(0, 0); { let nm = ""; try { nm = localStorage.getItem("gp_name_v1") || ""; } catch { /* private */ } toast("Nice to meet you" + (nm ? ", " + nm : "") + ". Here are your good plans."); }
+    setShowQuiz(false); setTab("today"); window.scrollTo(0, 0); { let nm = "", seen = false; try { nm = localStorage.getItem("gp_name_v1") || ""; seen = !!localStorage.getItem(TOUR_KEY); } catch { /* private */ } if (seen) toast("Nice to meet you" + (nm ? ", " + nm : "") + ". Here are your good plans."); }
     if (wantMeet != null) setTimeout(() => setMeetOn(wantMeet), 0);
     if (ans.moods?.length) setTimeout(() => learnIntentOrder(ans.moods), 0); // favourite moods teach taste like the custom order
     { let seen = false; try { seen = !!localStorage.getItem(TOUR_KEY); } catch { /* private */ } if (!seen) setTimeout(() => setShowTour(true), 800); }
