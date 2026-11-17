@@ -1,7 +1,7 @@
 // "I'm in the mood to…": ten moods. Every category has one home mood (label, colour); some activities also count for a
 // second mood, each with a reason noted below. Membership: home category (strongest), a listed activity, how it feels.
 // The "who with" switch (Anyone · Date · Meet people) reranks whatever is shown; it is not a mood.
-import { Music, Drama, Laugh, Dices, Lightbulb, Compass, Palette, Activity, PartyPopper, Utensils, Heart, Users } from "lucide-react";
+import { Music, Drama, Laugh, Dices, Lightbulb, Compass, Palette, Activity, PartyPopper, Utensils, Heart, Users, Handshake, Baby } from "lucide-react";
 import { daysUntil } from "../lib/core.js";
 
 // Ten moods. Each category has exactly one home mood (its label and colour); "acts" lists activities that also belong
@@ -13,10 +13,10 @@ export const INTENTS = [
   { id: "laugh", label: "A laugh", short: "A laugh", color: "#F97316", icon: Laugh, cats: ["Comedy"], acts: ["drag", "magic", "circus"], dims: {} },
   // Improv jams and comedy open mics: you can get up yourself
   { id: "play", label: "Play", short: "Play", color: "#EAB308", icon: Dices, cats: ["Trivia & Quizzes", "Board & Card Games", "Arcades & VR", "Bar Games & Bowling", "Escape Rooms & Puzzles", "Karaoke"], acts: ["open-mic-comedy"], dims: {} },
-  // Gardens, birding, stargazing: learning as much as being outdoors
-  { id: "curious", label: "Get curious", short: "Curious", color: "#4F46E5", icon: Lightbulb, cats: ["Talks & Panels", "Books & Readings", "Tours", "Museums & Galleries"], acts: ["botanic-garden", "birding", "stargazing", "documentary", "film-qa", "readings-theatre"], dims: { "tone=thoughtful": 0.3 } },
-  // Walking, history, architecture and harbour tours: discovering the city on foot
-  { id: "explore", label: "Explore", short: "Explore", color: "#0891B2", icon: Compass, cats: ["Parks & Nature", "Markets", "Festivals & Parades"], acts: ["walking-tour", "history-tour", "architecture", "harbor-history", "ghost-tour", "food-tour"], dims: {} },
+  // Gardens, birding, stargazing: learning as much as being outdoors; history and architecture tours: you learn as you walk
+  { id: "curious", label: "Get curious", short: "Curious", color: "#4F46E5", icon: Lightbulb, cats: ["Talks & Panels", "Books & Readings", "Museums & Galleries"], acts: ["botanic-garden", "birding", "stargazing", "documentary", "film-qa", "readings-theatre", "history-tour", "architecture", "harbor-history", "ghost-tour"], dims: { "tone=thoughtful": 0.3 } },
+  // Walking tours live here: discovering the city on foot
+  { id: "explore", label: "Explore", short: "Explore", color: "#0891B2", icon: Compass, cats: ["Tours", "Parks & Nature", "Markets", "Festivals & Parades"], acts: [], dims: {} },
   // Galleries and art openings: the art scene and inspiration; zines and maker fairs: making things
   { id: "create", label: "Get creative", short: "Creative", color: "#EC4899", icon: Palette, cats: ["Arts & Crafts", "Cooking & Cocktails"], acts: ["gallery", "art-opening", "art-fair", "immersive-art", "zines", "maker-fair"], dims: { "mode=take-part": 0.3 } },
   // Dance classes and socials: you're moving all evening
@@ -30,16 +30,16 @@ export const INTENTS = [
 // Who with: a switch, not a mood. It reranks whatever is shown toward the company you're in (Kids also filters out
 // anything adults-only).
 export const SOCIAL = [
-  { id: "meet", label: "Meet people",
+  { id: "meet", label: "Meet people", icon: Handshake,
     acts: ["language-exchange", "speed-dating", "run-club", "bar-sports-league", "kickball", "volleyball", "frisbee", "potluck", "volunteering", "gardening", "board-games", "dnd", "mahjong", "chess", "trivia", "dance-class", "salsa", "swing-dance", "contra", "tango", "cooking-class", "book-club", "open-mic-music", "jam-session", "open-mic-comedy", "cycling-ride", "workshop-career", "karaoke"],
     dims: { "mode=mingle": 0.8, "social=group": 0.3, "mode=take-part": 0.2, "mode=watch": -0.3 } },
-  { id: "date", label: "Date",
+  { id: "date", label: "Date", icon: Heart,
     acts: ["wine", "cocktails", "rooftop", "jazz", "classical", "cabaret", "repertory", "foreign-film", "opera", "ballet", "dance-performance", "immersive-theatre", "pottery", "painting-class", "cooking-class", "cocktail-class", "supper-club", "museum-late", "art-opening", "stargazing", "tango", "salsa", "chocolate", "cheese", "standup", "improv", "singer-songwriter", "botanic-garden"],
     dims: { "social=date": 0.8, "tone=romantic": 0.6, "crowd=intimate": 0.3, "noise=quiet": 0.2, "crowd=big": -0.3, "audience=kids": -0.8 } },
-  { id: "friends", label: "Friends",
+  { id: "friends", label: "Friends", icon: Users,
     acts: ["trivia", "bowling", "karaoke", "board-games", "escape-room", "mini-golf", "pinball", "arcade", "skee-ball", "ping-pong", "bocce", "darts", "pool", "shuffleboard", "axe-throwing", "beer-garden", "dive-bar", "happy-hour", "brewery", "food-crawl", "watch-party", "standup", "improv", "dj-party", "puzzle-hunt", "murder-mystery"],
     dims: { "social=group": 0.8, "energy=lively": 0.3, "mode=take-part": 0.2, "social=date": -0.3, "audience=kids": -0.5 } },
-  { id: "kids", label: "Kids", strict: true,
+  { id: "kids", label: "Kids", icon: Baby, strict: true,
     acts: ["puppets", "circus", "magic", "animation", "parade", "tree-lighting", "ice-skating", "roller-skating", "botanic-garden", "museum", "mini-golf", "skee-ball", "arcade", "bowling", "street-fair", "cultural-festival", "fireworks", "holiday-market", "farmers-market", "birding", "stargazing", "outdoor-film", "gardening", "baking-class", "pottery", "hiking", "kayaking"],
     dims: { "audience=kids": 1, "audience=all-ages": 0.45, "audience=adults": -0.6, "audience=21+": -2, "energy=wild": -0.3, "noise=loud": -0.2 } },
 ];
