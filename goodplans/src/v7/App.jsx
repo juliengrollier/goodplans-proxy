@@ -410,7 +410,8 @@ export default function App() {
   }, [eprof, beh, today, home, taste, weather, busySlots, calStatus]);
 
   // Gone: thumbed down, over, or today and you couldn't get there in time any more. A saved plan stays until it has ended.
-  const gone = (e) => e.hidden || !evActive(e, today) || (favs[e.id] ? hasEnded(e, today) : missed(e, today));
+  // clashes with the calendar are hidden (saved ones stay: they are in the calendar themselves)
+  const gone = (e) => e.hidden || (e.busy && !favs[e.id]) || !evActive(e, today) || (favs[e.id] ? hasEnded(e, today) : missed(e, today));
   // Regulars view: one card per remembered series, its next date when known
   const regulars = useMemo(() => Object.values(rec).map((r) => {
     const live = scored.filter((e) => e.recKey === r.key && !gone(e)).sort((x, y) => (x.E < y.E ? -1 : 1))[0];

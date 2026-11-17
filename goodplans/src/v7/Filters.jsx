@@ -157,7 +157,6 @@ export default function FilterBar({ f, setF, dark, items = [], today }) {
                 </div>
               </div>
             ))}
-            <button className={"chip" + (f.noClash ? " on" : "")} style={{ height: 36, alignSelf: "flex-start" }} onClick={() => setF({ ...f, noClash: !f.noClash })}><Icon name="cal" size={14} /> Only when my calendar is free</button>
             <div className="row" style={{ gap: 8 }}>
               <button className="pill pill-line" style={{ flex: 1 }} onClick={() => setF({ ...f, price: "any", dist: "any", mood: null, with: null, noClash: false })}>Clear</button>
               <button className="pill pill-dark" style={{ flex: 1 }} onClick={() => setSheet(false)}>Done</button>
