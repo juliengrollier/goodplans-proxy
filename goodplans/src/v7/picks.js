@@ -53,7 +53,7 @@ export const RECIPES = [
 // The 4–6 picks that suit you best, each with at least 3 upcoming events and not a near-copy of another
 export function buildPicks(m, events, max = 5, meet = false) {
   const scored = RECIPES.map((r) => {
-    const list = events.filter(r.is).sort((a, b) => b.sc - a.sc);
+    const list = events.filter(r.is).sort((a, b) => (b.rk ?? b.sc) - (a.rk ?? a.sc));
     const fit = r.always ? 2 : r.id === "meet" && meet ? 3 : r.f.reduce((a, f) => a + weightOf(m, f), 0);
     return { ...r, list, fit, icon: ABOUT[r.id]?.[0], teaser: ABOUT[r.id]?.[1] };
   }).filter((r) => r.list.length >= 3 && (r.always || r.fit > 0.05)).sort((a, b) => b.fit - a.fit);
@@ -68,6 +68,6 @@ export function buildPicks(m, events, max = 5, meet = false) {
 
 // Every recipe with enough events, most events first: fills the Home grid when your taste has not singled out eight yet
 export function poolPicks(events, min = 2) {
-  return RECIPES.map((r) => ({ ...r, list: events.filter(r.is).sort((a, b) => b.sc - a.sc), icon: ABOUT[r.id]?.[0], teaser: ABOUT[r.id]?.[1] }))
+  return RECIPES.map((r) => ({ ...r, list: events.filter(r.is).sort((a, b) => (b.rk ?? b.sc) - (a.rk ?? a.sc)), icon: ABOUT[r.id]?.[0], teaser: ABOUT[r.id]?.[1] }))
     .filter((r) => r.list.length >= min && !r.always).sort((a, b) => b.list.length - a.list.length);
 }

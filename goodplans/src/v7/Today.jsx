@@ -92,7 +92,7 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   const subs = focus && SUBTYPES[focus] ? SUBTYPES[focus].map(([n]) => n).filter((n) => subN[n] || xsubs.includes(n)).sort((a, b) => A.prefOf("subs", b) - A.prefOf("subs", a) || (subN[b] || 0) - (subN[a] || 0)) : [];
   const showSubs = subs.length >= 2;
   const curSub = sub && subN[sub] && focus ? sub : null;
-  const list = inFam.filter((e) => (!curCat || e.ncat === curCat) && !xcats.includes(e.ncat) && (!curSub || e.nsub === curSub) && !(e.nsub && xsubs.includes(e.nsub))).sort((a, b) => b.sc - a.sc);
+  const list = inFam.filter((e) => (!curCat || e.ncat === curCat) && !xcats.includes(e.ncat) && (!curSub || e.nsub === curSub) && !(e.nsub && xsubs.includes(e.nsub))).sort((a, b) => (b.rk ?? b.sc) - (a.rk ?? a.sc));
   const shown = collapseSeries(list).slice(0, 5);
   return (
     <>
@@ -489,13 +489,13 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   const socialTag = social ? " · " + SOCIAL_BY[social].label : "";
   const intentAll = React.useMemo(() => applySocial(intentEvents(data || [], intentSel, today), social), [data, intentSel, today, social]);
   const intentTitle = joinMoods(intentSel);
-  const topAll = React.useMemo(() => applySocial((data || []).filter((e) => daysUntil(e, today) >= 0).slice().sort((a, b) => (b.sc || 0) - (a.sc || 0)), social), [data, today, social]);
+  const topAll = React.useMemo(() => applySocial((data || []).filter((e) => daysUntil(e, today) >= 0).slice().sort((a, b) => (b.rk ?? b.sc ?? 0) - (a.rk ?? a.sc ?? 0)), social), [data, today, social]);
   const [discN, setDiscN] = useState(6);
   const [favRows, setFavRows] = useState(3);
   // Favourite moods (hearts on the mood tiles)
   const [moodFavs, setMoodFavs] = useState(() => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); return Array.isArray(f) ? f.filter((id) => INTENT[id]) : []; } catch { return []; } });
   React.useEffect(() => { const on = () => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); if (Array.isArray(f)) setMoodFavs(f.filter((id) => INTENT[id])); } catch { /* none */ } }; window.addEventListener("gp-moodfav", on); return () => window.removeEventListener("gp-moodfav", on); }, []);
-  const toggleMoodFav = (id) => { const f = moodFavs.includes(id) ? moodFavs.filter((x) => x !== id) : [...moodFavs, id]; setMoodFavs(f); try { localStorage.setItem("gp_intent_fav", JSON.stringify(f)); } catch { /* full */ } return f; };
+  const toggleMoodFav = (id) => { const f = moodFavs.includes(id) ? moodFavs.filter((x) => x !== id) : [...moodFavs, id]; setMoodFavs(f); try { localStorage.setItem("gp_intent_fav", JSON.stringify(f)); window.dispatchEvent(new Event("gp-moodfav")); } catch { /* full */ } return f; };
   const favList = React.useMemo(() => { const all = [...(tiles?.all || []), ...(tiles?.every || [])]; return moodFav.slice().reverse().map((k) => all.find((t) => t.key === k)).filter(Boolean).map((t) => { const b = t.list?.length ? primaryIntent(t.list[0]) : null; return b ? { ...t, color: b.color, mid: b.id } : t; }); }, [tiles, moodFav]);
   // My favorites: one row per mood — the mood first (when hearted), then the favourite activities that belong to it
   const favGroups = React.useMemo(() => {
@@ -548,8 +548,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       else rare = 0.5;                                 // on for weeks more: fallback
       const fatigue = Math.max(0.55, 0.85 ** (seen[e.id] || 0));
       const fit = intentSel.length ? 0.55 + 0.45 * Math.min(1, blend(e, intentSel)) : 1;
-      const favLift = moodFavs.some((id) => INTENT[id]?.cats?.includes(e.ncat)) ? 1.12 : 1; // a mood you favourited
-      const base = (e.raw ?? e.sc ?? 0) * rare * fatigue * fit * favLift;
+      const base = (e.rk ?? e.sc ?? 0) * rare * fatigue * fit; // rk: the shared ranking (rank.js) — taste, moods, moment, quality
       scored.push([e, base * soon, len > 4 && !e.recurring && left > 3, base, d, left]);
     });
     scored.sort((a, b) => b[1] - a[1]);
@@ -644,7 +643,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     }).map((e) => ({ ...e, tt: { mins: walkOf(e), mode: "walk", line: null, walk: walkOf(e) } }));
     const seen = new Set();
     const slot = (e) => { const w = eventWindow(e); return w.s <= now ? -1 : Math.floor(w.s / 30); };
-    return L.sort((a, b) => (slot(a) - slot(b)) || (a.tt.mins - b.tt.mins) || (b.sc || 0) - (a.sc || 0)).filter((e) => { const k = String(e.title).toLowerCase().slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
+    return L.sort((a, b) => (slot(a) - slot(b)) || (a.tt.mins - b.tt.mins) || (b.rk ?? b.sc ?? 0) - (a.rk ?? a.sc ?? 0)).filter((e) => { const k = String(e.title).toLowerCase().slice(0, 24); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
   }, [data, today]);
   const byStart = (x, y) => (startMinutes(x) ?? 0) - (startMinutes(y) ?? 0);
   const savedNow = data.filter((e) => A.isSaved(e.id));

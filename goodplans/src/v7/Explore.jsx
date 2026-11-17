@@ -3,7 +3,7 @@ import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, CatBullet, Act
 import { Icon } from "./icons.jsx";
 import { LIcon } from "./taxonomy.js";
 import { Star } from "lucide";
-import { INTENTS } from "./intents.js";
+import { orderGroups } from "./rank.js";
 import { FilterHeader, applyFilters, sortEvents } from "./Filters.jsx";
 import { collapseSeries } from "./dedupe.js";
 import { startMinutes, whenLabel } from "./engine.js";
@@ -15,7 +15,7 @@ import { CATEGORIES } from "./taxonomy.js";
 const CATI = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 import { AroundMap } from "./Today.jsx";
 
-export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
+export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMoodFav, onClose, onTile = () => {}, scored, dark, today, onOpen, filters, setFilters, sort, setSort, regulars = [], annual = [], home, onFullMap, moodFb = {}, onMoodFb }) {
   const act = useContext(ActionsCtx);
   const [collapsed, setCollapsed] = useState({});
   const [style, setStyle] = useState("carousel");
@@ -59,11 +59,6 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
     if (groupBy === "area") { const a = neighbourhoodOf(e) || (e.hood ? String(e.hood).split(",")[0].trim() : "") || "Elsewhere"; return [a, 0]; }
     return [e.ncat || e.cat || "Other", 0];
   };
-  // For me, now: the raw taste score (not capped at 100), sooner first, and a lift for the moods and categories you favourited
-  const favMoods = useMemo(() => { try { return JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); } catch { return []; } }, [moodFav]); // eslint-disable-line react-hooks/exhaustive-deps
-  const favCats = useMemo(() => new Set([...INTENTS.filter((m) => favMoods.includes(m.id)).flatMap((m) => m.cats || []), ...moodFav.filter((k) => k.startsWith("gen-cat-")).map((k) => k.slice(8))]), [favMoods, moodFav]);
-  const favCatBonus = (e) => (e && favCats.has(e.ncat) ? 14 : 0);
-  const personal = (e) => (e.raw ?? e.sc ?? 0) - 2.5 * Math.min(10, Math.max(0, daysUntil(e, today)));
   const groupUp = (list) => {
     const by = new Map(), ord = {};
     list.forEach((e) => { const [k, o] = keyOf(e); if (!by.has(k)) { by.set(k, []); ord[k] = o; } by.get(k).push(e); });
@@ -71,7 +66,9 @@ export default function Explore({ listMeta, tiles, moodFav = [], onMoodFav, onCl
     if (groupBy === "day") out = out.sort((a, b) => ord[a[0]] - ord[b[0]]).map(([k, l]) => [k, l.slice().sort((x, y) => (startMinutes(x) ?? 9999) - (startMinutes(y) ?? 9999))]);
     if (groupBy === "area") out = out.sort((a, b) => (a[0] === "Elsewhere") - (b[0] === "Elsewhere") || b[1].length - a[1].length);
     // Categories you like come first: ranked by the average score of their best three events (your taste is in the score)
-    if (groupBy === "cat") { const fit = (l) => { const t = l.map(personal).sort((a, b) => b - a).slice(0, 3); return t.reduce((a, b) => a + b, 0) / t.length + favCatBonus(l[0]); }; out = out.sort((a, b) => fit(b[1]) - fit(a[1])).map(([k, l]) => [k, l.slice().sort((x, y) => personal(y) - personal(x))]); }
+    // Categories you like come first (your moods, favourites, what the app learned), then by their best events (rank.js)
+    if (groupBy === "cat" && rankCtx) out = orderGroups(out, rankCtx);
+    if (groupBy === "area") out = out.map(([k, l]) => [k, l.slice().sort((x, y) => (y.rk ?? 0) - (x.rk ?? 0))]);
     return out;
   };
   const catGroups = useMemo(() => groupUp(results.slice(0, 160).filter((e) => !(fromTile && act.isSaved(e.id)))), [results, fromTile, act, groupBy]); // eslint-disable-line react-hooks/exhaustive-deps

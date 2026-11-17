@@ -11,7 +11,7 @@ import { place, page, needsPage, vagueVenue } from "./_details-core.js";
 import { readIndex, putJSON, INDEX } from "./_blob.js";
 
 export const config = { maxDuration: 60 };
-const MAX = 36, PARALLEL = 6, HORIZON_DAYS = 45, RETRY_DAYS = 10;
+const MAX = 36, PARALLEL = 6, HORIZON_DAYS = 45;
 const iso = (d) => d.toISOString().slice(0, 10);
 
 export default async function handler(req, res) {
@@ -28,13 +28,14 @@ export default async function handler(req, res) {
     if (feed.error) return res.status(502).json({ error: "feed: " + feed.error });
     const events = feed.events || [];
     const idx = await readIndex();
-    const today = iso(new Date()), until = iso(new Date(Date.now() + HORIZON_DAYS * 864e5));
+    const today = iso(new Date()), until = iso(new Date(Date.now() + HORIZON_DAYS * 864e5)), soon = iso(new Date(Date.now() + 4 * 864e5));
     // drop entries for events that are over
     const live = new Set(events.filter((e) => (e.X || e.E) >= today).map((e) => e.id));
     for (const id of Object.keys(idx)) if (!live.has(id) && Date.now() - (idx[id].at || 0) > 3 * 864e5) delete idx[id];
     const todo = events
       .filter((e) => e.id && e.E && (e.X || e.E) >= today && e.E <= until && (needsPage(e) || vagueVenue(e)))
-      .filter((e) => !idx[e.id] || (Date.now() - (idx[e.id].at || 0) > RETRY_DAYS * 864e5 && !idx[e.id].page?.start && !idx[e.id].place))
+      // Never looked up, or (once) when it's close: times and ticket links are often posted only in the last days
+      .filter((e) => !idx[e.id] || (!idx[e.id].retried && !idx[e.id].page?.start && e.E <= soon && Date.now() - (idx[e.id].at || 0) > 3 * 864e5))
       .sort((a, b) => (a.E < b.E ? -1 : 1))
       .slice(0, MAX);
     let done = 0;
@@ -45,7 +46,8 @@ export default async function handler(req, res) {
           vagueVenue(e) ? place(e.venue).catch(() => null) : null,
           needsPage(e) ? page({ title: e.title, venue: e.venue, hood: e.hood, url: e.url, date: e.E, time: e.time, price: e.price, desc: String(e.desc || "").slice(0, 400) }).catch(() => null) : null,
         ]);
-        idx[e.id] = { at: Date.now(), place: pl, page: pg };
+        const prev = idx[e.id];
+        idx[e.id] = { at: Date.now(), place: pl || prev?.place || null, page: pg || prev?.page || null, ...(prev ? { retried: true } : {}) };
         done++;
       }));
     }
