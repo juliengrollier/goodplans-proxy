@@ -14,7 +14,7 @@ export const INTENTS = [
   // Improv jams and comedy open mics: you can get up yourself
   { id: "play", label: "Play", short: "Play", color: "#EAB308", icon: Dices, cats: ["Trivia & Quizzes", "Board & Card Games", "Arcades & VR", "Bar Games & Bowling", "Escape Rooms & Puzzles", "Karaoke"], acts: ["open-mic-comedy"], dims: {} },
   // Gardens, birding, stargazing: learning as much as being outdoors; history and architecture tours: you learn as you walk
-  { id: "curious", label: "Get curious", short: "Curious", color: "#4F46E5", icon: Lightbulb, cats: ["Talks & Panels", "Books & Readings", "Museums & Galleries"], acts: ["botanic-garden", "birding", "stargazing", "documentary", "film-qa", "readings-theatre", "history-tour", "architecture", "harbor-history", "ghost-tour"], dims: { "tone=thoughtful": 0.3 } },
+  { id: "curious", label: "Get curious", short: "Curious", color: "#4F46E5", icon: Lightbulb, cats: ["Talks & Panels", "Books & Readings", "Museums & Galleries", "Volunteering & Community"], acts: ["botanic-garden", "birding", "stargazing", "documentary", "film-qa", "readings-theatre", "history-tour", "architecture", "harbor-history", "ghost-tour"], dims: { "tone=thoughtful": 0.3 } },
   // Walking tours live here: discovering the city on foot
   { id: "explore", label: "Explore", short: "Explore", color: "#0891B2", icon: Compass, cats: ["Tours", "Parks & Nature", "Markets", "Festivals & Parades"], acts: [], dims: {} },
   // Galleries and art openings: the art scene and inspiration; zines and maker fairs: making things

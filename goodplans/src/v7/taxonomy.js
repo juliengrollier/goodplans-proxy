@@ -4,7 +4,7 @@
 import React from "react";
 import {
   Popcorn, Headphones, UtensilsCrossed, PartyPopper, Scissors, Activity, Compass, GraduationCap,
-  Drama, Laugh, Clapperboard, Sparkles, Trophy, Guitar, Music2, Piano, Star, Heart, Wine, Soup, Martini, Disc3, Footprints, MicVocal,
+  Drama, Laugh, Clapperboard, Sparkles, Trophy, Guitar, Music2, Piano, Star, Heart, HandHeart, Wine, Soup, Martini, Disc3, Footprints, MicVocal,
   Palette, ChefHat, Bike, Flower2, Volleyball, Landmark, ShoppingBasket, FerrisWheel, Trees, Presentation, BookOpen, Signpost,
   Gamepad2, Dices, Joystick, KeyRound, Target, Brain, Waves, Mountain, MountainSnow, Timer,
 } from "lucide";
@@ -43,6 +43,8 @@ export const CATEGORIES = [
   { id: "Tastings", fam: "eat", icon: Wine, re: /tasting|wine|natural wine|sake|whisk|mezcal|tequila|cheese|chocolate|beer fest|cider/ },
   { id: "Food Markets & Pop-ups", fam: "eat", icon: Soup, re: /food (market|festival|hall|pop-?up|crawl)|night market|smorgasburg|supper club|pop-?up dinner|dumpling|food truck|crawl|feast|potluck|friendsgiving/ },
   { id: "Bars & Happy Hours", fam: "eat", icon: Martini, re: /happy hour|cocktail|speakeasy|brewery|taproom|\bbar\b|pub\b|beer garden|biergarten|oktoberfest/ },
+  // Volunteering & Community (18 Nov 2026): giving time, civic life
+  { id: "Volunteering & Community", fam: "learn", icon: HandHeart, re: /volunteer|clean-?up|food (bank|pantry|rescue)|soup kitchen|mentor|tutoring|tree planting|blood drive|coat drive|community garden|community board|town hall meeting/ },
   { id: "Tours", fam: "learn", icon: Signpost, re: /walking tour|\btour\b|guided walk|history walk|open house|behind the scenes|architecture walk/ },
   { id: "Books & Readings", fam: "learn", icon: BookOpen, re: /book|reading|poetry|poet|author|literary|novel|launch|zine fair/ },
   { id: "Talks & Panels", fam: "learn", icon: Presentation, re: /talk|lecture|panel|conversation|discussion|q ?& ?a|symposium|seminar|salon|debate|class on/ },

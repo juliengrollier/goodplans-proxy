@@ -6,7 +6,7 @@ import { markSeen } from "./moods2.js";
 import { INTENT } from "./intents.js";
 import { setKeywordDf } from "./components.jsx";
 import { logMood, moodStats } from "./moodlog.js";
-import { actOf } from "./activities.js";
+import { actOf, addActivities, ACT_IDS } from "./activities.js";
 import { ingest, getSpace, tasteOf, neighbours, labelOf } from "./embed.js";
 import { hoodCards, genericCards, buildTiles } from "./tiles.js";
 import { API_BASE } from "./images.js";
@@ -54,7 +54,8 @@ const ENV_KEY = import.meta.env.VITE_GP_KEY || LEGACY_KEY;
 const THEME_KEY = "gp_theme_v7";
 const STALE_MS = 6 * 3600 * 1000;
 const FILTERS_KEY = "gp_filters_v1";
-const TAGS_KEY = "gp_tags_v13"; // v13: h = one-line hook shown on cards
+const TAGS_KEY = "gp_tags_v14"; // v14: 500 activities (18 Nov 2026); v13 tags show until each event is re-tagged
+const TAGS_OLD = "gp_tags_v13";
 const HL_KEY = "gp_hl_v13";
 const postJSON = (path, body) => fetchJSONPost(API_BASE + path, body);
 async function fetchJSONPost(url, body) {
@@ -168,7 +169,14 @@ export default function App() {
   const signOut = () => { try { localStorage.removeItem(ACCOUNT_KEY); window.google?.accounts?.id?.disableAutoSelect?.(); } catch { /* private */ } setAccount(null); setShowQuiz("auth"); };
   const [showTour, setShowTour] = useState(false);
   const mapsIdx = useMemo(() => M.buildIndex(mapsData), [mapsData]);
-  const [tags, setTags] = useState(() => { try { return JSON.parse(localStorage.getItem(TAGS_KEY) || "{}"); } catch { return {}; } });
+  const [tags, setTags] = useState(() => {
+    try {
+      const cur = JSON.parse(localStorage.getItem(TAGS_KEY) || "null");
+      if (cur) return cur;
+      const old = JSON.parse(localStorage.getItem(TAGS_OLD) || "{}");
+      return Object.fromEntries(Object.entries(old).map(([k, v]) => [k, { ...v, old: 1 }]));
+    } catch { return {}; }
+  });
   const [hl, setHl] = useState(() => { try { return JSON.parse(localStorage.getItem(HL_KEY) || "null"); } catch { return null; } });
   const [hlStatus, setHlStatus] = useState("idle");
   const aiOff = useRef(false); // set when the enrich function is unavailable (no key), to stop retrying this session
@@ -383,6 +391,8 @@ export default function App() {
   const allEvents = useMemo(() => { const det = loadDetails(); return mergeDuplicates(withRegulars(merged, rec, today)).map((e) => withDetails(e, det)).filter((e) => !e.outside && !outsideNYC(e)); }, [merged, rec, today, detailsVer]); // eslint-disable-line react-hooks/exhaustive-deps
   const getDetails = useCallback((list) => { fetchDetails(list, () => setDetailsVer((v) => v + 1)); }, []);
   useEffect(() => { syncDetailsIndex().then((ch) => { if (ch) setDetailsVer((v) => v + 1); }); }, []); // daily server lookups
+  // Activities the weekly discovery job added: load them, then re-tag (the version below changes)
+  useEffect(() => { fetch(API_BASE + "/api/activity-discover?list=1").then((r) => (r.ok ? r.json() : null)).then((x) => { if (x?.list && addActivities(x.list)) setDetailsVer((v) => v + 1); }).catch(() => {}); }, []);
 
   // ── Scoring
   const eprof = useMemo(() => effectiveProf(prof, taste), [prof, taste]);
@@ -550,7 +560,9 @@ export default function App() {
   useEffect(() => {
     if (!ready || aiOff.current || tagBusy.current) return;
     // Events tagged before activities existed (no "a" field) are tagged again once
-    const todo = visible.filter((e) => !tags[e.id] || !("a" in tags[e.id])).slice(0, 160);
+    // Re-tag: never tagged, tagged with the old list (v13), or no activity fitted and the list has grown since
+    const stale = (t) => !t || !("a" in t) || t.old || (t.a == null && (t.n || 0) < ACT_IDS.length);
+    const todo = visible.filter((e) => stale(tags[e.id])).slice(0, 160);
     if (!todo.length) return;
     tagBusy.current = true;
     (async () => {
@@ -558,11 +570,11 @@ export default function App() {
       for (let i = 0; i < todo.length; i += 40) {
         try {
           const d = await postJSON("/api/enrich", { mode: "tags", events: todo.slice(i, i + 40).map(({ id, title, desc, cat, sub, venue, price, time, src }) => ({ id, title, desc, cat: cat, sub, venue, price, time, src })) });
-          acc = { ...acc, ...(d.tags || {}) };
+          acc = { ...acc, ...Object.fromEntries(Object.entries(d.tags || {}).map(([k, v]) => [k, { ...v, n: ACT_IDS.length }])) };
           // Events Claude skipped still get an entry, so they aren't sent again and again
-          todo.slice(i, i + 40).forEach((e) => { if (!acc[e.id]) acc[e.id] = { k: [], cat: null, a: null }; else if (!("a" in acc[e.id])) acc[e.id] = { ...acc[e.id], a: null }; });
+          todo.slice(i, i + 40).forEach((e) => { const t = acc[e.id]; if (!t) acc[e.id] = { k: [], cat: null, a: null, n: ACT_IDS.length }; else if (!("a" in t) || t.old) acc[e.id] = { ...t, a: t.old ? t.a ?? null : null, old: undefined, n: ACT_IDS.length }; });
           setTags(acc);
-          try { localStorage.setItem(TAGS_KEY, JSON.stringify(Object.fromEntries(Object.entries(acc).slice(-1500)))); } catch { /* full */ }
+          try { localStorage.setItem(TAGS_KEY, JSON.stringify(Object.fromEntries(Object.entries(acc).slice(-1500)))); localStorage.removeItem(TAGS_OLD); } catch { /* full */ }
         } catch (e) { if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; break; }
       }
       tagBusy.current = false;
