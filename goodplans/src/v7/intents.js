@@ -1,7 +1,8 @@
 // "I'm in the mood to…": ten moods. Every category has one home mood (label, colour); some activities also count for a
 // second mood, each with a reason noted below. Membership: home category (strongest), a listed activity, how it feels.
 // The "who with" switch (Anyone · Date · Meet people) reranks whatever is shown; it is not a mood.
-import { Music, Drama, Laugh, Dices, Lightbulb, Compass, Palette, Activity, PartyPopper, Utensils, Heart, Users, Handshake, Baby } from "lucide-react";
+import { Music, Drama, Laugh, Dices, Lightbulb, Compass, Palette, Activity, PartyPopper, Utensils, Heart, Users, Handshake, Baby, Dog } from "lucide-react";
+import { isOutdoor } from "./engine.js";
 import { daysUntil } from "../lib/core.js";
 
 // Ten moods. Each category has exactly one home mood (its label and colour); "acts" lists activities that also belong
@@ -27,7 +28,7 @@ export const INTENTS = [
   { id: "eat", label: "Eat & drink", short: "Eat & drink", color: "#B45309", icon: Utensils, cats: ["Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours"], acts: ["food-tour", "farmers-market", "holiday-market", "cooking-class", "baking-class", "cocktail-class"], dims: {} },
 ];
 
-// Who with: a switch, not a mood. It reranks whatever is shown toward the company you're in (Kids also filters out
+// Who with: a switch, not a mood. It reranks whatever is shown toward the company you're in (Kids and Dog also filter out
 // anything adults-only).
 export const SOCIAL = [
   { id: "meet", label: "Meet people", icon: Handshake,
@@ -42,13 +43,28 @@ export const SOCIAL = [
   { id: "kids", label: "Kids", icon: Baby, strict: true,
     acts: ["puppets", "circus", "magic", "animation", "parade", "tree-lighting", "ice-skating", "roller-skating", "botanic-garden", "museum", "mini-golf", "skee-ball", "arcade", "bowling", "street-fair", "cultural-festival", "fireworks", "holiday-market", "farmers-market", "birding", "stargazing", "outdoor-film", "gardening", "baking-class", "pottery", "hiking", "kayaking"],
     dims: { "audience=kids": 1, "audience=all-ages": 0.45, "audience=adults": -0.6, "audience=21+": -2, "energy=wild": -0.3, "noise=loud": -0.2 } },
+  // With the dog: events that say dogs are welcome first, then open-air things where a leashed dog can come along
+  // (parks, walks, markets, street fairs). Indoor venues are out.
+  { id: "dog", label: "Dog", icon: Dog, strict: true,
+    acts: ["dog-meetup", "dog-show", "pet-adoption", "hiking", "urban-hike", "day-hike", "picnic", "farmers-market", "street-fair", "parade", "beer-garden", "outdoor-film", "birding", "holiday-market", "flea", "walking-tour"],
+    dims: {} },
 ];
+const DOG_TEXT = /\b(dogs?|pup(py|pies|s)?|canine|doggy|pet[- ]friendly|pets (are )?welcome|bring your (dog|pet)|howl-?o-?ween|bark)\b/i;
+const DOG_NO = /no (dogs|pets)|service animals only/i;
+const DOG_CATS = new Set(["Parks & Nature", "Hiking & Walks", "Markets", "Festivals & Parades", "Food Markets & Pop-ups", "Running"]);
 const ADULT_ONLY = new Set(["Clubs & DJs", "Bars & Happy Hours", "Tastings"]);
 export const SOCIAL_BY = Object.fromEntries(SOCIAL.map((m) => [m.id, m]));
 const SOC_SETS = Object.fromEntries(SOCIAL.map((m) => [m.id, new Set(m.acts)]));
 // 0 … 1: how well an event fits a date / meeting people
 export function socialFit(e, id) {
   const m = SOCIAL_BY[id]; if (!m) return 1;
+  if (id === "dog") {
+    const txt = [e.title, e.desc, e.venue, ...(e.tags || []), ...(e.kw || [])].join(" ");
+    if (DOG_NO.test(txt)) return 0;
+    if (DOG_TEXT.test(txt)) return 1;
+    const out = isOutdoor(e);
+    return out && (DOG_CATS.has(e.ncat) || SOC_SETS.dog.has(e.act)) ? 0.6 : out ? 0.35 : 0;
+  }
   if (id === "kids" && (e.dims?.audience === "21+" || ADULT_ONLY.has(e.ncat) || /21\+|18\+|adults only/i.test([e.title, e.desc, ...(e.tags || [])].join(" ")))) return 0;
   let f = SOC_SETS[id].has(e.act) ? 0.8 : 0;
   for (const [k, w] of Object.entries(m.dims)) { const [d, v] = k.split("="); if (e.dims?.[d] === v) f += w * 0.6; }
