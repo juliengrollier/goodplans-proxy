@@ -10,7 +10,8 @@
  *    the tagging prompt and the app load them.
  * GET ?list=1 → the added activities (read by the app).
  */
-import { ACTS } from "../goodplans/src/v7/activities.js";
+import { ACTIVITIES, ACT_CAT, ACT_RE } from "./activity-ids.js";
+const ACTS = Object.keys(ACTIVITIES).map((id) => [id, ACTIVITIES[id], ACT_CAT[id], new RegExp(ACT_RE[id], "i")]);
 import { getJSON, putJSON } from "./_blob.js";
 
 export const config = { maxDuration: 60 };
