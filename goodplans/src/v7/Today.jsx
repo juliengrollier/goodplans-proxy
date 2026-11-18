@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { favAt, markFavAt } from "./moodlog.js";
 import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods, primaryIntent, SOCIAL, SOCIAL_BY, applySocial } from "./intents.js";
 import { markSeen } from "./moods2.js";
 import * as T from "./telemetry.js";
@@ -496,13 +497,17 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   // Favourite moods (hearts on the mood tiles)
   const [moodFavs, setMoodFavs] = useState(() => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); return Array.isArray(f) ? f.filter((id) => INTENT[id]) : []; } catch { return []; } });
   React.useEffect(() => { const on = () => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); if (Array.isArray(f)) setMoodFavs(f.filter((id) => INTENT[id])); } catch { /* none */ } }; window.addEventListener("gp-moodfav", on); return () => window.removeEventListener("gp-moodfav", on); }, []);
-  const toggleMoodFav = (id) => { const f = moodFavs.includes(id) ? moodFavs.filter((x) => x !== id) : [...moodFavs, id]; setMoodFavs(f); try { localStorage.setItem("gp_intent_fav", JSON.stringify(f)); window.dispatchEvent(new Event("gp-moodfav")); } catch { /* full */ } return f; };
+  const toggleMoodFav = (id) => { markFavAt("mood:" + id, !moodFavs.includes(id)); const f = moodFavs.includes(id) ? moodFavs.filter((x) => x !== id) : [...moodFavs, id]; setMoodFavs(f); try { localStorage.setItem("gp_intent_fav", JSON.stringify(f)); window.dispatchEvent(new Event("gp-moodfav")); } catch { /* full */ } return f; };
   const favList = React.useMemo(() => { const all = [...(tiles?.all || []), ...(tiles?.every || [])]; return moodFav.slice().reverse().map((k) => all.find((t) => t.key === k)).filter(Boolean).map((t) => { const b = t.list?.length ? primaryIntent(t.list[0]) : null; return b ? { ...t, color: b.color, mid: b.id } : t; }); }, [tiles, moodFav]);
-  // My favorites: one row per mood — the mood first (when hearted), then the favourite activities that belong to it
-  const favGroups = React.useMemo(() => {
-    const by = {}; favList.forEach((t) => { (by[t.mid || "other"] = by[t.mid || "other"] || []).push(t); });
-    const ids = [...moodFavs, ...Object.keys(by).filter((k) => !moodFavs.includes(k)).sort((a, b) => by[b].length - by[a].length)];
-    return ids.map((id) => ({ id, mood: INTENT[id] || null, hearted: moodFavs.includes(id), items: by[id] || [] }));
+  // My Interests: hearted moods and activities in one row set, last hearted first (no grouping by mood).
+  // Entries hearted before heart times were kept fall back to their order in the saved lists (newest last there).
+  const favFlat = React.useMemo(() => {
+    const at = favAt();
+    const items = [
+      ...moodFavs.map((id, i) => ({ kind: "mood", key: "mood:" + id, id, mood: INTENT[id], ord: i })),
+      ...favList.map((t, i) => ({ kind: "tile", key: t.key, t, mood: t.mid ? INTENT[t.mid] : null, ord: favList.length - 1 - i })),
+    ].filter((x) => x.kind === "tile" || x.mood);
+    return items.sort((a, b) => (at[b.key] || 0) - (at[a.key] || 0) || b.ord - a.ord);
   }, [favList, moodFavs]);
   // Discover: the activities you're most likely to want now. Picked moods lift what fits them; they don't filter.
   const discover = React.useMemo(() => {
@@ -512,8 +517,21 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       const fit = intentSel.length ? t.list.reduce((a, e) => a + Math.min(1, blend(e, intentSel)), 0) / t.list.length : 0;
       return [t, i - 8 * fit];
     }).sort((a, b) => a[1] - b[1]).map(([t]) => t);
-    return [...ranked, ...rest].filter((t) => !moodFav.includes(t.key)).map((t) => { const b = primaryIntent(t.list[0]) || bestIntent(t.list); return b ? { ...t, title: t.short || t.title, verb: b.label, color: b.color } : { ...t, title: t.short || t.title }; });
-  }, [tiles, intentSel, moodFav]);
+    return [...ranked, ...rest].map((t) => { const b = primaryIntent(t.list[0]) || bestIntent(t.list); return b ? { ...t, title: t.short || t.title, verb: b.label, color: b.color } : { ...t, title: t.short || t.title }; });
+  }, [tiles, intentSel]);
+  // Keep the row steady while you use it: a heart (which lifts that tile in the ranking) must not move or drop it
+  const discOrder = React.useRef({ sel: "", keys: [], frozen: false });
+  const discoverShown = React.useMemo(() => {
+    const sel = intentSel.join();
+    if (discOrder.current.sel !== sel) discOrder.current = { sel, keys: [], frozen: false };
+    if (!discOrder.current.frozen) { discOrder.current.keys = discover.map((t) => t.key); return discover; }
+    const by = new Map(discover.map((t) => [t.key, t]));
+    const kept = discOrder.current.keys.filter((k) => by.has(k)).map((k) => by.get(k));
+    const keptSet = new Set(kept.map((t) => t.key));
+    const out = [...kept, ...discover.filter((t) => !keptSet.has(t.key))];
+    discOrder.current.keys = out.map((t) => t.key);
+    return out;
+  }, [discover]); // eslint-disable-line react-hooks/exhaustive-deps
   // Impressions for the mood stats: what Discover actually shows
   React.useEffect(() => { const ks = discover.slice(0, discN).filter((t) => /^gen-/.test(t.key)); if (ks.length) markSeen(ks, today); }, [discover, discN]); // eslint-disable-line react-hooks/exhaustive-deps
   const intentWithin = React.useMemo(() => { const m = {}; intentAll.forEach((e) => { if (e.act && ACT[e.act]) (m[e.act] = m[e.act] || []).push(e); }); return Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 10); }, [intentAll]);
@@ -556,7 +574,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     const titles = new Set();
     const uniq = applySocial(scored.map(([e]) => e), social).filter((e) => { const k = String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24); if (titles.has(k)) return false; titles.add(k); return true; });
     const info = new Map(scored.map(([e, v, long, base, d, left]) => [e.id, { v, long, base, d, left }]));
-    // Four slots, each filled with its own best pick (no label on the card):
+    // Four slots, each filled with its own best pick and labelled on the card:
     // 1 today · 2 tomorrow · 3 the coming weekend (on Sat/Sun: the rest of the week) · 4 on your radar
     // (3+ days out, ticket or RSVP, one you'd love). A slot with nothing good enough (under 60% of the best
     // pick overall) gives its place to the best remaining pick. Same category or activity twice loses 20%;
@@ -579,10 +597,15 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     const top = [], used = new Set(), cats = {}, acts = {};
     let longs = 0;
     const adj = (e, v) => v * 0.8 ** ((cats[e.ncat || e.cat] || 0) + (e.act && acts[e.act] || 0)) * (info.get(e.id).long && longs >= 1 ? 0.4 : 1);
-    const take = (e) => { top.push(e); used.add(e.id); cats[e.ncat || e.cat] = (cats[e.ncat || e.cat] || 0) + 1; if (e.act) acts[e.act] = (acts[e.act] || 0) + 1; if (info.get(e.id).long) longs++; };
+    const labels = new Map();
+    const weekendWord = dow === 6 || dow === 0 ? "This week" : "This weekend";
+    // "Book ahead": the radar slot — further out, needs a ticket or RSVP, and one you'd love
+    const LABEL = ["Best today", "Best tomorrow", weekendWord, "Book ahead"];
+    const labelOf = (e) => { const d = info.get(e.id).d; return d === 0 ? LABEL[0] : d === 1 ? LABEL[1] : slotOffs.includes(d) ? LABEL[2] : "Coming up"; };
+    const take = (e, k) => { labels.set(e.id, k != null ? LABEL[k] : labelOf(e)); top.push(e); used.add(e.id); cats[e.ncat || e.cat] = (cats[e.ncat || e.cat] || 0) + 1; if (e.act) acts[e.act] = (acts[e.act] || 0) + 1; if (info.get(e.id).long) longs++; };
     const pick = (ok, key) => { let bi = null, bv = -1; for (const e of uniq) { if (used.has(e.id) || !ok(e)) continue; const v = adj(e, info.get(e.id)[key]); if (v > bv) { bv = v; bi = e; } } return [bi, bv]; };
     const open = [];
-    slots.forEach((ok, k) => { const [e, v] = pick(ok, "base"); if (e && v >= best * 0.6) take(e); else open.push(k); });
+    slots.forEach((ok, k) => { const [e, v] = pick(ok, "base"); if (e && v >= best * 0.6) take(e, k); else open.push(k); });
     // fill-ins: best remaining pick, preferring a day the other cards don't cover yet
     open.forEach(() => {
       const days = new Set(top.map((x) => info.get(x.id).d));
@@ -593,7 +616,8 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     // keep the slot order for display: today, tomorrow, weekend, radar (fill-ins slot in where they're dated)
     top.sort((x, y) => info.get(x.id).d - info.get(y.id).d);
     const rest = uniq.filter((e) => !used.has(e.id));
-    return [...top, ...rest];
+    const out = [...top, ...rest]; out.labels = labels;
+    return out;
   }, [data, today, intentSel, social, moodFavs, shuf]);
   // Remember what headed For you today (once per day per event), so ignored picks fade on later days
   // (waits until the list has settled, so a half-loaded feed isn't what gets recorded)
@@ -666,7 +690,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
             const savedUp = savedNow.slice().sort((x, y) => evStart(x) - evStart(y) || byStart(x, y));
             return (<>
               <button style={hb} aria-label={"Saved plans, " + savedUp.length} onClick={() => savedUp.length && onTile({ key: "saved", title: "Your plans", list: savedUp, color: "#1F2A5C", teaser: "Everything you've bookmarked that's still coming up.", verb: "Saved", group: "day" })}><Icon name="save" size={17} />{badge(savedUp.length)}</button>
-              <button style={hb} aria-label={"Favorites, " + (favList.length + moodFavs.length)} onClick={() => document.getElementById("my-favs")?.scrollIntoView({ behavior: "smooth" })}><Icon name="heart" size={17} />{badge(favList.length + moodFavs.length)}</button>
+              <button style={hb} aria-label={"My Interests, " + (favList.length + moodFavs.length)} onClick={() => document.getElementById("my-favs")?.scrollIntoView({ behavior: "smooth" })}><Icon name="heart" size={17} />{badge(favList.length + moodFavs.length)}</button>
               <button style={hb} aria-label={"Profile and location · " + locLabel} onClick={() => setTab("me")}><Icon name="me" size={18} /></button>
             </>);
           })()}
@@ -734,7 +758,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
           </div>
           {bestNow.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
-              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev, k) => <div key={ev.id} id={k === 0 ? "tour-card" : undefined} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}</div>
+              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev, k) => <div key={ev.id} id={k === 0 ? "tour-card" : undefined} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid label={bestAll.labels?.get(ev.id)} /></div>)}</div>
               {intentSel.length === 0 && (
                 <div className="row" style={{ padding: "18px 16px 0", gap: 8 }}>
                   <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: "Top picks" + socialTag, list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
@@ -758,32 +782,27 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
             </div>
           )}
 
-          {favGroups.length > 0 && (
+          {favFlat.length > 0 && (
             <div id="my-favs" style={{ scrollMarginTop: 12 }}>
-              <Head title="My favorites" sub="Your moods and activities, one tap away." />
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {favGroups.slice(0, favRows).map((g) => (
-                  <div key={g.id} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }}>
-                    {g.mood && (
-                      <div role="button" tabIndex={0} onClick={() => { putIntent([g.id]); document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" }); }} onKeyDown={(e) => { if (e.key === "Enter") putIntent([g.id]); }}
-                        style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + g.mood.color, background: g.hearted ? g.mood.color : "var(--card)", color: g.hearted ? "#fff" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 800, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
-                        {g.hearted && <button aria-label={"Remove " + g.mood.label + " from favourites"} onClick={(e) => { e.stopPropagation(); toggleMoodFav(g.id); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>}
-                        {React.createElement(g.mood.icon, { size: 20, strokeWidth: 2.2, color: g.hearted ? "#fff" : g.mood.color })}{g.mood.label}
-                      </div>
-                    )}
-                    {g.items.map((t) => (
-                      <div key={t.key} role="button" tabIndex={0} onClick={() => onTile(t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + ((g.mood?.color || t.color || "#888888") + "55"), background: (g.mood?.color || t.color || "#888888") + "22", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
-                        <button aria-label="Remove from favorites" onClick={(e) => { e.stopPropagation(); onMoodFav(t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
-                        {t.node ? <LIcon node={t.node} size={20} color={t.color} stroke={2.2} /> : t.icon ? React.createElement(t.icon, { size: 20, strokeWidth: 2.2, color: t.color }) : null}
-                        <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" }}>{t.short || t.title}</span>
-                      </div>
-                    ))}
+              <Head title="My Interests" sub="Your moods and activities, one tap away." />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 16px 2px" }}>
+                {favFlat.slice(0, favRows * 4).map((x) => x.kind === "mood" ? (
+                  <div key={x.key} role="button" tabIndex={0} onClick={() => { putIntent([x.id]); document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" }); }} onKeyDown={(e) => { if (e.key === "Enter") putIntent([x.id]); }}
+                    style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + x.mood.color, background: x.mood.color, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 800, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
+                    <button aria-label={"Remove " + x.mood.label + " from My Interests"} onClick={(e) => { e.stopPropagation(); toggleMoodFav(x.id); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
+                    {React.createElement(x.mood.icon, { size: 20, strokeWidth: 2.2, color: "#fff" })}{x.mood.label}
+                  </div>
+                ) : (
+                  <div key={x.key} role="button" tabIndex={0} onClick={() => onTile(x.t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(x.t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + ((x.mood?.color || x.t.color || "#888888") + "55"), background: (x.mood?.color || x.t.color || "#888888") + "22", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
+                    <button aria-label="Remove from My Interests" onClick={(e) => { e.stopPropagation(); onMoodFav(x.t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
+                    {x.t.node ? <LIcon node={x.t.node} size={20} color={x.t.color} stroke={2.2} /> : x.t.icon ? React.createElement(x.t.icon, { size: 20, strokeWidth: 2.2, color: x.t.color }) : null}
+                    <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" }}>{x.t.short || x.t.title}</span>
                   </div>
                 ))}
               </div>
-              {favGroups.length > 3 && (
+              {favFlat.length > 12 && (
                 <div style={{ padding: "10px 20px 0", display: "flex", justifyContent: "center" }}>
-                  <button onClick={() => setFavRows(favRows < favGroups.length ? favRows + 3 : 3)} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 13.5, fontWeight: 800, padding: 4 }}>{favRows < favGroups.length ? "Show more" : "Show less"}</button>
+                  <button onClick={() => setFavRows(favRows * 4 < favFlat.length ? favRows + 3 : 3)} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 13.5, fontWeight: 800, padding: 4 }}>{favRows * 4 < favFlat.length ? "Show more" : "Show less"}</button>
                 </div>
               )}
             </div>
@@ -796,8 +815,8 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {!empty && discover.length > 0 && (
         <>
           <Head title="You may also like" sub="Activities we think you'd like." />
-          <DotScroll key={"yml-" + intentSel.join()} onMore={() => discN < discover.length && setDiscN(discN + 6)}>
-            {discover.slice(0, discN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} fav={false} onFav={onMoodFav} />)}
+          <DotScroll key={"yml-" + intentSel.join()} onMore={() => discN < discoverShown.length && setDiscN(discN + 6)}>
+            {discoverShown.slice(0, discN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFav={(x) => { discOrder.current.frozen = true; onMoodFav(x); }} />)}
           </DotScroll>
         </>
       )}

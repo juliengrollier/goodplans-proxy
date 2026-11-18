@@ -20,7 +20,7 @@ export const TOUR_STEPS = [
   { sel: "#tour-card", title: "Picked for you",
     text: () => <>Your best picks for the next outing. Tap <I n="save" /> to save one to your plans, the list under <I n="plans" /> Plans at the bottom.</> },
   { sel: "#tour-moods", title: "What are you in the mood for?",
-    text: () => <>Tap a mood and your picks follow: live music tonight, a good laugh, something creative… Tap <I n="heart" /> to add a mood to your favourites.</> },
+    text: () => <>Tap a mood and your picks follow: live music tonight, a good laugh, something creative… Tap <I n="heart" /> to add a mood to My Interests.</> },
   { sel: "#my-favs", from: "#my-favs .sec-h > span", title: "One tap to what you love",
     text: () => <>Every mood and activity you <I n="heart" fill /> is kept here. You can also reach them from <I n="heart" /> at the top.</> },
   { sel: "#tour-city-first > :first-child", from: "#tour-city .sec-h > span", title: "Today's local heartbeat",

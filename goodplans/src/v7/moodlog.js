@@ -20,3 +20,10 @@ export function moodStats(days = 14) {
   const top = Object.entries(s.moods).filter(([, m]) => m.opened || m.saved).sort((a, b) => (b[1].saved * 3 + b[1].opened) - (a[1].saved * 3 + a[1].opened)).slice(0, 5).map(([k, m]) => ({ key: k, ...m }));
   return { ...t, top };
 }
+// When each My Interests entry was hearted (tile keys, and "mood:<id>" for moods), so the row shows the latest first
+const FAV_AT = "gp_favat_v1";
+export function favAt() { try { return JSON.parse(localStorage.getItem(FAV_AT) || "{}") || {}; } catch { return {}; } }
+export function markFavAt(key, on) {
+  const m = favAt(); if (on) m[key] = Date.now(); else delete m[key];
+  try { localStorage.setItem(FAV_AT, JSON.stringify(m)); } catch { /* full */ }
+}

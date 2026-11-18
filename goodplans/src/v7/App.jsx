@@ -5,7 +5,7 @@ import { EMPTY_FILTERS } from "./Filters.jsx";
 import { markSeen } from "./moods2.js";
 import { INTENT } from "./intents.js";
 import { setKeywordDf } from "./components.jsx";
-import { logMood, moodStats } from "./moodlog.js";
+import { logMood, moodStats, markFavAt } from "./moodlog.js";
 import { actOf, addActivities, ACT_IDS } from "./activities.js";
 import { ingest, getSpace, tasteOf, neighbours, labelOf } from "./embed.js";
 import { hoodCards, genericCards, buildTiles } from "./tiles.js";
@@ -867,8 +867,9 @@ export default function App() {
     if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } }
     const on = moodFav.includes(t.key); learnTile(t, on ? -0.5 : 0.5);
     const f = on ? moodFav.filter((k) => k !== t.key) : [...moodFav, t.key].slice(-30); // first in, first out: the oldest favourite makes room
+    markFavAt(t.key, !on);
     setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
-    toast(on ? "Removed from your moods" : "Added to your moods");
+    toast(on ? "Removed from My Interests" : "Added to My Interests");
   };
   const [listMeta, setListMeta] = useState(null);
   // ── View history: every move between tabs and lists remembers where you were, so "back" retraces your steps
@@ -972,15 +973,16 @@ export default function App() {
       if (st[kind][id]) delete st[kind][id]; else st[kind][id] = true;
       const t = { ...tasteRef.current, stars: st };
       tasteRef.current = t; saveTaste(t);
-      // the heart also puts the category or sub-type in My favorites (when it has a list of its own)
+      // the heart also puts the category or sub-type in My Interests (when it has a list of its own)
       const pool = [...(tileSet?.all || []), ...(tileSet?.every || [])];
       const tile = pool.find((x) => x.key === "gen-cat-" + id) || pool.find((x) => kind === "subs" && /^gen-sub-/.test(x.key) && x.key.endsWith("|" + id));
       const on = !!st[kind][id];
       if (tile && on !== moodFav.includes(tile.key)) {
         const f = on ? [...moodFav, tile.key].slice(-30) : moodFav.filter((k) => k !== tile.key);
+        markFavAt(tile.key, on);
         setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
       }
-      toast(on ? "Added to your favorites" : "Removed from your favorites");
+      toast(on ? "Added to My Interests" : "Removed from My Interests");
     },
     thumbOf: (id) => taste.thumbs[id] || 0,
   };

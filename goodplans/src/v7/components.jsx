@@ -90,7 +90,7 @@ export function WeatherTag({ ev, compact }) {
   return <span className={"tag tag-" + b.tone} style={{ gap: 4, flexShrink: 0 }} title={b.text}><Icon name={b.icon} size={13} width={2.4} />{compact ? b.text.split(" · ")[0] : b.text}</span>;
 }
 
-// Thumbs up / down / save on every card. Clicks don't open the card.
+// Thumbs down (less like this) and save on every card; saves are the "more like this" signal. Clicks don't open the card.
 export function CardActions({ ev, size = 34, onNfm, noSave }) {
   const a = useContext(ActionsCtx);
   const t = a.thumbOf(ev.id), saved = a.isSaved(ev.id);
@@ -102,7 +102,6 @@ export function CardActions({ ev, size = 34, onNfm, noSave }) {
   const is = Math.round(size * 0.5);
   return (
     <div className="row" style={{ gap: 6 }}>
-      <button aria-label="More like this" aria-pressed={t === 1} style={btn(t === 1, true)} onClick={stop(() => { if (t === 1) a.onReact(ev, "undo"); else { a.onReact(ev, "up", null, true); a.askWhy(ev, "up"); } })}><Icon name="up" size={is} /></button>
       <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1, true)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
       {!noSave && <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={{ ...btn(saved), width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, border: saved ? "none" : "2px solid var(--ink)", background: saved ? "var(--navy)" : "transparent" }} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is + 2} fill={saved ? "currentColor" : "none"} /></button>}
     </div>
@@ -298,7 +297,7 @@ export function shortWhen(ev, today) {
   return day + (st != null ? " " + fmtClock(st) : "");
 }
 
-export function PosterCard({ ev, dark, today, onOpen, fluid }) {
+export function PosterCard({ ev, dark, today, onOpen, fluid, label }) {
   const seenRef = useSeen(ev);
   const act = actLabel(ev), area = areaLabel(ev);
   if (fluid) {
@@ -309,6 +308,7 @@ export function PosterCard({ ev, dark, today, onOpen, fluid }) {
         <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 30%, rgba(10,12,30,.72) 100%)" }} />
         <PicOverlay ev={ev} size={30} mood />
         <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
+          {label && <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.95 }}>{label}</span>}
           <span className="row" style={{ gap: 6, minWidth: 0 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell" style={{ fontSize: 12.5, opacity: 0.92 }}>{line}</span></span>
           <span className="disp ell" style={{ fontSize: 20, lineHeight: 1.15, whiteSpace: "nowrap" }}>{ev.title}</span>
           <span className="row" style={{ justifyContent: "space-between", alignItems: "center", fontSize: 12.5, minWidth: 0 }}>
@@ -505,15 +505,13 @@ export function QuickTile({ t }) {
   );
 }
 
-// Mood / Pick tile: colour, icon, title, a teaser saying what drives the list, a count, and thumbs + heart so the app learns
-export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
+// Mood / Pick tile: colour, icon, title, a teaser saying what drives the list, a count, and a heart (bottom right) that adds it to My Interests
+export function MoodTile({ t, compact, fb = 0, fav = false, onFav }) {
   const act = (fn) => (e) => { e.stopPropagation(); fn(); };
-  const ib = (on) => ({ width: 30, height: 30, borderRadius: 15, border: "none", background: "transparent", color: "#fff", opacity: on ? 1 : 0.55, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 });
   return (
     <div role="button" tabIndex={0} onClick={t.open} onKeyDown={(e) => { if (e.key === "Enter") t.open(); }}
       style={{ width: compact ? 168 : undefined, flexShrink: compact ? 0 : undefined, borderRadius: 20, padding: "14px 14px 8px 14px", background: t.color, color: "#fff", textAlign: "left", minHeight: 132, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden", cursor: "pointer", opacity: fb === -1 ? 0.5 : 1 }}>
-      {onFav && <button aria-label={fav ? "Remove from favorites" : "Add to favorites"} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ position: "absolute", top: 6, right: 6, zIndex: 1, width: 30, height: 30, borderRadius: 15, border: "none", background: "transparent", color: "#fff", opacity: fav ? 0.5 : 0.3, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={17} fill={fav ? "currentColor" : "none"} /></button>}
-      <span style={{ position: "absolute", right: -6, top: onFav ? 14 : -6, opacity: 0.22 }} aria-hidden="true">
+      <span style={{ position: "absolute", right: -6, top: -6, opacity: 0.22 }} aria-hidden="true">
         {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
       </span>
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -524,12 +522,7 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFb, onFav }) {
       </span>
       <span className="row" style={{ justifyContent: "space-between", minHeight: 30 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
-        {onFb && (
-          <span className="row" style={{ gap: 0, marginRight: -6 }}>
-            <button aria-label="More like this" aria-pressed={fb === 1} style={ib(fb === 1)} onClick={act(() => onFb(t, 1))}><Icon name="up" size={16} /></button>
-            <button aria-label="Less like this" aria-pressed={fb === -1} style={ib(fb === -1)} onClick={act(() => onFb(t, -1))}><Icon name="down" size={16} /></button>
-          </span>
-        )}
+        {onFav && <button aria-label={fav ? "Remove from My Interests" : "Add to My Interests"} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ width: 34, height: 34, marginRight: -6, borderRadius: 17, border: "none", background: fav ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: fav ? t.color || "#E11D48" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={19} fill={fav ? "currentColor" : "none"} /></button>}
       </span>
     </div>
   );
