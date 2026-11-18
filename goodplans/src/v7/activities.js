@@ -1,6 +1,7 @@
 // Activity ontology: the specific things people go looking for. Pure data (no imports) so the enrich API can read it too.
 // [id, label, category (ncat), pattern on title + keywords + sub-type, related ids]
 // "related" is prior knowledge (what tends to appeal to the same person); the embedding space learns the rest from the feed.
+import { ACTS2 } from "./activities2.js";
 export const ACTS = [
   // Play
   ["pickleball", "pickleball", "Pickup Sports", /pickle ?ball/, ["tennis", "padel", "ping-pong", "volleyball"]],
@@ -158,7 +159,7 @@ export const ACTS = [
   ["botanic-garden", "gardens", "Parks & Nature", /botanic|garden tour|conservatory|orchid show|cherry blossom/, ["flowers", "birding", "foliage"]],
   ["foliage", "seasonal nature", "Parks & Nature", /foliage|leaf peep|fall colou?rs|harvest|pumpkin|apple picking/, ["hiking", "botanic-garden", "farmers-market"]],
   ["gardening", "gardening & volunteering outdoors", "Parks & Nature", /community garden|gardening|tree planting|composting|park clean-?up/, ["volunteering", "flowers", "farmers-market"]],
-  ["volunteering", "volunteering", "Talks & Panels", /volunteer|clean-?up|food bank|mutual aid|service day/, ["gardening", "potluck", "talks-society"]],
+  ["volunteering", "volunteering", "Volunteering & Community", /volunteer|clean-?up|food bank|mutual aid|service day/, ["gardening", "potluck", "talks-society"]],
   ["walking-tour", "walking tours", "Tours", /walking tour|guided walk|neighbou?rhood tour|history walk/, ["history-tour", "architecture", "food-tour"]],
   ["history-tour", "history tours", "Tours", /history|historic|heritage|tenement|colonial|revolutionary/, ["walking-tour", "museum", "ghost-tour"]],
   ["ghost-tour", "ghost tours", "Tours", /ghost|haunted|paranormal|spooky/, ["history-tour", "horror", "murder-mystery"]],
@@ -213,6 +214,8 @@ export const ACTS = [
   ["workshop-career", "career & skills workshops", "Talks & Panels", /career|resume|negotiat|public speaking|financial literacy|workshop on/, ["tech-talks", "talks"]],
 ];
 
+// The 18 Nov 2026 additions come first (their patterns are more specific)
+ACTS.unshift(...ACTS2);
 export const ACT = Object.fromEntries(ACTS.map(([id, label, ncat, re, rel]) => [id, { id, label, ncat, re, rel }]));
 export const ACT_IDS = ACTS.map((a) => a[0]);
 
@@ -226,4 +229,16 @@ export function actOf(e, only) {
   for (const [id, , c, re] of ACTS) if (ok(c) && re.test(title)) return id;
   for (const [id, , c, re] of ACTS) if (ok(c) && re.test(full)) return id;
   return null;
+}
+
+// Activities found by the weekly discovery job (/api/activity-discover): added at run time, same shape as ACTS
+export function addActivities(list) {
+  let n = 0;
+  for (const a of list || []) {
+    if (!a?.id || ACT[a.id] || !a.pattern) continue;
+    let re; try { re = new RegExp(a.pattern, "i"); } catch { continue; }
+    const row = [a.id, a.label, a.cat, re, (a.rel || []).filter((r) => ACT[r])];
+    ACTS.push(row); ACT[a.id] = { id: a.id, label: a.label, ncat: a.cat, re, rel: row[4], found: a.added }; ACT_IDS.push(a.id); n++;
+  }
+  return n;
 }

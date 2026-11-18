@@ -9,11 +9,20 @@
  */
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
-import { ACTIVITIES } from "./activity-ids.js";
-const ACT_IDS = Object.keys(ACTIVITIES);
+import { ACTIVITIES, ACT_CAT } from "./activity-ids.js";
+import { getJSON } from "./_blob.js";
+// Built-in activities plus the ones the weekly discovery job added (activities/extra.json), refreshed every 10 min
+let extra = { at: 0, list: [] };
+async function allActivities() {
+  if (Date.now() - extra.at > 600000) { try { const x = await getJSON("activities/extra.json"); extra = { at: Date.now(), list: Array.isArray(x?.list) ? x.list : [] }; } catch { extra = { at: Date.now(), list: extra.list }; } }
+  const acts = { ...ACTIVITIES }, cats = { ...ACT_CAT };
+  for (const a of extra.list) if (a?.id && !acts[a.id]) { acts[a.id] = a.label; cats[a.id] = a.cat; }
+  return { acts, cats };
+}
+const actList = (acts, cats) => { const by = {}; for (const [i, l] of Object.entries(acts)) (by[cats[i] || "Other"] = by[cats[i] || "Other"] || []).push(i === l ? i : i + "=" + l); return Object.entries(by).map(([c, l]) => c + ": " + l.join(", ")).join("\n"); };
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
 const SUBS2 = {"Concerts": ["Rock & Indie", "Hip-hop & R&B", "Electronic", "Folk & Acoustic", "Jazz", "Blues", "Classical", "Pop", "World & Latin"], "Theater": ["Broadway", "Off-Broadway", "Cabaret & Drag", "Immersive"], "Comedy": ["Stand-up", "Improv", "Storytelling", "Variety"], "Film": ["New releases", "Repertory & Classics", "Documentary", "Outdoor"], "Clubs & DJs": ["House & Techno", "Disco & Funk", "Hip-hop", "Queer parties"], "Dance Socials": ["Salsa & Bachata", "Swing", "Tango", "Other styles"], "Tastings": ["Wine", "Beer & Cider", "Spirits", "Food"], "Museums & Galleries": ["Museums", "Galleries", "Openings", "Art fairs"], "Markets": ["Flea & Vintage", "Makers & Crafts", "Holiday", "Records & Books"], "Talks & Panels": ["Ideas & Science", "Culture & Arts", "City & History", "Politics & Society"], "Tours": ["History", "Architecture", "Food", "Nature"], "Arts & Crafts": ["Ceramics", "Painting & Drawing", "Textiles", "Printmaking"], "Karaoke": ["Live-band karaoke", "Private rooms", "Bar karaoke"], "Trivia & Quizzes": ["Music trivia & bingo", "Film & TV trivia", "Themed trivia", "General trivia"], "Board & Card Games": ["Role-playing", "Chess & classics", "Card games & poker", "Board games"], "Arcades & VR": ["Arcade & pinball", "VR & simulators", "Video games & esports"], "Escape Rooms & Puzzles": ["Escape rooms", "Hunts & mysteries"], "Bar Games & Bowling": ["Bowling", "Ping pong", "Mini golf", "Darts, pool & more"], "Running": ["Run clubs", "Races"], "Cycling": ["Group rides", "Bike tours"], "Pickup Sports": ["Pickleball & tennis", "Basketball", "Soccer", "Volleyball", "Other games"], "Climbing & Skating": ["Climbing", "Ice skating", "Roller & skateboard"], "Water Sports": ["Kayak & paddle", "Swimming", "Sailing"]};
-const CATS2 = ["Comedy", "Cooking & Cocktails", "Arts & Crafts", "Yoga & Wellness", "Dance Socials", "Karaoke", "Trivia & Quizzes", "Escape Rooms & Puzzles", "Arcades & VR", "Board & Card Games", "Bar Games & Bowling", "Clubs & DJs", "Dance & Opera", "Theater", "Film", "Live Sports", "Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours", "Tours", "Books & Readings", "Talks & Panels", "Museums & Galleries", "Festivals & Parades", "Markets", "Running", "Cycling", "Pickup Sports", "Climbing & Skating", "Water Sports", "Hiking & Walks", "Parks & Nature", "Concerts"];
+const CATS2 = ["Volunteering & Community", "Comedy", "Cooking & Cocktails", "Arts & Crafts", "Yoga & Wellness", "Dance Socials", "Karaoke", "Trivia & Quizzes", "Escape Rooms & Puzzles", "Arcades & VR", "Board & Card Games", "Bar Games & Bowling", "Clubs & DJs", "Dance & Opera", "Theater", "Film", "Live Sports", "Tastings", "Food Markets & Pop-ups", "Bars & Happy Hours", "Tours", "Books & Readings", "Talks & Panels", "Museums & Galleries", "Festivals & Parades", "Markets", "Running", "Cycling", "Pickup Sports", "Climbing & Skating", "Water Sports", "Hiking & Walks", "Parks & Nature", "Concerts"];
 // Taste dimensions: how an event feels, beyond its category. The app learns which values each person leans to.
 const DIMS = {
   energy: ["calm", "lively", "wild"],
@@ -55,11 +64,14 @@ async function claude(system, user, maxTokens) {
 const clip = (s, n) => String(s || "").replace(/\s+/g, " ").trim().slice(0, n);
 
 async function tags(events) {
+  const { acts, cats } = await allActivities();
+  const ACT_IDS = Object.keys(acts);
   const list = events.slice(0, 40).map((e) => ({ id: clip(e.id, 80), title: clip(e.title, 140), desc: clip(e.desc, 500), cat: clip(e.cat, 30), sub: clip(e.sub, 40), venue: clip(e.venue, 80), price: clip(e.price, 30), time: clip(e.time, 20), src: clip(e.src, 40) }));
   const system = `You label New York City events for a personal events app. For each event, give 3 to 5 keywords that tell someone at a glance what to expect: format (e.g. live band, DJ set, stand-up, screening, workshop, walking tour, market, talk, exhibition), style or genre (e.g. jazz, indie rock, experimental, comedy improv), topic, and vibe (e.g. outdoor, late night, family-friendly, hands-on, dance floor). Each keyword is 1 to 3 words, lowercase, no hashtags, no price, no date, no venue name. Use only what the title and description support; do not invent. "src" is the listing the event came from: a theatre listing (e.g. Broadway Briefing) means cabaret, benefits and solo shows there are Theater, not Concerts, even at a jazz club; the given cat/sub can be wrong. Also return the best category from this list: ${CATS.join(", ")}.
 And "cat2": the single best fit from this second list, judged by what the person will actually be doing there: ${CATS2.join(", ")}.
 And "sub2": if cat2 is one of these, the single best sub-type from its list, else null: ${Object.entries(SUBS2).map(([c, l]) => c + ": " + l.join(" / ")).join("; ")}.
-And "a": the single specific activity the person will be doing, as an id from this list (id = label), or null if none fits well: ${Object.entries(ACTIVITIES).map(([i, l]) => i + "=" + l).join(", ")}.
+And "a": the single specific activity the person will be doing, as an id from this list (grouped by category; id=label), or null if none fits well. Prefer an activity from the category you chose for cat2:
+${actList(acts, cats)}.
 And "h": a one-line hook of 4 to 9 words saying what the experience is, punchy and concrete, no venue, no date, no price, no full sentence (e.g. "Pop-up shopping for local crafts", "Watch glassblowers shape molten glass", "Four indie bands in a tiny basement").
 And "d": how the event will feel, one value per dimension, judged from the title and description (pick the likeliest; use "any"/"mixed"/"all-ages" when unclear): ${Object.entries(DIMS).map(([d, l]) => d + ": " + l.join(" / ")).join("; ")}.
 Reply with JSON only, no prose: {"<id>": {"k": ["..."], "h": "...", "cat": "...", "cat2": "...", "sub2": "...", "a": "...", "d": {"<dimension>": "<value>", ...}}}`;
