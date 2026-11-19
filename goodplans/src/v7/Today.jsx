@@ -486,14 +486,17 @@ export function clearForyouSeen(id) { try { const st = JSON.parse(localStorage.g
 function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose }) {
   const [open, setOpen] = useState(null);
   const pool = React.useMemo(() => (tiles?.every || tiles?.all || []).filter((t) => t.list?.length), [tiles]);
-  const acts = React.useMemo(() => { const m = {}; pool.filter((t) => /^gen-(act|sub|term)-/.test(t.key)).forEach((t) => { const c = t.list[0]?.ncat; if (c) (m[c] = m[c] || []).push(t); }); Object.values(m).forEach((l) => l.sort((a, b) => b.list.length - a.list.length)); return m; }, [pool]);
+  const acts = React.useMemo(() => { const m = {}; pool.filter((t) => /^gen-(act|sub|term)-/.test(t.key)).forEach((t) => { const c = t.list[0]?.ncat; if (c) (m[c] = m[c] || []).push(t); }); // The whole activity list, not just what has events right now: the rest become empty tiles that fill in when something comes up
+    const have = new Set(pool.map((t) => t.key));
+    Object.values(ACT).forEach((a) => { const key = "gen-act-" + a.id; if (have.has(key) || !a.ncat) return; (m[a.ncat] = m[a.ncat] || []).push({ key, kind: "act", id: a.id, title: a.label, short: a.label, cats: [a.ncat], acts: [a.id], list: [], empty: true }); });
+    Object.values(m).forEach((l) => l.sort((a, b) => b.list.length - a.list.length || String(a.short || a.title).localeCompare(String(b.short || b.title)))); return m; }, [pool]);
   const catTile = (c) => pool.find((t) => t.key === "gen-cat-" + c);
   const covered = new Set(INTENTS.flatMap((m) => m.cats || []));
   const groups = [...INTENTS.map((m) => ({ id: m.id, label: m.label, color: m.color, icon: m.icon, cats: (m.cats || []).filter((c) => acts[c]?.length || catTile(c)) })), { id: "more", label: "More", color: "#64748B", icon: null, cats: Object.keys(acts).filter((c) => !covered.has(c)).sort() }].filter((g) => g.cats.length);
   const heart = (on, color, label, onClick) => <button aria-pressed={on} aria-label={label} onClick={onClick} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: on ? color : "var(--chip)", color: on ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>;
   return (
     <Dialog title="Add to My Interests" onClose={onClose}>
-      <div className="muted" style={{ fontSize: 13.5, margin: "-6px 0 10px" }}>Tap a mood to open it, then heart what you like: the mood, a category, or one activity.</div>
+      <div className="muted" style={{ fontSize: 13.5, margin: "-6px 0 10px" }}>Tap a mood to open it, then heart what you like: the mood, a category, or one activity. Faded ones have nothing on right now.</div>
       <div style={{ maxHeight: "60vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, margin: "0 -4px", padding: "0 4px" }}>
         {groups.map((g) => { const isOpen = open === g.id; return (
           <div key={g.id} style={{ flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (isOpen ? g.color : "var(--line, rgba(128,128,128,.25))"), overflow: "hidden" }}>
@@ -516,7 +519,7 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
                     {list.length > 0 && (
                       <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                         {list.map((t) => { const on = moodFav.includes(t.key); return (
-                          <button key={t.key} aria-pressed={on} onClick={() => onFav({ ...t, title: t.short || t.title, color: g.color })} className="chip" style={{ height: 32, gap: 5, background: on ? g.color : undefined, color: on ? "#fff" : undefined, borderColor: on ? g.color : undefined }}>
+                          <button key={t.key} aria-pressed={on} onClick={() => onFav({ ...t, title: t.short || t.title, color: g.color })} className="chip" style={{ height: 32, gap: 5, opacity: t.empty && !on ? 0.7 : 1, background: on ? g.color : undefined, color: on ? "#fff" : undefined, borderColor: on ? g.color : undefined }}>
                             <Icon name="heart" size={13} fill={on ? "currentColor" : "none"} />{t.short || t.title}
                           </button>
                         ); })}
