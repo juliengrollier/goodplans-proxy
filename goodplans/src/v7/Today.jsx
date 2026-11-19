@@ -819,7 +819,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
         );
         return (
           <div style={{ padding: "18px 16px 0" }}>
-            {head(todayOne.length ? "Your plan today" : "Your plans")}
+            {todayOne.length > 0 && <div style={{ padding: "0 4px" }}>{head("Your plan today")}</div>}
             {todayOne.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
                 <PosterCard ev={todayOne[0]} dark={dark} today={today} onOpen={onOpen} fluid />
