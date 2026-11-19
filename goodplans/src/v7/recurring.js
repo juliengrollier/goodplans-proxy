@@ -1,6 +1,7 @@
 // Recurring events ("regulars"): detected from each feed and kept on the device across refreshes.
 // Patterns: weekly, every other week, monthly (nth weekday, e.g. "first Thursday"), or recurring with varying dates.
 import { venueKey, isoDay } from "./engine.js";
+import { runDows } from "../lib/core.js";
 
 export const REC_KEY = "gp_recur_v2";
 const EXPIRE_DAYS = 120;
@@ -74,13 +75,18 @@ export function updateRecurring(events, store, today) {
     const txt = textPattern(g.list[0]);
     let pat = datePattern(dates);
     if (txt && (!pat || pat.kind === "varies" || (txt.dow != null && pat.dow === txt.dow))) pat = { ...pat, ...txt, dow: txt.dow ?? pat?.dow ?? (dates[0] ? dowOf(dates[0]) : null) };
+    // A run with fixed weekdays ("Thursdays until Mar 31") is a weekly series even when no listing repeats it
+    if (!pat || pat.kind === "varies") {
+      const w = g.list.map((e) => runDows(e)).find((x) => x && x.size);
+      if (w) { const a = [...w].sort(); pat = { kind: "weekly", dow: a.length === 1 ? a[0] : null, dows: a.length > 1 ? a : null }; }
+    }
     if (!pat) return;
     // Existing stored series this group belongs to (keeps one entry when titles drift)
     const prevKey = Object.keys(out).find((k) => sameSeries(out[k], g));
     const key = prevKey || g.venue + "|" + g.tokens.join(" ");
     const s = [...g.list].sort((a, b) => (a.E < b.E ? -1 : 1))[0];
     out[key] = {
-      key, venue: g.venue, tokens: g.tokens, kind: pat.kind, dow: pat.dow, nth: pat.nth || null,
+      key, venue: g.venue, tokens: g.tokens, kind: pat.kind, dow: pat.dow, dows: pat.dows || null, nth: pat.nth || null,
       ev: { title: s.title, venue: s.venue, time: s.time, cat: s.cat, sub: s.sub, price: s.price, coord: s.coord, url: s.url, src: s.src, desc: s.desc, hood: s.hood, tier: s.tier, ticket: s.ticket, tags: s.tags || [] },
       dates: [...new Set([...(out[key]?.dates || []), ...dates])].sort().slice(-8),
       firstSeen: out[key]?.firstSeen || day, lastSeen: day,
@@ -143,6 +149,7 @@ const ORD_L = ["", "1st", "2nd", "3rd", "4th", "Last"];
 export function patternLabel(r) {
   if (!r) return "Recurring";
   const d = r.dow != null ? DOW_PL[r.dow] : null;
+  if (r.kind === "weekly" && !d && r.dows?.length) return "Every week · " + r.dows.map((x) => DOW_PL[x].slice(0, 3)).join(", ");
   if (r.kind === "weekly") return d ? "Every week · " + d : "Every week";
   if (r.kind === "biweekly") return d ? "Every other week · " + d : "Every other week";
   if (r.kind === "monthly") return r.nth && d ? ORD_L[r.nth] + " " + d.slice(0, -1) + " of the month" : "Monthly";
