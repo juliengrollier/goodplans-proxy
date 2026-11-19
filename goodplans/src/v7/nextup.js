@@ -79,10 +79,12 @@ export function nextDatesOf(ev, list, today, n = 4) {
   return out.sort((a, b) => a.d - b.d).slice(0, n);
 }
 
+// A real, specific venue (not "Various", not just a neighbourhood)
+export const venueOk = (ev) => { const v = venueKey(ev); return !!v && !VAGUE.test(v) && v !== (ev.hood || "").toLowerCase(); };
 // More at this venue: the venue's other upcoming listings, best first
 export function atVenueOf(ev, list, n = 4) {
   const v = venueKey(ev);
-  if (!v || VAGUE.test(v) || v === (ev.hood || "").toLowerCase()) return [];
+  if (!venueOk(ev)) return [];
   const me = sk(ev), seen = new Set([me]), out = [];
   [...list].filter((e) => e.id !== ev.id && !e.hidden && venueKey(e) === v).sort((a, b) => rkOf(b) - rkOf(a)).forEach((e) => {
     const k = sk(e); if (seen.has(k)) return; seen.add(k); out.push(e);

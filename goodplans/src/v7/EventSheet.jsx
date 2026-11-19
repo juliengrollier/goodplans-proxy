@@ -6,15 +6,25 @@ import { CatBullet, Media, PriceTag, Dialog, Travel, CompactCard, LeafletMap, Wh
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge, fmtT } from "./engine.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord, isImprecise, nextOn } from "../lib/core.js";
-import { nightOf, nextDatesOf, atVenueOf, upNextOf, mapsNear } from "./nextup.js";
+import { nightOf, nextDatesOf, atVenueOf, upNextOf, mapsNear, venueOk } from "./nextup.js";
+import { venueBell, seriesBell } from "./notify.js";
+import { seriesKey } from "./engine.js";
 
 // A titled block on the event page
-function Rail({ title, sub, children, pad = "0 16px" }) {
+function Rail({ title, sub, children, pad = "0 16px", bell }) {
   return (
     <div style={{ paddingTop: 26, display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ padding: "0 20px" }}>
-        <div className="disp" style={{ fontSize: 20 }}>{title}</div>
-        {sub && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{sub}</div>}
+      <div className="row" style={{ padding: "0 20px", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="disp" style={{ fontSize: 20 }}>{title}</div>
+          {sub && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{sub}</div>}
+        </div>
+        {bell && (
+          <button onClick={bell.toggle} aria-pressed={bell.on} aria-label={bell.on ? "Stop notifications: " + bell.label : "Notify me: " + bell.label}
+            className="chip" style={{ height: 32, gap: 5, background: bell.on ? "var(--navy)" : "var(--card)", color: bell.on ? "var(--onnavy)" : "var(--ink)", borderColor: bell.on ? "var(--navy)" : "var(--line)" }}>
+            <Icon name="bell" size={15} fill={bell.on ? "currentColor" : "none"} />{bell.on ? "On" : bell.short}
+          </button>
+        )}
       </div>
       <div style={{ padding: pad, display: "flex", flexDirection: "column", gap: 16 }}>{children}</div>
     </div>
@@ -24,7 +34,7 @@ const fdate = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "s
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
-export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav, ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], list = [], trail = [], savedIds = {}, onBack, onOpen: onOpen0, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
+export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav, ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], list = [], trail = [], savedIds = {}, onBack, bells = {}, onBell = () => {}, onOpen: onOpen0, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
   const [nfm, setNfm] = useState(false);
   const onOpen = (e, rail = "similar") => onOpen0(e, rail);
   const thumb = taste.thumbs[ev.id] || 0;
@@ -90,6 +100,9 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
   const upNext = React.useMemo(() => upNextOf(ev, list, next.used, 60), [ev, list, next]);
   const nightDay = next.night ? fdate(next.night.day) : "";
   const back = trail.length > 1 ? trail[trail.length - 2] : null;
+  // Bells for this venue and this series
+  const vb = venueBell(ev, venueLabel(ev)), sb = seriesBell(seriesKey(ev), ev.title);
+  const bellFor = (b, short) => ({ on: !!bells[b.key], label: b.label, short, toggle: () => onBell(b) });
 
   return (
     <div className="sheet" role="dialog" aria-label={ev.title} ref={sheetRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -180,7 +193,7 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
       )}
 
       {next.dates.length > 0 && (
-        <Rail title="Next dates" sub={ev.recLabel || null}>
+        <Rail title="Next dates" sub={ev.recLabel || null} bell={bellFor(sb, "New dates")}>
           <div className="row" style={{ gap: 8, flexWrap: "wrap", padding: "0 4px" }}>
             {next.dates.map((x) => (
               <button key={+x.d} className="chip" disabled={!x.ev} onClick={() => x.ev && onOpen(x.ev, "dates")} style={{ cursor: x.ev ? "pointer" : "default" }}>
@@ -197,8 +210,8 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
         </Rail>
       )}
 
-      {next.venue.length > 0 && (
-        <Rail title={"Also at " + venueLabel(ev)}>
+      {(next.venue.length > 0 || venueOk(ev)) && (
+        <Rail title={"Also at " + venueLabel(ev)} sub={next.venue.length ? null : "Nothing else coming up yet. Ring the bell to hear when there is."} bell={bellFor(vb, "New here")}>
           {next.venue.map((s) => <CompactCard key={s.id} ev={s} dark={dark} today={today} onOpen={(e) => onOpen(e, "venue")} />)}
         </Rail>
       )}

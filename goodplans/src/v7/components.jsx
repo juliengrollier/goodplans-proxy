@@ -506,8 +506,12 @@ export function QuickTile({ t }) {
 }
 
 // Mood / Pick tile: colour, icon, title, a teaser saying what drives the list, a count, and a heart (bottom right) that adds it to My Interests
+// Bells (notify me about new events): provided by App, read by interest tiles
+export const NotifyCtx = React.createContext(null);
+
 export function MoodTile({ t, compact, fb = 0, fav = false, onFav }) {
   const act = (fn) => (e) => { e.stopPropagation(); fn(); };
+  const nc = useContext(NotifyCtx), belled = !!nc?.bells?.[t.key];
   return (
     <div role="button" tabIndex={0} onClick={t.open} onKeyDown={(e) => { if (e.key === "Enter") t.open(); }}
       style={{ width: compact ? 168 : undefined, flexShrink: compact ? 0 : undefined, borderRadius: 20, padding: "14px 14px 8px 14px", background: t.color, color: "#fff", textAlign: "left", minHeight: 132, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden", cursor: "pointer", opacity: fb === -1 ? 0.5 : 1 }}>
@@ -522,7 +526,10 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFav }) {
       </span>
       <span className="row" style={{ justifyContent: "space-between", minHeight: 30 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
+        <span className="row" style={{ gap: 6 }}>
+        {onFav && fav && nc && <button aria-label={belled ? "Stop notifications for " + t.title : "Notify me about new " + t.title} aria-pressed={belled} onClick={act(() => nc.toggle(t))} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: belled ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: belled ? t.color || "#1B1F3B" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="bell" size={18} fill={belled ? "currentColor" : "none"} /></button>}
         {onFav && <button aria-label={fav ? "Remove from My Interests" : "Add to My Interests"} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ width: 34, height: 34, marginRight: -6, borderRadius: 17, border: "none", background: fav ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: fav ? t.color || "#E11D48" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={19} fill={fav ? "currentColor" : "none"} /></button>}
+        </span>
       </span>
     </div>
   );

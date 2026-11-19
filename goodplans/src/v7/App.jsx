@@ -41,9 +41,11 @@ import {
 } from "./engine.js";
 import {
   DP, SK_P, SK_F, SK_B, DEFAULT_SUBS, sg, ss, daysUntil, CATS, DAYS,
-  getSWRegistration, subscribePush, registerSubWithAppsScript,
-  evStart,
+  evStart, nextOn,
 } from "../lib/core.js";
+import * as N from "./notify.js";
+import { startMinutes } from "./engine.js";
+import { NotifyCtx, Dialog } from "./components.jsx";
 
 // Backend defaults: set VITE_GP_URL / VITE_GP_KEY in Vercel. Values saved in Me override them.
 // Fallback = the values already in the classic app. Rotate the key, set the env vars, then delete these.
@@ -105,8 +107,12 @@ export default function App() {
   const [busySlots, setBusySlots] = useState([]);
   const [calStatus, setCalStatus] = useState("none");
   const [calName, setCalName] = useState("");
-  const [pushState, setPushState] = useState("Checking…");
-  const [pushInfo, setPushInfo] = useState("");
+  // Notifications: settings and bells on this phone (the server sends; see notify.js)
+  const [notif, setNotifRaw] = useState(N.loadNotif);
+  const notifRef = useRef(notif); notifRef.current = notif;
+  const putNotif = useCallback((n) => { notifRef.current = n; setNotifRaw(n); N.saveNotif(n); }, []);
+  const [perm, setPerm] = useState(() => N.permission());
+  const [askNotif, setAskNotif] = useState(false);
   const [freeUntil, setFreeUntil] = useState(null);
   const [showFree, setShowFree] = useState(false);
   const [openEv, setOpenEvRaw] = useState(null);
@@ -259,31 +265,20 @@ export default function App() {
     } catch (e) { setCalStatus(busySlots.length ? "ok" : "error"); if (!silent) toast("Calendar: " + e.message); }
   }, [api, toast, busySlots.length]);
 
-  const checkPush = useCallback(async () => {
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) { setPushState("This browser can't receive notifications. On iPhone, add Good Plans to the Home Screen first."); return; }
-    const perm = Notification.permission;
-    const reg = await getSWRegistration();
-    const sub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
-    setPushState(perm === "granted" && sub ? "On. Good Plans can ping you." : perm === "denied" ? "Blocked in browser settings. Allow notifications for this site, then tap below." : "Off.");
-    try { const s = await api("pushStatus", "", 15000); if (s && !s.error) setPushInfo(`Backend has ${s.subscriptions ?? 0} device${s.subscriptions === 1 ? "" : "s"} registered.`); } catch { /* optional */ }
-  }, [api]);
+  // Turn notifications on (from a tap): permission, subscription, then a test notification to this phone
+  const turnOnNotif = useCallback(async () => {
+    const r = await N.enable().catch(() => "denied");
+    setPerm(N.permission());
+    if (r !== "on") {
+      putNotif({ ...notifRef.current, asked: true });
+      toast(r === "unsupported" ? "This phone can't get notifications here. On iPhone, add Good Plans to the Home Screen first." : "Notifications are blocked. Allow them for Good Plans in your phone settings.");
+      return false;
+    }
+    const n = { ...notifRef.current, on: true, asked: true }; putNotif(n);
+    toast("Notifications on");
+    return n;
+  }, [putNotif, toast]);
 
-  const enablePush = useCallback(async () => {
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") { setPushState("Not allowed. Allow notifications in your browser settings."); return; }
-      const reg = await getSWRegistration();
-      if (!reg) { setPushState("No service worker. Open the installed app and try again."); return; }
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) sub = await subscribePush(reg);
-      if (!sub) { setPushState("Subscription failed."); return; }
-      await registerSubWithAppsScript(backend.url, backend.key, sub);
-      const nt = (await sg("gp_notif_v1")) || {};
-      ss("gp_notif_v1", { ...nt, enabled: true });
-      toast("Notifications on");
-      checkPush();
-    } catch (e) { setPushState("Error: " + e.message); }
-  }, [backend, toast, checkPush]);
 
   // ── Location
   const locate = useCallback((interactive) => {
@@ -331,7 +326,7 @@ export default function App() {
     if (!ready) return;
     const stale = !lastRefreshed || Date.now() - new Date(lastRefreshed).getTime() > STALE_MS;
     if (stale && backend.url) refresh(events.length > 0);
-    if (backend.url) { checkCal(true); checkPush(); }
+    if (backend.url) { checkCal(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, backend.url]);
 
@@ -610,6 +605,38 @@ export default function App() {
     }).catch((e) => { setHlStatus("error: " + (e.message || "network") + (e.status ? " (" + e.status + ")" : "")); if (e.status === 503 || e.status === 403 || e.status === 404) aiOff.current = true; });
   }, [ready, visible.length > 0, isoDay(today), weather ? 1 : 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Notifications: what the server needs about saved plans (next dates, start time, travel minutes)
+  const savedForPush = useMemo(() => {
+    const t0 = isoDay(today);
+    return Object.values(favs).map((f) => {
+      const e = scored.find((x) => x.id === f.id) || f;
+      const days = []; let d = floorDay(today);
+      for (let k = 0; k < 8; k++) { const n = nextOn(e, d); if (!n) break; days.push(isoDay(n)); d = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1); }
+      return { id: e.id, title: e.title, venue: e.venue, E: e.E, X: e.X || null, time: e.time || "", sm: startMinutes(e), days, tt: e.tt?.mins ?? null, dows: !!(e.dows || e.dates) };
+    }).filter((x) => (x.X || x.E) >= t0);
+  }, [favs, scored, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ready && notif.on) N.sync(notif, savedForPush); }, [ready, notif, savedForPush]);
+  // A bell: on an interest tile, a venue or a series. Ringing one turns notifications on first if needed.
+  const toggleBell = useCallback(async (bell, tile) => {
+    let n = notifRef.current;
+    if (n.bells[bell.key]) { const b = { ...n.bells }; delete b[bell.key]; putNotif({ ...n, bells: b }); toast("Bell off: " + bell.label); return; }
+    if (!n.on || N.permission() !== "granted") { const r = await turnOnNotif(); if (!r) return; n = r; }
+    putNotif({ ...n, bells: { ...n.bells, [bell.key]: bell } });
+    if (tile && !moodFav.includes(tile.key)) favMood(tile);
+    toast("We'll tell you about new " + bell.label + (bell.venue ? " events" : bell.series ? " dates" : ""));
+  }, [putNotif, turnOnNotif, toast, moodFav]); // eslint-disable-line react-hooks/exhaustive-deps
+  const notifyCtx = useMemo(() => ({ bells: notif.bells || {}, toggle: (t) => toggleBell(N.bellOf(t), t) }), [notif.bells, toggleBell]);
+  // A list sent by a notification ("New for you"): open it in Explore
+  const openIds = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("explore"); window.scrollTo(0, 0); };
+  const openIdsRef = useRef(openIds); openIdsRef.current = openIds;
+  const navFromUrl = (href) => {
+    const u = new URL(href, location.origin);
+    const id = u.searchParams.get("event"), ids = u.searchParams.get("ids");
+    if (id) { setTab("today"); setOpenEv(id); return true; }
+    if (ids) { setOpenEv(null); openIdsRef.current(ids.split(",").filter(Boolean), u.searchParams.get("list") || "From a notification"); return true; }
+    return false;
+  };
+
   // ── Event sheet and deep links
   const openEvent = useCallback((ev, rail) => {
     if (ev?.id) clearForyouSeen(ev.id);
@@ -643,14 +670,15 @@ export default function App() {
   useEffect(() => {
     if (!ready) return;
     const u = new URL(window.location.href);
-    const id = u.searchParams.get("event");
+    const id = u.searchParams.get("event"), ids = u.searchParams.get("ids");
     if (id && (events.some((e) => e.id === id) || favs[id])) { setOpenEv(id); u.searchParams.delete("event"); window.history.replaceState({}, "", u.pathname + u.search); }
+    else if (ids && events.length) { navFromUrl(u.href); ["ids", "list"].forEach((k) => u.searchParams.delete(k)); window.history.replaceState({}, "", u.pathname + u.search); }
   }, [ready, events, favs]);
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     const h = (e) => {
       if (e.data?.type !== "PUSH_NAV" || !e.data.url) return;
-      try { const id = new URL(e.data.url, location.origin).searchParams.get("event"); if (id) { setTab("today"); setOpenEv(id); } } catch { /* ignore */ }
+      try { navFromUrl(e.data.url); } catch { /* ignore */ }
     };
     navigator.serviceWorker.addEventListener("message", h);
     return () => navigator.serviceWorker.removeEventListener("message", h);
@@ -683,6 +711,7 @@ export default function App() {
     else {
       const { bd, why, sc, hidden, tt, rain, dark: _d, busy, outdoor, followed, calChecked, ...raw } = ev; // eslint-disable-line no-unused-vars
       n[ev.id] = raw; track(ev, "savedCats"); toast("Added to plans"); calAdd(ev); signal(ev, "save");
+      if (!notifRef.current.on && !notifRef.current.asked && N.supported() && N.permission() !== "denied") setTimeout(() => setAskNotif(true), 900);
       const ts = Date.now(); setLastSaveAt(ts); try { localStorage.setItem("gp_lastsave", String(ts)); } catch { /* full */ }
     }
     setFavs(n); ss(SK_F, n);
@@ -1001,6 +1030,7 @@ export default function App() {
 
   return (
     <ActionsCtx.Provider value={actions}>
+    <NotifyCtx.Provider value={notifyCtx}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today onIntentOrder={learnIntentOrder} userName={(() => { try { return localStorage.getItem("gp_name_v1") || account?.name || ""; } catch { return account?.name || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={navTab}
@@ -1014,7 +1044,10 @@ export default function App() {
           prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
-          pushState={pushState} pushInfo={pushInfo} onEnablePush={enablePush}
+          notif={notif} perm={perm} onNotifOn={async () => { const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}
+          onNotifSet={(patch) => putNotif({ ...notifRef.current, ...patch })} onNotifTest={() => N.sync(notifRef.current, savedForPush, "test").then((r) => toast(r?.test?.ok ? "Test sent" : "Couldn't reach this phone. Try turning notifications on again."))}
+          onNotifOff={() => { N.sync(notifRef.current, [], "off"); putNotif({ ...notifRef.current, on: false }); }}
+          onUnbell={(k) => { const b = { ...notifRef.current.bells }; delete b[k]; putNotif({ ...notifRef.current, bells: b }); }}
           backend={backend} setBackend={setBackend} lastRefreshed={lastRefreshed} eventCount={events.length} onRefresh={() => refresh(false)} refreshing={refreshing} refreshLog={refreshLog}
           locSt={locSt} onRetryGPS={() => locate(true)} />}
       </div>
@@ -1027,7 +1060,7 @@ export default function App() {
       {sheetEv && <EventSheet favs={moodFav} onFav={favMood} tiles={tileSet} onTile={(t) => { setOpenEv(null); openTile(t); }} ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today, 10)} list={visible} savedIds={favs}
         trail={trail.map((id) => (id === sheetEv.id ? sheetEv : scored.find((e) => e.id === id))).filter(Boolean)}
-        onBack={() => window.history.back()}
+        onBack={() => window.history.back()} bells={notif.bells || {}} onBell={(b) => toggleBell(b)}
         onOpen={(e, rail) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e, rail); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
       {showFree && <FreeUntilDialog freeUntil={effFree} autoFree={autoFree} onClose={() => setShowFree(false)}
@@ -1046,8 +1079,19 @@ export default function App() {
           putModel(m, true);
           toast("Thanks, noted"); setWhyAsk(null);
         }} onClose={() => setWhyAsk(null)} />}
+      {askNotif && (
+        <Dialog title="Get a reminder?" onClose={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="disp" style={{ fontSize: 22 }}>Want a nudge before it starts?</div>
+            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>Good Plans can remind you a couple of hours before your saved plans, with when to leave, and tell you if the time or venue changes. You can also ring the bell on things you like to hear about new events.</div>
+            <button className="pill pill-dark" onClick={async () => { setAskNotif(false); const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}>Turn on notifications</button>
+            <button className="pill pill-line" onClick={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>Not now</button>
+          </div>
+        </Dialog>
+      )}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
+    </NotifyCtx.Provider>
     </ActionsCtx.Provider>
   );
 }

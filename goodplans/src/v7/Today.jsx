@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { favAt, markFavAt } from "./moodlog.js";
 import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods, primaryIntent, SOCIAL, SOCIAL_BY, applySocial } from "./intents.js";
 import { markSeen } from "./moods2.js";
 import * as T from "./telemetry.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { HeroCard, CompactCard, PosterCard, MiniCard, TravelMini, preciseLabel, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
+import { NotifyCtx, HeroCard, CompactCard, PosterCard, MiniCard, TravelMini, preciseLabel, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
 import { ThemePhoto } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
@@ -482,7 +482,13 @@ function markForyouSeen(ids, today) {
 }
 export function clearForyouSeen(id) { try { const st = JSON.parse(localStorage.getItem(FY_KEY) || "{}"); if (st.n && st.n[id]) { delete st.n[id]; localStorage.setItem(FY_KEY, JSON.stringify(st)); } } catch { /* storage off */ } }
 
+const BellMini = ({ t, nc, light }) => {
+  if (!nc) return null;
+  const on = !!nc.bells[t.key];
+  return <button aria-label={on ? "Stop notifications for " + t.title : "Notify me about new " + t.title} aria-pressed={on} onClick={(e) => { e.stopPropagation(); nc.toggle(t); }} style={{ position: "absolute", top: 1, left: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: light ? "#fff" : "var(--ink)", opacity: on ? 1 : 0.45 }}><Icon name="bell" size={12} fill={on ? "currentColor" : "none"} /></button>;
+};
 export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
+  const nc = useContext(NotifyCtx);
   const [intentSel, setIntentSel] = useState(() => { try { return JSON.parse(sessionStorage.getItem("gp_intent_sel") || "[]").slice(0, 1); } catch { return []; } });
   const putIntent = (x) => { setIntentSel(x); try { sessionStorage.setItem("gp_intent_sel", JSON.stringify(x)); } catch { /* private */ } };
   // Who with: Anyone (null) · Date · Meet people. Reranks For you, the mood lists and Top picks; not a mood.
@@ -790,11 +796,13 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
                   <div key={x.key} role="button" tabIndex={0} onClick={() => { putIntent([x.id]); document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" }); }} onKeyDown={(e) => { if (e.key === "Enter") putIntent([x.id]); }}
                     style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + x.mood.color, background: x.mood.color, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 800, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
                     <button aria-label={"Remove " + x.mood.label + " from My Interests"} onClick={(e) => { e.stopPropagation(); toggleMoodFav(x.id); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
+                    <BellMini nc={nc} light t={{ key: "mood-" + x.id, title: x.mood.label, cats: x.mood.cats || [], acts: x.mood.acts || [], list: [] }} />
                     {React.createElement(x.mood.icon, { size: 20, strokeWidth: 2.2, color: "#fff" })}{x.mood.label}
                   </div>
                 ) : (
                   <div key={x.key} role="button" tabIndex={0} onClick={() => onTile(x.t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(x.t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + ((x.mood?.color || x.t.color || "#888888") + "55"), background: (x.mood?.color || x.t.color || "#888888") + "22", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
                     <button aria-label="Remove from My Interests" onClick={(e) => { e.stopPropagation(); onMoodFav(x.t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
+                    <BellMini nc={nc} t={x.t} />
                     {x.t.node ? <LIcon node={x.t.node} size={20} color={x.t.color} stroke={2.2} /> : x.t.icon ? React.createElement(x.t.icon, { size: 20, strokeWidth: 2.2, color: x.t.color }) : null}
                     <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" }}>{x.t.short || x.t.title}</span>
                   </div>
