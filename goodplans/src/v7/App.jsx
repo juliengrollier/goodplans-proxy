@@ -274,7 +274,7 @@ export default function App() {
       toast(r === "unsupported" ? "This phone can't get notifications here. On iPhone, add Good Plans to the Home Screen first." : "Notifications are blocked. Allow them for Good Plans in your phone settings.");
       return false;
     }
-    const n = { ...notifRef.current, on: true, asked: true }; putNotif(n);
+    const n = { ...notifRef.current, on: true, asked: true, offByUser: false }; putNotif(n);
     toast("Notifications on");
     return n;
   }, [putNotif, toast]);
@@ -625,6 +625,25 @@ export default function App() {
     if (tile && !moodFav.includes(tile.key)) favMood(tile);
     toast("We'll tell you about new " + bell.label + (bell.venue ? " events" : bell.series ? " dates" : ""));
   }, [putNotif, turnOnNotif, toast, moodFav]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Nobody should have to go to Settings: already allowed → on silently; otherwise ask once,
+  // right when onboarding ends (a tap, so the phone shows its own prompt) or with a one-tap card for people already set up.
+  const askNow = useCallback(() => {
+    const n = notifRef.current;
+    if (n.on || n.asked || !N.supported() || N.permission() !== "default") return;
+    turnOnNotif().then((r) => { if (r) N.sync(r, savedForPushRef.current, "test"); });
+  }, [turnOnNotif]);
+  useEffect(() => {
+    if (!ready || !N.supported()) return undefined;
+    const n = notifRef.current;
+    if (N.permission() === "granted" && !n.on && !n.offByUser) {
+      N.subscription(true).then((sub) => { if (sub) putNotif({ ...notifRef.current, on: true, asked: true }); }).catch(() => {});
+      return undefined;
+    }
+    if (n.on || n.asked || N.permission() !== "default" || !account || showQuiz || showTour) return undefined;
+    const t = setTimeout(() => setAskNotif(true), 4000);
+    return () => clearTimeout(t);
+  }, [ready, account, showQuiz, showTour]); // eslint-disable-line react-hooks/exhaustive-deps
+  const savedForPushRef = useRef([]); savedForPushRef.current = savedForPush;
   const notifyCtx = useMemo(() => ({ bells: notif.bells || {}, toggle: (t) => toggleBell(N.bellOf(t), t) }), [notif.bells, toggleBell]);
   // A list sent by a notification ("New for you"): open it in Explore
   const openIds = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("explore"); window.scrollTo(0, 0); };
@@ -1046,7 +1065,7 @@ export default function App() {
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           notif={notif} perm={perm} onNotifOn={async () => { const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}
           onNotifSet={(patch) => putNotif({ ...notifRef.current, ...patch })} onNotifTest={() => N.sync(notifRef.current, savedForPush, "test").then((r) => toast(r?.test?.ok ? "Test sent" : "Couldn't reach this phone. Try turning notifications on again."))}
-          onNotifOff={() => { N.sync(notifRef.current, [], "off"); putNotif({ ...notifRef.current, on: false }); }}
+          onNotifOff={() => { N.sync(notifRef.current, [], "off"); putNotif({ ...notifRef.current, on: false, offByUser: true }); }}
           onUnbell={(k) => { const b = { ...notifRef.current.bells }; delete b[k]; putNotif({ ...notifRef.current, bells: b }); }}
           backend={backend} setBackend={setBackend} lastRefreshed={lastRefreshed} eventCount={events.length} onRefresh={() => refresh(false)} refreshing={refreshing} refreshLog={refreshLog}
           locSt={locSt} onRetryGPS={() => locate(true)} />}
@@ -1054,9 +1073,9 @@ export default function App() {
 
       <TabBar tab={tab} setTab={(t) => { if (t === "explore" || t === "map") setFilters((f) => ({ ...EMPTY_FILTERS, xcats: f.xcats || [], xsubs: f.xsubs || [] })); navTab(t); }} plansCount={plansCount} />
 
-      {showTour && <Tour onDone={() => setShowTour(false)} />}
+      {showTour && <Tour onDone={() => { setShowTour(false); askNow(); }} />}
       {devMode && <DevFlag events={scored} screen={tab} openEv={openEv} />}
-      {showQuiz && <Quiz dark={dark} startAt={showQuiz === "auth" || showQuiz === "retake" || !account ? "auth" : "moods"} needQuiz={!quiz || showQuiz === "retake"} onAuth={setAccount} onDone={(ans, prof, meet) => { if (!ans) { setShowQuiz(false); return; } finishQuiz(ans, prof, meet); }} />}
+      {showQuiz && <Quiz dark={dark} startAt={showQuiz === "auth" || showQuiz === "retake" || !account ? "auth" : "moods"} needQuiz={!quiz || showQuiz === "retake"} onAuth={setAccount} onDone={(ans, prof, meet) => { askNow(); if (!ans) { setShowQuiz(false); return; } finishQuiz(ans, prof, meet); }} />}
       {sheetEv && <EventSheet favs={moodFav} onFav={favMood} tiles={tileSet} onTile={(t) => { setOpenEv(null); openTile(t); }} ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
         similar={L.similarEvents(sheetEv, visible, today, 10)} list={visible} savedIds={favs}
         trail={trail.map((id) => (id === sheetEv.id ? sheetEv : scored.find((e) => e.id === id))).filter(Boolean)}
@@ -1080,11 +1099,11 @@ export default function App() {
           toast("Thanks, noted"); setWhyAsk(null);
         }} onClose={() => setWhyAsk(null)} />}
       {askNotif && (
-        <Dialog title="Get a reminder?" onClose={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>
+        <Dialog title="Notifications" onClose={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div className="disp" style={{ fontSize: 22 }}>Want a nudge before it starts?</div>
-            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>Good Plans can remind you a couple of hours before your saved plans, with when to leave, and tell you if the time or venue changes. You can also ring the bell on things you like to hear about new events.</div>
-            <button className="pill pill-dark" onClick={async () => { setAskNotif(false); const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}>Turn on notifications</button>
+            <div className="disp" style={{ fontSize: 22 }}>Never miss a good plan</div>
+            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>A reminder a couple of hours before your saved plans, with when to leave, and a heads-up if the time or venue changes. Ring the bell on things you love to hear about new ones, at most once a day.</div>
+            <button className="pill pill-dark" onClick={async () => { setAskNotif(false); const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}>Yes, notify me</button>
             <button className="pill pill-line" onClick={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>Not now</button>
           </div>
         </Dialog>
