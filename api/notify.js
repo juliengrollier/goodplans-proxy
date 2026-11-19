@@ -237,6 +237,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ at: now.toISOString(), feed: events.length, report });
     }
 
+    // Maintenance: send a test to every phone of one person and show what the push service answered
+    if (authed && req.query.testuser) {
+      const doc = await getJSON(uKey(clean(req.query.testuser, 20)));
+      const out = await Promise.all(Object.entries(doc?.devices || {}).map(async ([d, x]) => ({ dev: d, tz: x.tz, ua: x.ua, r: await sendPush(x.sub, { title: "Good Plans test", body: "Sent from maintenance", url: "/", tag: "test" }, { ttl: 600, urgency: "high" }).catch((e) => ({ err: String(e.stack || e).slice(0, 400) })) })));
+      return res.status(200).json(out);
+    }
     if (req.query.vapid) return res.status(200).json({ key: VAPID_PUBLIC });
     return res.status(400).json({ error: "Nothing to do" });
   } catch (e) {

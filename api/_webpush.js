@@ -40,5 +40,6 @@ export async function sendPush(sub, data, { ttl = 4 * 3600, urgency = "normal" }
     headers: { TTL: String(ttl), Urgency: urgency, "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", Authorization: "vapid t=" + jwt + ", k=" + VAPID_PUBLIC },
     body: encrypt(sub, JSON.stringify(data)),
   });
-  return { ok: r.ok, status: r.status, gone: r.status === 404 || r.status === 410 };
+  const text = r.ok ? "" : (await r.text().catch(() => "")).slice(0, 300);
+  return { ok: r.ok, status: r.status, gone: r.status === 404 || r.status === 410, text, host: aud };
 }
