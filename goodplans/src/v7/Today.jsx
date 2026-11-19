@@ -491,9 +491,9 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
     const have = new Set(pool.map((t) => t.key));
     Object.values(ACT).forEach((a) => { const key = "gen-act-" + a.id; if (have.has(key) || !a.ncat) return; (m[a.ncat] = m[a.ncat] || []).push({ key, kind: "act", id: a.id, title: a.label, short: a.label, cats: [a.ncat], acts: [a.id], list: [], empty: true }); });
     Object.values(m).forEach((l) => l.sort((a, b) => b.list.length - a.list.length || String(a.short || a.title).localeCompare(String(b.short || b.title)))); return m; }, [pool]);
-  const catTile = (c) => pool.find((t) => t.key === "gen-cat-" + c);
+  const catTile = (c) => pool.find((t) => t.key === "gen-cat-" + c) || { key: "gen-cat-" + c, kind: "cat", id: c, title: c, short: c, cats: [c], acts: [], list: [], empty: true };
   const covered = new Set(INTENTS.flatMap((m) => m.cats || []));
-  const groups = [...INTENTS.map((m) => ({ id: m.id, label: m.label, color: m.color, icon: m.icon, cats: (m.cats || []).filter((c) => acts[c]?.length || catTile(c)) })), { id: "more", label: "More", color: "#64748B", icon: null, cats: Object.keys(acts).filter((c) => !covered.has(c)).sort() }].filter((g) => g.cats.length);
+  const groups = [...INTENTS.map((m) => ({ id: m.id, label: m.label, color: m.color, icon: m.icon, cats: (m.cats || []).filter((c) => acts[c]?.length || pool.some((t) => t.key === "gen-cat-" + c)) })), { id: "more", label: "More", color: "#64748B", icon: null, cats: Object.keys(acts).filter((c) => !covered.has(c)).sort() }].filter((g) => g.cats.length);
   const heart = (on, color, label, onClick) => <button aria-pressed={on} aria-label={label} onClick={onClick} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: on ? color : "var(--chip)", color: on ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>;
   return (
     <Dialog title="Add to My Interests" onClose={onClose}>
