@@ -865,7 +865,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
                     <DotScroll>
                       {g.items.map((ev, k) => <div key={ev.id} id={gi === 0 && k === 0 ? "tour-card" : undefined} style={{ display: "flex", width: "min(calc(100vw - 40px), 420px)", flexShrink: 0 }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}
                       <button onClick={() => onTile({ key: "fy-" + g.key + (social ? "-" + social : ""), title: g.title + socialTag, list: g.all, color: "#1F2A5C", teaser: "Ranked for you.", verb: "For you", group: "rank" })}
-                        aria-label={"More: " + g.title} style={{ width: 120, height: 210, flexShrink: 0, borderRadius: 20, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
+                        aria-label={"More: " + g.title} style={{ width: 120, height: 262, flexShrink: 0, borderRadius: 20, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
                         <span style={{ width: 40, height: 40, borderRadius: 20, background: "var(--navy)", color: "var(--onnavy, #fff)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="chev" size={20} width={2.6} /></span>More
                       </button>
                     </DotScroll>

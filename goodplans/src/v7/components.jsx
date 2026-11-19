@@ -297,6 +297,7 @@ export function shortWhen(ev, today) {
   return day + (st != null ? " " + fmtClock(st) : "");
 }
 
+const hashStr = (x) => { let h = 0; for (const c of String(x)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
 export function PosterCard({ ev, dark, today, onOpen, fluid, label }) {
   const seenRef = useSeen(ev);
   const act = actLabel(ev), area = areaLabel(ev);
@@ -304,13 +305,14 @@ export function PosterCard({ ev, dark, today, onOpen, fluid, label }) {
     const line = [act, area].filter(Boolean).join(" · ");
     return (
       <div {...tap(onOpen, ev)} ref={seenRef} style={{ position: "relative", width: "100%", borderRadius: 20, overflow: "hidden", cursor: "pointer", opacity: 1 }}>
-        <Media ev={ev} dark={dark} height={210} radius={20} hideTitle />
-        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 30%, rgba(10,12,30,.72) 100%)" }} />
+        <div style={{ height: 262, borderRadius: 20, overflow: "hidden" }}><div className="gp-kb" style={{ animationDelay: "-" + (hashStr(ev.id) % 12) + "s" }}><Media ev={ev} dark={dark} height={262} radius={20} hideTitle /></div></div>
+        <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,12,30,0) 22%, rgba(10,12,30,.78) 100%)" }} />
         <PicOverlay ev={ev} size={30} mood />
         <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, color: "#fff", display: "flex", flexDirection: "column", gap: 4, textShadow: "0 1px 3px rgba(0,0,0,.45)" }}>
           {label && <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.95 }}>{label}</span>}
           <span className="row" style={{ gap: 6, minWidth: 0 }}><CatBullet ev={ev} size={18} dark={dark} /><span className="ell" style={{ fontSize: 12.5, opacity: 0.92 }}>{line}</span></span>
           <span className="disp ell" style={{ fontSize: 20, lineHeight: 1.15, whiteSpace: "nowrap" }}>{ev.title}</span>
+          {ev.desc && <span style={{ fontSize: 12.5, lineHeight: 1.35, opacity: 0.9, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ev.desc}</span>}
           <span className="row" style={{ justifyContent: "space-between", alignItems: "center", fontSize: 12.5, minWidth: 0 }}>
             <span className="row" style={{ gap: 6, opacity: 0.9, minWidth: 0, whiteSpace: "nowrap" }}><span className="ell">{shortWhen(ev, today)}{priceShort(ev) ? " · " + priceShort(ev) : ""}</span>{ev.tt?.mins != null && <span className="row" style={{ gap: 2 }}>·&nbsp;<Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={12} width={2.2} />{minsLabel(ev)}</span>}</span>
             <span className="onpic" style={{ display: "flex", marginRight: -6 }}><CardActions ev={ev} size={24} noSave /></span>
