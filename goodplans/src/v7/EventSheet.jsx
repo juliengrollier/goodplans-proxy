@@ -70,7 +70,7 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
     const base = [ev, ...similar]; const mine = moodProfile(base);
     const cosv = (a, b) => { let d = 0, na = 0, nb = 0; a.forEach((x, i) => { d += x * b[i]; na += x * x; nb += b[i] * b[i]; }); return na && nb ? d / Math.sqrt(na * nb) : 0; };
     return (tiles?.all || []).filter((t) => /^gen-(act|sub|term|cut)-/.test(t.key) && t.list?.length && !t.list.some((e) => e.id === ev.id))
-      .map((t) => [t, cosv(mine, moodProfile(t.list))]).sort((a, b) => b[1] - a[1])
+      .map((t) => { const l0 = t.list[0] || {}, same = t.list.some((e) => ev.act && e.act === ev.act) ? 0.5 : l0.ncat && l0.ncat === ev.ncat ? 0.3 : l0.fam && l0.fam === ev.fam ? 0.1 : 0; return [t, cosv(mine, moodProfile(t.list)) + same]; }).sort((a, b) => b[1] - a[1])
       .map(([t]) => { const b = primaryIntent(t.list[0]); return { ...t, title: t.short || t.title, ...(b ? { verb: b.label, color: b.color } : {}) }; });
   }, [ev, similar, tiles]); // eslint-disable-line react-hooks/exhaustive-deps
   // Recurrence: the pattern, the next session, and the last date when the listing has one ("Monthly · next Sun, Nov 16 · until Nov 30")
@@ -122,6 +122,7 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
           </button>
         )}
         {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: back ? 56 : 21, left: 14, height: 30, fontSize: 13 }}>One night only</span>}
+        {ev.recurring && <span className="tag tag-white row" style={{ position: "absolute", top: back ? 56 : 21, left: 14, height: 30, fontSize: 13, gap: 5 }}><Icon name="refresh" size={14} />{ev.recLabel || "Recurring"}</span>}
         <button onClick={onClose} aria-label="Close" style={{ position: "absolute", right: 16, bottom: -26, width: 52, height: 52, borderRadius: 26, border: "3px solid var(--bg)", background: "var(--navy)", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 16px rgba(27,31,59,.25)", zIndex: 2 }}><Icon name="close" size={22} width={2.6} /></button>
       </div>
 
@@ -136,6 +137,11 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
           <div className="row" style={{ gap: 6, fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>
             <Icon name="refresh" size={15} /> {recLine}{ev.recurring === "synthetic" ? " · not in the latest feed, check before going" : ""}
           </div>
+        )}
+        {ev.recurring && (
+          <button aria-pressed={!!bells[sb.key]} onClick={() => onBell(sb)} className="row" style={{ alignSelf: "flex-start", gap: 7, height: 38, padding: "0 16px 0 12px", marginTop: 2, borderRadius: 19, border: "1.5px solid " + (bells[sb.key] ? "var(--navy)" : "var(--line, rgba(128,128,128,.35))"), background: bells[sb.key] ? "var(--navy)" : "var(--card)", color: bells[sb.key] ? "var(--onnavy, #fff)" : "var(--ink)", fontSize: 14, fontWeight: 800 }}>
+            <Icon name="bell" size={16} fill={bells[sb.key] ? "currentColor" : "none"} />{bells[sb.key] ? "Subscribed to this series" : "Subscribe to this series"}
+          </button>
         )}
         {ev.desc && <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--ink2)" }}>{ev.desc}</p>}
         {ev.url && <a href={ev.url} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} className="row" style={{ gap: 6, fontSize: 14, fontWeight: 800 }}>Open on {ev.src || "the source site"} <Icon name="link" size={15} /></a>}
@@ -170,15 +176,15 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
 
       {(next.night || coord) && (
         <Rail title="Make a night of it" sub={next.night ? nightDay + " · all within a 20-minute walk" : "Around the venue"}>
-          {next.night?.before.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} label={"Before · " + x.walk + "′ walk"} />)}
+          {next.night?.before.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} walk={"Before · " + x.walk + "′ walk"} />)}
           {next.night && !next.night.same.length && (
             <div className="row" style={{ gap: 10, padding: "0 4px", fontSize: 13, fontWeight: 800 }}>
               <span style={{ width: 10, height: 10, borderRadius: 5, background: "var(--navy)", flexShrink: 0 }} />
               <span className="ell">This one · {next.night.startsAt}–{next.night.endsAt}</span>
             </div>
           )}
-          {next.night?.after.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} label={"After · " + x.walk + "′ walk"} />)}
-          {next.night?.same.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} label={"Same day · " + x.walk + "′ walk"} />)}
+          {next.night?.after.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} walk={"After · " + x.walk + "′ walk"} />)}
+          {next.night?.same.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} walk={"Same day · " + x.walk + "′ walk"} />)}
           {coord && (
             <div style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 8 }}>
               <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Find around the venue on Google Maps</span>

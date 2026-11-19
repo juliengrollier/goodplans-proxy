@@ -122,11 +122,6 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
   terms.sort((a, b) => b.l.length - a.l.length || a.t.length - b.t.length);
   const keptT = []; for (const x of terms) if (!keptT.some((y) => jac(x.ids, y.ids) >= 0.6)) keptT.push(x);
   keptT.slice(0, 25).forEach((x) => add({ kind: "term", id: x.t, label: x.t, list: x.l }));
-  // Lens cuts of big groups: "Weeknight improv", "Free comedy", "Late-night jazz"
-  const tests = Object.fromEntries(Object.entries(LENS).map(([k, L]) => [k, L.test]));
-  for (const c of C.filter((c) => (c.kind === "cat" || c.kind === "sub" || c.kind === "act") && c.list.length >= 5)) {
-    for (const [lk, f] of Object.entries(tests)) { const l = c.list.filter(f); if (l.length >= 3 && l.length <= 0.7 * c.list.length) add({ kind: "cut", id: lk + "-" + c.kind + "-" + c.id, parent: c.kind + "-" + c.id, lens: lk, label: c.label, list: l }); }
-  }
   // Family moments with hand-written names
   for (const [lk, L] of Object.entries(LENS)) for (const [fam, title] of Object.entries(L.t)) { const l = (byFam.get(fam) || []).filter(L.test); if (l.length >= 3) add({ kind: "lens", id: lk + "-" + fam, parent: "fam-" + fam, fam, fixedTitle: title, note: L.teaser, list: l }); }
   // One-offs: strong matches that belong to no group of three or more specific things
@@ -209,16 +204,9 @@ export function conceptTiles({ visible, today, hid = { xcats: [], xsubs: [] }, c
     const fFree = share(l, isFree), fLate = share(l, LENS.late.test), [hood, fHood] = major(l, hoodOf);
     let title = c.fixedTitle, plain = null;
     if (!title) {
-      const mods = [];
-      if (c.lens) mods.push(LENS_ADJ[c.lens]);
-      else if (fFree >= 0.75 && !/free/i.test(c.label)) mods.push("Free");
-      else if (fLate >= 0.75) mods.push("Late-night");
-      let base = mods.length ? mods[0] + " " + lowFirst(c.label) : null;
-      if (!base && hood && fHood >= 0.7 && new Set(l.map((e) => e.venue)).size >= 2 && c.kind !== "fam") base = up1(c.label) + " in " + hood;
-      if (c.lens === "cheap") base = up1(c.label) + " under $20";
-      plain = up1(base || c.label);
-      if (!base) { const pure = share(l, (e) => e.fam === fam) >= 0.75; const b = c.ncat === "Yoga & Wellness" ? CHILL : pure ? TITLES[fam] || NEUTRAL : NEUTRAL; base = b[(hash(c.key) + day) % b.length].replace("{X}", up1(c.label)).replace("{x}", lowFirst(c.label)); }
-      title = up1(base);
+      // Activity tiles carry just the activity's name: no "Free …", "Late-night …", "… in <area>" or "… under $20"
+      plain = up1(c.label);
+      title = plain;
     }
     // Teaser: a taste of what is in it (two distinct titles) and what it costs
     const seenT = new Set(), names = [];

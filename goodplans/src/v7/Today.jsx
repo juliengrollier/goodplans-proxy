@@ -5,7 +5,7 @@ import { markSeen } from "./moods2.js";
 import * as T from "./telemetry.js";
 import { ACT } from "./activities.js";
 import { Logo, Icon, Glyph } from "./icons.jsx";
-import { NotifyCtx, HeroCard, CompactCard, PosterCard, MiniCard, TravelMini, preciseLabel, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
+import { NotifyCtx, Dialog, Marquee, HeroCard, CompactCard, PosterCard, MiniCard, TravelMini, preciseLabel, shortWhen, actLabel, minsLabel, SectionHead, LeafletMap, CatBullet, ActionsCtx, Media, QuickTile, MoodTile, DotScroll, When, CardActions, PicOverlay } from "./components.jsx";
 import { ThemePhoto } from "./themeArt.jsx";
 import { applyFilters, EMPTY_FILTERS } from "./Filters.jsx";
 import { useEventImage } from "./images.js";
@@ -317,7 +317,7 @@ function EventRows({ evs, today, dark, onOpen, lead, max = 3, moreLabel, onMore,
         <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
           {lead(e, k)}
           <CatBullet ev={e} size={20} dark={dark} />
-          <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5, whiteSpace: "nowrap" }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span style={{ color: "var(--ink2)" }}>{" · " + e.title}</span></span>
+          <span className="row" style={{ flex: 1, minWidth: 0, fontSize: 13.5, whiteSpace: "nowrap" }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span style={{ color: "var(--ink2)" }}>&nbsp;·&nbsp;</span><Marquee style={{ color: "var(--ink2)" }}>{e.title}</Marquee></span>
           <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
         </button>
       ))}
@@ -359,7 +359,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
             <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ width: "100%", gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
               <span style={{ width: 14, flexShrink: 0, fontSize: 13, fontWeight: 700, color: "var(--ink3)", textAlign: "right" }}>{page * 3 + k + 1}</span>
               <span style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 400, color: evColor(e, dark), maxWidth: 104, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lab}</span>
-              <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5, whiteSpace: "nowrap", color: "var(--ink2)" }}><span style={{ fontWeight: 600, color: "var(--ink)" }}>{shortWhen(e, today)}</span>{" · " + e.title}</span>
+              <span className="row" style={{ flex: 1, minWidth: 0, fontSize: 13.5, whiteSpace: "nowrap", color: "var(--ink2)" }}><span style={{ fontWeight: 600, color: "var(--ink)" }}>{shortWhen(e, today)}</span>&nbsp;·&nbsp;<Marquee>{e.title}</Marquee></span>
               <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
             </button>
           ); })}
@@ -412,9 +412,9 @@ function IntentChips({ data, today, sel, put, onOrder, favs, toggleFav: toggleFa
   const [order, setOrder] = useState(() => { try { const o = JSON.parse(localStorage.getItem("gp_intent_order") || "null"); if (Array.isArray(o)) return [...o.filter((id) => INTENT[id]), ...INTENTS.map((i) => i.id).filter((id) => !o.includes(id))]; } catch { /* none */ } return INTENTS.map((i) => i.id); });
   const [drag, setDrag] = useState(null);
   const orderRef = React.useRef(order); orderRef.current = order;
-  const reorderAt = (x) => {
+  const reorderAt = (x, y) => {
     const o0 = orderRef.current, cur = o0.indexOf(dragRef.current);
-    const target = o0.findIndex((id) => { const r = btns.current[id]?.getBoundingClientRect(); return r && r.width && x >= r.left && x <= r.right; });
+    const target = o0.findIndex((id) => { const r = btns.current[id]?.getBoundingClientRect(); return r && r.width && x >= r.left && x <= r.right && (y == null || (y >= r.top && y <= r.bottom)); });
     if (target >= 0 && target !== cur) { const o = o0.slice(); o.splice(cur, 1); o.splice(target, 0, dragRef.current); orderRef.current = o; setOrder(o); }
   };
   const begin = (id, x, y) => { moved.current = false; start.current = { x, y }; clearTimeout(timer.current); timer.current = setTimeout(() => { dragRef.current = id; setDrag(id); navigator.vibrate?.(15); }, 380); };
@@ -426,7 +426,7 @@ function IntentChips({ data, today, sel, put, onOrder, favs, toggleFav: toggleFa
       const t = e.touches[0]; if (!t) return;
       if (!dragRef.current) { const s0 = start.current; if (s0 && Math.hypot(t.clientX - s0.x, t.clientY - s0.y) > 8) { clearTimeout(timer.current); start.current = null; } return; }
       if (e.cancelable) e.preventDefault();
-      moved.current = true; reorderAt(t.clientX);
+      moved.current = true; reorderAt(t.clientX, t.clientY);
       const r = el.getBoundingClientRect(); if (t.clientX < r.left + 30) el.scrollLeft -= 8; else if (t.clientX > r.right - 30) el.scrollLeft += 8;
     };
     const te = () => finish();
@@ -435,7 +435,7 @@ function IntentChips({ data, today, sel, put, onOrder, favs, toggleFav: toggleFa
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Mouse (desktop): the same with pointer events
   const pd = (id) => (e) => { if (e.pointerType === "mouse") begin(id, e.clientX, e.clientY); };
-  const pm = (e) => { if (e.pointerType !== "mouse") return; if (!dragRef.current) { clearTimeout(timer.current); return; } moved.current = true; reorderAt(e.clientX); };
+  const pm = (e) => { if (e.pointerType !== "mouse") return; if (!dragRef.current) { clearTimeout(timer.current); return; } moved.current = true; reorderAt(e.clientX, e.clientY); };
   const pu = (e) => { if (e.pointerType === "mouse") finish(); };
   // Favourite moods (heart) stay on the left, right after the active one
   const toggleFav = (id) => { const f = toggleFav0(id); onOrder?.([...orderRef.current.filter((x) => f.includes(x)), ...orderRef.current.filter((x) => !f.includes(x))]); };
@@ -447,7 +447,7 @@ function IntentChips({ data, today, sel, put, onOrder, favs, toggleFav: toggleFa
   return (
     <div id="tour-moods" style={{ margin: "2px 0 0" }}>
       <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? "Drag to reorder" : "I'm in the mood for…"}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
-      <div ref={rowRef} className="hscroll" style={{ gap: 6, padding: "0 16px 2px" }} onPointerMove={pm} onPointerUp={pu}>
+      <div ref={rowRef} style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 16px 2px" }} onPointerMove={pm} onPointerUp={pu}>
         {shown.map((it) => { const on = sel.includes(it.id), dragging = drag === it.id; return (
           <div role="button" tabIndex={0} key={it.id} ref={(el) => { btns.current[it.id] = el; }} aria-pressed={on} onKeyDown={(e) => { if (e.key === "Enter") put(on ? [] : [it.id]); }} onPointerDown={pd(it.id)} onTouchStart={(e) => begin(it.id, e.touches[0].clientX, e.touches[0].clientY)} onContextMenu={(e) => e.preventDefault()}
             onClick={() => { if (moved.current || dragRef.current) { moved.current = false; return; } put(on ? [] : [it.id]); }}
@@ -482,6 +482,56 @@ function markForyouSeen(ids, today) {
 }
 export function clearForyouSeen(id) { try { const st = JSON.parse(localStorage.getItem(FY_KEY) || "{}"); if (st.n && st.n[id]) { delete st.n[id]; localStorage.setItem(FY_KEY, JSON.stringify(st)); } } catch { /* storage off */ } }
 
+// "+" in My Interests: the whole tree (mood > category > activity) with a heart on each, to add or remove from one place
+function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose }) {
+  const [open, setOpen] = useState(null);
+  const pool = React.useMemo(() => (tiles?.every || tiles?.all || []).filter((t) => t.list?.length), [tiles]);
+  const acts = React.useMemo(() => { const m = {}; pool.filter((t) => /^gen-(act|sub|term)-/.test(t.key)).forEach((t) => { const c = t.list[0]?.ncat; if (c) (m[c] = m[c] || []).push(t); }); Object.values(m).forEach((l) => l.sort((a, b) => b.list.length - a.list.length)); return m; }, [pool]);
+  const catTile = (c) => pool.find((t) => t.key === "gen-cat-" + c);
+  const covered = new Set(INTENTS.flatMap((m) => m.cats || []));
+  const groups = [...INTENTS.map((m) => ({ id: m.id, label: m.label, color: m.color, icon: m.icon, cats: (m.cats || []).filter((c) => acts[c]?.length || catTile(c)) })), { id: "more", label: "More", color: "#64748B", icon: null, cats: Object.keys(acts).filter((c) => !covered.has(c)).sort() }].filter((g) => g.cats.length);
+  const heart = (on, color, label, onClick) => <button aria-pressed={on} aria-label={label} onClick={onClick} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: on ? color : "var(--chip)", color: on ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>;
+  return (
+    <Dialog title="Add to My Interests" onClose={onClose}>
+      <div className="muted" style={{ fontSize: 13.5, margin: "-6px 0 10px" }}>Tap a mood to open it, then heart what you like: the mood, a category, or one activity.</div>
+      <div style={{ maxHeight: "60vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, margin: "0 -4px", padding: "0 4px" }}>
+        {groups.map((g) => { const isOpen = open === g.id; return (
+          <div key={g.id} style={{ flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (isOpen ? g.color : "var(--line, rgba(128,128,128,.25))"), overflow: "hidden" }}>
+            <div className="row" style={{ gap: 10, padding: "8px 10px 8px 12px", background: isOpen ? g.color + "18" : "transparent" }}>
+              <button className="row" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : g.id)} style={{ flex: 1, gap: 10, border: "none", background: "none", padding: 0, color: "var(--ink)", textAlign: "left", fontSize: 16, fontWeight: 800 }}>
+                <span style={{ width: 30, height: 30, borderRadius: 10, background: g.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>{g.icon ? React.createElement(g.icon, { size: 17, strokeWidth: 2.2 }) : <Icon name="plus" size={16} />}</span>
+                {g.label}
+                <span style={{ marginLeft: "auto", display: "flex", transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span>
+              </button>
+              {INTENT[g.id] && heart(moodFavs.includes(g.id), g.color, (moodFavs.includes(g.id) ? "Remove " : "Add ") + g.label, () => onToggleMood(g.id))}
+            </div>
+            {isOpen && (
+              <div style={{ padding: "4px 12px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
+                {g.cats.map((c) => { const ct = catTile(c), list = acts[c] || []; return (
+                  <div key={c}>
+                    <div className="row" style={{ gap: 8, minHeight: 34 }}>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 800, letterSpacing: 0.4, color: "var(--ink2)" }}>{c}</span>
+                      {ct && heart(moodFav.includes(ct.key), g.color, (moodFav.includes(ct.key) ? "Remove " : "Add ") + c, () => onFav({ ...ct, title: ct.short || ct.title, color: g.color }))}
+                    </div>
+                    {list.length > 0 && (
+                      <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                        {list.map((t) => { const on = moodFav.includes(t.key); return (
+                          <button key={t.key} aria-pressed={on} onClick={() => onFav({ ...t, title: t.short || t.title, color: g.color })} className="chip" style={{ height: 32, gap: 5, background: on ? g.color : undefined, color: on ? "#fff" : undefined, borderColor: on ? g.color : undefined }}>
+                            <Icon name="heart" size={13} fill={on ? "currentColor" : "none"} />{t.short || t.title}
+                          </button>
+                        ); })}
+                      </div>
+                    )}
+                  </div>
+                ); })}
+              </div>
+            )}
+          </div>
+        ); })}
+      </div>
+    </Dialog>
+  );
+}
 const BellMini = ({ t, nc, light }) => {
   if (!nc) return null;
   const on = !!nc.bells[t.key];
@@ -500,6 +550,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
   const topAll = React.useMemo(() => applySocial((data || []).filter((e) => daysUntil(e, today) >= 0).slice().sort((a, b) => (b.rk ?? b.sc ?? 0) - (a.rk ?? a.sc ?? 0)), social), [data, today, social]);
   const [discN, setDiscN] = useState(6);
   const [favRows, setFavRows] = useState(3);
+  const [picker, setPicker] = useState(false);
   // Favourite moods (hearts on the mood tiles)
   const [moodFavs, setMoodFavs] = useState(() => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); return Array.isArray(f) ? f.filter((id) => INTENT[id]) : []; } catch { return []; } });
   React.useEffect(() => { const on = () => { try { const f = JSON.parse(localStorage.getItem("gp_intent_fav") || "[]"); if (Array.isArray(f)) setMoodFavs(f.filter((id) => INTENT[id])); } catch { /* none */ } }; window.addEventListener("gp-moodfav", on); return () => window.removeEventListener("gp-moodfav", on); }, []);
@@ -623,14 +674,36 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     top.sort((x, y) => info.get(x.id).d - info.get(y.id).d);
     const rest = uniq.filter((e) => !used.has(e.id));
     const out = [...top, ...rest]; out.labels = labels;
+    // One carousel per slot (today, tomorrow, weekend, book ahead): the slot's own pick leads, then the best of that slot
+    // (a little variety in category), ten at most; "More" opens the whole slot as a page
+    const TITLES4 = ["Today", "Tomorrow", weekendWord === "This week" ? "This week" : "This weekend", "Book ahead"];
+    const gUsed = new Set();
+    out.groups = [0, 1, 2, 3].map((k) => {
+      const key = k === 3 ? "base" : "v";
+      const lead = top.filter((e) => labels.get(e.id) === LABEL[k] && !gUsed.has(e.id));
+      const cand = uniq.filter((e) => slots[k](e) && !gUsed.has(e.id));
+      const pool = cand.filter((e) => !lead.includes(e)).sort((x, y) => info.get(y.id)[key] - info.get(x.id)[key]);
+      const shown = lead.slice(0, 1), cnt = {};
+      shown.forEach((e) => { cnt[e.ncat || e.cat] = 1; });
+      const rest2 = [...lead.slice(1), ...pool];
+      while (shown.length < 10 && rest2.length) {
+        let bi = 0, bv = -1;
+        rest2.forEach((e, i) => { const v = info.get(e.id)[key] * 0.85 ** (cnt[e.ncat || e.cat] || 0); if (v > bv) { bv = v; bi = i; } });
+        const [e] = rest2.splice(bi, 1); shown.push(e); cnt[e.ncat || e.cat] = (cnt[e.ncat || e.cat] || 0) + 1;
+      }
+      shown.forEach((e) => gUsed.add(e.id));
+      return { key: ["today", "tomorrow", "weekend", "book"][k], title: TITLES4[k], items: shown, all: [...shown, ...rest2] };
+    }).filter((g) => g.items.length);
+    if (!out.groups.length && out.length) out.groups = [{ key: "coming", title: "Coming up", items: out.slice(0, 10), all: out }];
     return out;
   }, [data, today, intentSel, social, moodFavs, shuf]);
   // Remember what headed For you today (once per day per event), so ignored picks fade on later days
   // (waits until the list has settled, so a half-loaded feed isn't what gets recorded)
-  React.useEffect(() => { if (intentSel.length || social) return undefined; const ids = bestAll.slice(0, 4).map((e) => e.id); const top4 = bestAll.slice(0, 4); const t = setTimeout(() => { markForyouSeen(ids, today); top4.forEach((e, i) => T.track("fy", e, { s: "foryou", p: i })); }, 8000); return () => clearTimeout(t); }, [bestAll]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (intentSel.length || social) return undefined; const top4 = (bestAll.groups || []).map((g) => g.items[0]).filter(Boolean); const ids = top4.map((e) => e.id); const t = setTimeout(() => { markForyouSeen(ids, today); top4.forEach((e, i) => T.track("fy", e, { s: "foryou", p: i })); }, 8000); return () => clearTimeout(t); }, [bestAll]); // eslint-disable-line react-hooks/exhaustive-deps
   const [bestN, setBestN] = useState(10);
   React.useEffect(() => setBestN(10), [intentSel.join(), social]); // eslint-disable-line react-hooks/exhaustive-deps
   const bestNow = bestAll.slice(0, bestN);
+  const fyGroups = bestAll.groups || [];
   const [moreN, setMoreN] = useState(0);
   // My moods: pinned ones (newest first), then the lists you open most (recent opens count more); four at most
   const pool = tiles ? (tiles.every || tiles.all) : [];
@@ -727,21 +800,42 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
         </div>
       )}
 
-      {/* 1. Your plans: one-line rows like the map legend, a bookmark instead of a number; three, then See all */}
-      {!empty && mine.length > 0 && (
-        <div style={{ padding: "18px 16px 0" }}>
-          <div style={{ padding: "0 4px 6px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{planToday.length && mine.slice(0, 3).every((e) => planToday.includes(e)) ? "Your plans today" : "Your next plans"}</div>
-          {mine.slice(0, 3).map((e, k) => (
-            <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ width: "100%", gap: 10, padding: "8px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none" }}>
-              <span style={{ width: 14, flexShrink: 0, display: "flex", justifyContent: "flex-end", color: "var(--ink3)" }}><Icon name="save" size={14} fill="currentColor" /></span>
-              <span style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 400, color: evColor(e, dark), maxWidth: 104, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preciseLabel(e)}</span>
-              <span className="ell" style={{ flex: 1, minWidth: 0, fontSize: 13.5, whiteSpace: "nowrap", color: "var(--ink2)" }}><span style={{ fontWeight: 600, color: "var(--ink)" }}>{shortWhen(e, today)}</span>{" · " + e.title}</span>
-              <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
-            </button>
-          ))}
-          {mine.length > 3 && <button onClick={() => setTab("plans")} style={{ border: "none", background: "none", padding: "6px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>See all {mine.length}</button>}
-        </div>
-      )}
+      {/* 1. Your plans: today's one-off as a big card; what's next and what's ongoing in two columns */}
+      {!empty && mine.length > 0 && (() => {
+        const isRun = (e) => (e.X && e.X > e.E) || !!e.recurring;
+        const todayOne = planToday.filter((e) => !isRun(e)), nextOne = planNext.filter((e) => !isRun(e)), ongoing = [...planToday.filter(isRun), ...planNext.filter(isRun)];
+        const head = (t) => <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>{t}</div>;
+        const col = (title, list) => (
+          <div style={{ minWidth: 0 }}>
+            {head(title)}
+            {list.slice(0, 3).map((e, k) => (
+              <button key={e.id} onClick={() => onOpen(e)} style={{ width: "100%", display: "flex", flexDirection: "column", gap: 2, padding: "8px 0", border: "none", borderTop: k ? "1px solid var(--line, rgba(128,128,128,.18))" : "none", background: "none", color: "var(--ink)", textAlign: "left" }}>
+                <span className="ell" style={{ fontSize: 12.5, fontWeight: 700, color: evColor(e, dark) }}>{shortWhen(e, today)}</span>
+                <span className="clamp2" style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.25 }}>{e.title}</span>
+              </button>
+            ))}
+            {list.length > 3 && <span className="muted" style={{ fontSize: 12.5, fontWeight: 700 }}>+{list.length - 3} more</span>}
+          </div>
+        );
+        return (
+          <div style={{ padding: "18px 16px 0" }}>
+            {head(todayOne.length ? "Your plan today" : "Your plans")}
+            {todayOne.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                <PosterCard ev={todayOne[0]} dark={dark} today={today} onOpen={onOpen} fluid />
+                {todayOne.slice(1).map((e) => <button key={e.id} onClick={() => onOpen(e)} className="row" style={{ gap: 8, padding: "2px 4px", border: "none", background: "none", color: "var(--ink)", textAlign: "left", fontSize: 13.5 }}><span style={{ fontWeight: 700 }}>{shortWhen(e, today)}</span><span className="ell" style={{ color: "var(--ink2)" }}>{e.title}</span></button>)}
+              </div>
+            )}
+            {(nextOne.length > 0 || ongoing.length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: nextOne.length && ongoing.length ? "1fr 1fr" : "1fr", columnGap: 16, padding: "0 4px" }}>
+                {nextOne.length > 0 && col("Next", nextOne)}
+                {ongoing.length > 0 && col("Ongoing", ongoing)}
+              </div>
+            )}
+            {mine.length > 3 && <button onClick={() => setTab("plans")} style={{ border: "none", background: "none", padding: "8px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>See all {mine.length}</button>}
+          </div>
+        );
+      })()}
 
       {/* 3. Around you right now: a map of what is on or starting nearby */}
       {!empty && mapEvs.length > 0 && (
@@ -762,14 +856,27 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
               <button key={m.label} aria-pressed={on} onClick={() => putSocial(m.id)} className="row" style={{ gap: 5, border: "none", background: "none", padding: "4px 0", fontSize: 13, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", color: on ? "var(--ink)" : "var(--ink3)", opacity: on ? 1 : 0.6 }}>{m.icon && React.createElement(m.icon, { size: 14, strokeWidth: 2.2 })}{m.label}</button>
             ); })}
           </div>
-          {bestNow.length > 0 ? (
+          {fyGroups.length > 0 ? (
             <div style={{ margin: "22px 0 18px" }}>
-              <div style={{ padding: "0 16px", display: "grid", gridTemplateColumns: "1fr", rowGap: 26 }}>{bestNow.slice(0, 4).map((ev, k) => <div key={ev.id} id={k === 0 ? "tour-card" : undefined} style={{ display: "flex" }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid label={bestAll.labels?.get(ev.id)} /></div>)}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+                {fyGroups.map((g, gi) => (
+                  <div key={g.key}>
+                    <div style={{ padding: "0 20px 10px", fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{g.title}</div>
+                    <DotScroll>
+                      {g.items.map((ev, k) => <div key={ev.id} id={gi === 0 && k === 0 ? "tour-card" : undefined} style={{ display: "flex", width: "min(calc(100vw - 40px), 420px)", flexShrink: 0 }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}
+                      <button onClick={() => onTile({ key: "fy-" + g.key + (social ? "-" + social : ""), title: g.title + socialTag, list: g.all, color: "#1F2A5C", teaser: "Ranked for you.", verb: "For you", group: "rank" })}
+                        aria-label={"More: " + g.title} style={{ width: 120, height: 210, flexShrink: 0, borderRadius: 20, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
+                        <span style={{ width: 40, height: 40, borderRadius: 20, background: "var(--navy)", color: "var(--onnavy, #fff)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="chev" size={20} width={2.6} /></span>More
+                      </button>
+                    </DotScroll>
+                  </div>
+                ))}
+              </div>
               {intentSel.length === 0 && (
                 <div className="row" style={{ padding: "18px 16px 0", gap: 8 }}>
                   <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: "Top picks" + socialTag, list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
                     className="row" style={{ flex: 1, justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}><Icon name="explore" size={17} />Explore top picks</button>
-                  <button aria-label="Show me four others" onClick={() => { bestNow.slice(0, 4).forEach((e, i) => T.track("shuffle", e, { s: "foryou", p: i })); setShuf((x) => [...x, ...bestNow.slice(0, 4).map((e) => e.id)]); }}
+                  <button aria-label="Show me four others" onClick={() => { const firsts = fyGroups.map((g) => g.items[0]).filter(Boolean); firsts.forEach((e, i) => T.track("shuffle", e, { s: "foryou", p: i })); setShuf((x) => [...x, ...firsts.map((e) => e.id)]); }}
                     style={{ width: 48, flexShrink: 0, alignSelf: "stretch", borderRadius: 14, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="refresh" size={19} /></button>
                 </div>
               )}
@@ -788,9 +895,10 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
             </div>
           )}
 
-          {favFlat.length > 0 && (
+          {(
             <div id="my-favs" style={{ scrollMarginTop: 12 }}>
               <Head title="My Interests" sub="Your moods and activities, one tap away." />
+              {picker && <InterestPicker tiles={tiles} moodFavs={moodFavs} onToggleMood={toggleMoodFav} moodFav={moodFav} onFav={onMoodFav} onClose={() => setPicker(false)} />}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 16px 2px" }}>
                 {favFlat.slice(0, favRows * 4).map((x) => x.kind === "mood" ? (
                   <div key={x.key} role="button" tabIndex={0} onClick={() => { putIntent([x.id]); document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" }); }} onKeyDown={(e) => { if (e.key === "Enter") putIntent([x.id]); }}
@@ -800,13 +908,15 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
                     {React.createElement(x.mood.icon, { size: 20, strokeWidth: 2.2, color: "#fff" })}{x.mood.label}
                   </div>
                 ) : (
-                  <div key={x.key} role="button" tabIndex={0} onClick={() => onTile(x.t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(x.t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + ((x.mood?.color || x.t.color || "#888888") + "55"), background: (x.mood?.color || x.t.color || "#888888") + "22", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
-                    <button aria-label="Remove from My Interests" onClick={(e) => { e.stopPropagation(); onMoodFav(x.t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
-                    <BellMini nc={nc} t={x.t} />
-                    {x.t.node ? <LIcon node={x.t.node} size={20} color={x.t.color} stroke={2.2} /> : x.t.icon ? React.createElement(x.t.icon, { size: 20, strokeWidth: 2.2, color: x.t.color }) : null}
+                  <div key={x.key} role="button" tabIndex={0} onClick={() => onTile(x.t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(x.t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (x.mood?.color || x.t.color || "#888888"), background: x.mood?.color || x.t.color || "#888888", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
+                    <button aria-label="Remove from My Interests" onClick={(e) => { e.stopPropagation(); onMoodFav(x.t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
+                    <BellMini nc={nc} light t={x.t} />
+                    {x.t.node ? <LIcon node={x.t.node} size={20} color="#fff" stroke={2.2} /> : x.t.icon ? React.createElement(x.t.icon, { size: 20, strokeWidth: 2.2, color: "#fff" }) : null}
                     <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" }}>{x.t.short || x.t.title}</span>
                   </div>
                 ))}
+                <button aria-label="Add interests: browse every mood, category and activity" onClick={() => setPicker(true)}
+                  style={{ width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px dashed var(--ink3)", background: "transparent", color: "var(--ink2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, fontWeight: 800 }}><Icon name="plus" size={20} width={2.4} />Add</button>
               </div>
               {favFlat.length > 12 && (
                 <div style={{ padding: "10px 20px 0", display: "flex", justifyContent: "center" }}>
