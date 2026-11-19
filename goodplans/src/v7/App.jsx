@@ -46,6 +46,7 @@ import {
 import * as N from "./notify.js";
 import { startMinutes } from "./engine.js";
 import { NotifyCtx, Dialog } from "./components.jsx";
+import { Icon } from "./icons.jsx";
 
 // Backend defaults: set VITE_GP_URL / VITE_GP_KEY in Vercel. Values saved in Me override them.
 // Fallback = the values already in the classic app. Rotate the key, set the env vars, then delete these.
@@ -113,6 +114,7 @@ export default function App() {
   const putNotif = useCallback((n) => { notifRef.current = n; setNotifRaw(n); N.saveNotif(n); }, []);
   const [perm, setPerm] = useState(() => N.permission());
   const [askNotif, setAskNotif] = useState(false);
+  const [bellAsk, setBellAsk] = useState(null); // { bell, tile } offered right after a heart
   const [freeUntil, setFreeUntil] = useState(null);
   const [showFree, setShowFree] = useState(false);
   const [openEv, setOpenEvRaw] = useState(null);
@@ -644,7 +646,14 @@ export default function App() {
     return () => clearTimeout(t);
   }, [ready, account, showQuiz, showTour]); // eslint-disable-line react-hooks/exhaustive-deps
   const savedForPushRef = useRef([]); savedForPushRef.current = savedForPush;
-  const notifyCtx = useMemo(() => ({ bells: notif.bells || {}, toggle: (t) => toggleBell(N.bellOf(t), t) }), [notif.bells, toggleBell]);
+  // Right after a heart: offer the bell for the same thing (unless already belled, or they said not to ask)
+  const offerBell = useCallback((t) => {
+    const n = notifRef.current, b = N.bellOf(t);
+    if (!b.label || n.bells[b.key] || n.noBellAsk || N.permission() === "denied" || !N.supported()) return false;
+    setTimeout(() => setBellAsk({ bell: b, tile: t }), 250);
+    return true;
+  }, []);
+  const notifyCtx = useMemo(() => ({ bells: notif.bells || {}, toggle: (t) => toggleBell(N.bellOf(t), t), offer: offerBell }), [notif.bells, toggleBell, offerBell]);
   // A list sent by a notification ("New for you"): open it in Explore
   const openIds = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("explore"); window.scrollTo(0, 0); };
   const openIdsRef = useRef(openIds); openIdsRef.current = openIds;
@@ -929,7 +938,8 @@ export default function App() {
     const f = on ? moodFav.filter((k) => k !== t.key) : [...moodFav, t.key].slice(-30); // first in, first out: the oldest favourite makes room
     markFavAt(t.key, !on);
     setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
-    toast(on ? "Removed from My Interests" : "Added to My Interests");
+    // Adding: the bell offer doubles as the confirmation; otherwise a toast
+    if (on || !offerBell(t)) toast(on ? "Removed from My Interests" : "Added to My Interests");
   };
   const [listMeta, setListMeta] = useState(null);
   // ── View history: every move between tabs and lists remembers where you were, so "back" retraces your steps
@@ -1098,6 +1108,20 @@ export default function App() {
           putModel(m, true);
           toast("Thanks, noted"); setWhyAsk(null);
         }} onClose={() => setWhyAsk(null)} />}
+      {bellAsk && (
+        <Dialog title="Added to My Interests" onClose={() => setBellAsk(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="row" style={{ gap: 10 }}>
+              <span style={{ width: 40, height: 40, borderRadius: 20, background: "var(--navy)", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="bell" size={20} /></span>
+              <div className="disp" style={{ fontSize: 21, lineHeight: 1.15 }}>Get notified about new {bellAsk.bell.label}?</div>
+            </div>
+            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>When new ones come up, they go in your daily bundle: at most one notification a day for all your bells.</div>
+            <button className="pill pill-dark" onClick={() => { const x = bellAsk; setBellAsk(null); toggleBell(x.bell, x.tile); }}><Icon name="bell" size={18} /> Yes, notify me</button>
+            <button className="pill pill-line" onClick={() => setBellAsk(null)}>Not now</button>
+            <button onClick={() => { setBellAsk(null); putNotif({ ...notifRef.current, noBellAsk: true }); toast("Won't ask again. Bells stay on the tiles."); }} style={{ border: "none", background: "none", color: "var(--ink3)", fontSize: 13, fontWeight: 700, padding: 4 }}>Don't ask when I heart something</button>
+          </div>
+        </Dialog>
+      )}
       {askNotif && (
         <Dialog title="Notifications" onClose={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
