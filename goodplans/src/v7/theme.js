@@ -63,7 +63,7 @@ a{color:inherit}
 .gp-marq{animation:gp-marq 9s ease-in-out infinite alternate}
 @keyframes gp-kb{0%{transform:scale(1.10) translate3d(0,0,0)}100%{transform:scale(1.18) translate3d(-1.5%,-1%,0)}}
 .gp-kb{transform:scale(1.10);transform-origin:50% 40%}
-.gp-kb.on{animation:gp-kb 14s ease-in-out infinite alternate;will-change:transform}
+.gp-kb.on{will-change:auto}
 .gp-enter{opacity:0;transform:translateY(10px);transition:opacity .7s ease,transform .7s ease}
 .gp-enter.on{opacity:1;transform:none}
 @keyframes gp-pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)}70%,100%{box-shadow:0 0 0 7px rgba(74,222,128,0)}}
