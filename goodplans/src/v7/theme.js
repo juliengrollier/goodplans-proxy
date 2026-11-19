@@ -61,9 +61,9 @@ a{color:inherit}
 .hscroll>*{scroll-snap-align:start}
 @keyframes gp-marq{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(var(--mq))}}
 .gp-marq{animation:gp-marq 9s ease-in-out infinite alternate}
-@keyframes gp-kb{0%{transform:scale(1.1) translate3d(0,0,0)}100%{transform:scale(1.18) translate3d(-1.5%,-1%,0)}}
-.gp-kb{transform:scale(1.1);transform-origin:50% 40%}
-.gp-kb.on{animation:gp-kb 14s ease-in-out infinite alternate;will-change:transform}
+@keyframes gp-kb{0%{transform:scale(1.18) translate3d(0,0,0)}100%{transform:scale(1.32) translate3d(-3%,-2%,0)}}
+.gp-kb{transform:scale(1.18);transform-origin:50% 40%}
+.gp-kb.on{animation:gp-kb 10s ease-in-out infinite alternate;will-change:transform}
 .gp-enter{opacity:0;transform:translateY(10px);transition:opacity .7s ease,transform .7s ease}
 .gp-enter.on{opacity:1;transform:none}
 @keyframes gp-pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)}70%,100%{box-shadow:0 0 0 7px rgba(74,222,128,0)}}
