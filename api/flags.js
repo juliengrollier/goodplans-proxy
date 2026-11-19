@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       if (req.method === "POST" && !ALLOWED.test(req.headers.origin || "")) return res.status(403).json({ error: "Origin not allowed" });
       const b = req.method === "POST" ? (typeof req.body === "string" ? JSON.parse(req.body) : req.body || {}) : { note: "Test flag (setup check)", target: "test", screen: "setup" };
       const id = new Date().toISOString().replace(/[:.]/g, "-") + "-" + Math.random().toString(36).slice(2, 6);
-      const flag = { id, at: new Date().toISOString(), note: clip(b.note || "", 2000), target: clip(b.target || "", 600), screen: clip(b.screen || "", 200), section: clip(b.section || "", 200), ev: b.ev || null, ctx: b.ctx || null, ver: clip(b.ver || "", 40) };
+      const flag = { id, at: new Date().toISOString(), note: clip(b.note || "", 2000), target: clip(b.target || "", 600), screen: clip(b.screen || "", 200), section: clip(b.section || "", 200), ev: b.ev || null, ctx: b.ctx || null, ver: clip(b.ver || "", 40), user: clip(b.user || "", 24) };
       const body = JSON.stringify(flag);
       if (body.length > 20000) return res.status(413).json({ error: "Too big" });
       await blobApi("/?" + new URLSearchParams({ pathname: PREFIX + id + ".json" }).toString(), {
