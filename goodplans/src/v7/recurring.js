@@ -11,8 +11,10 @@ const STOP = new Set(["the", "and", "with", "at", "in", "on", "of", "a", "an", "
 // Title words that identify a series, ignoring order, dates, venue words and filler
 export function titleTokens(ev) {
   const venueWords = new Set(venueKey(ev).split(/[^a-z0-9]+/));
-  return [...new Set((ev.title || "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/[’']/g, "").split(/[^a-z0-9]+/)
-    .filter((w) => w.length > 2 && !STOP.has(w) && !venueWords.has(w) && !/^\d+$/.test(w)))].sort();
+  const words = (ev.title || "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/[’']/g, "").split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP.has(w) && !/^\d+$/.test(w));
+  const own = [...new Set(words.filter((w) => !venueWords.has(w)))].sort();
+  // "Whitney Museum Free Friday Nights" at the Whitney: nothing is left once venue words go, so keep them
+  return own.length ? own : [...new Set(words)].sort();
 }
 const venueRoot = (ev) => venueKey(ev).replace(/[’']/g, "").replace(/^the\s+/, "").split(/[^a-z0-9]+/).filter(Boolean).slice(0, 2).join(" ");
 const jacc = (a, b) => { const B = new Set(b); const i = a.filter((x) => B.has(x)).length; return i / Math.max(1, new Set([...a, ...b]).size); };
