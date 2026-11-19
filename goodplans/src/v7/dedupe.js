@@ -43,7 +43,7 @@ export function mergeDuplicates(events) {
     }
     const win = better(dup, e);
     Object.assign(dup, { ...win, _t: dup._t, _v: dup._v, id: dup.id, // keep the first id so saves and thumbs stay attached
-      srcs: [...new Set([...(dup.srcs || []), e.src].filter(Boolean))] });
+      srcs: [...new Set([...(dup.srcs || []), e.src].filter(Boolean))], altIds: [...new Set([...(dup.altIds || []), e.id].filter((x) => x && x !== dup.id))] });
     if (dup.X || e.X) { delete dup.dates; delete dup.dows; } // merged ranges: the structured day lists no longer apply
     if (dup.X || e.X) { dup.E = dup.E < e.E ? dup.E : e.E; dup.X = end(dup) > end(e) ? end(dup) : end(e); }
   });
