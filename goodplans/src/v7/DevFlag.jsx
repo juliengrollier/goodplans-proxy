@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "./images.js";
 import { primaryIntent } from "./intents.js";
+import { userId } from "./telemetry.js";
 
 export const DEV_KEY = "gp_dev_v1";
 const VER = typeof __BUILD__ !== "undefined" ? __BUILD__ : "";
@@ -76,7 +77,7 @@ export default function DevFlag({ events = [], screen = "", openEv = null }) {
     try {
       const r = await fetch(API_BASE + "/api/flags", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         note, target: pick.target + (pick.inner ? " › " + pick.inner : ""), section: pick.section, screen: screen + (openEv ? " › event " + openEv : ""),
-        ev: evInfo(pick.ev), ctx: { w: window.innerWidth, h: window.innerHeight, at: new Date().toString(), rect: pick.rect }, ver: VER,
+        ev: evInfo(pick.ev), ctx: { w: window.innerWidth, h: window.innerHeight, at: new Date().toString(), rect: pick.rect }, ver: VER, user: userId(),
       }) });
       if (!r.ok) throw new Error("HTTP " + r.status);
       setPick(null); setNote(""); setMsg("Flag sent"); setTimeout(() => setMsg(""), 1800);
