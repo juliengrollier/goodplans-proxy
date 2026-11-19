@@ -56,14 +56,23 @@ let timer = null, last = "";
 export function sync(n, saved, action) {
   if (!n.on && action !== "off") return Promise.resolve(null);
   clearTimeout(timer);
+  let retried = false;
   const go = async () => {
-    const sub = action === "off" ? null : await subscription(false).catch(() => null);
+    // Make sure this phone has a live subscription whenever notifications are allowed (it can vanish after a reinstall)
+    const sub = action === "off" ? null : await subscription(permission() === "granted").catch(() => null);
     const body = { user: userId(), dev: dev(), sub, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, saved, bells: Object.values(n.bells || {}), prefs: { reminders: n.reminders, digest: n.digest, digestAt: n.digestAt }, action };
     const sig = JSON.stringify(body);
     if (!action && sig === last) return null;
     last = sig;
     const r = await fetch(API_BASE + "/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: sig });
-    return r.ok ? r.json() : null;
+    const d = r.ok ? await r.json() : null;
+    // The push service says this subscription is dead: make a fresh one and try once more
+    if (action === "test" && d?.test?.gone && !retried) {
+      retried = true;
+      try { const reg = await navigator.serviceWorker.ready; const old = await reg.pushManager.getSubscription(); if (old) await old.unsubscribe(); } catch { /* ignore */ }
+      return go();
+    }
+    return d;
   };
   if (action) return go().catch(() => null);
   return new Promise((ok) => { timer = setTimeout(() => go().then(ok, () => ok(null)), 1500); });

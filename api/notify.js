@@ -204,6 +204,7 @@ export default async function handler(req, res) {
       if (b.action === "test" && doc.devices[dev]) {
         test = await sendPush(doc.devices[dev].sub, { title: "Good Plans notifications are on", body: "Reminders for saved plans, and new events for the things you bell.", url: "/", tag: "test" }, { ttl: 600, urgency: "high" }).catch((e) => ({ ok: false, err: String(e.message || e) }));
       }
+      if (test?.gone) { delete doc.devices[dev]; await putJSON(uKey(u), doc); }
       return res.status(200).json({ ok: true, devices: Object.keys(doc.devices).length, test });
     }
 
@@ -232,6 +233,9 @@ export default async function handler(req, res) {
         if (req.query.dry && authed) { report.push({ user: u, away, would: out.map((m) => m.title + " — " + m.body) }); continue; }
         const sent = out.length ? await deliver(u, doc, st, out) : 0;
         if (out.length) await putJSON(sKey(u), st);
+        // forget phones whose subscription is gone (they re-register on next open)
+        const dead = Object.entries(doc.devices || {}).filter(([, d]) => (st.gone || []).includes(d.sub?.endpoint));
+        if (dead.length) { dead.forEach(([k]) => delete doc.devices[k]); await putJSON(uKey(u), doc); }
         report.push({ user: u, away, due: out.length, sent });
       }
       return res.status(200).json({ at: now.toISOString(), feed: events.length, report });
