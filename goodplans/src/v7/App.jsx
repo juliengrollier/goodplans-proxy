@@ -1074,7 +1074,7 @@ export default function App() {
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           notif={notif} perm={perm} onNotifOn={async () => { const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}
-          onNotifSet={(patch) => putNotif({ ...notifRef.current, ...patch })} onNotifTest={() => N.sync(notifRef.current, savedForPush, "test").then((r) => toast(r?.test?.ok ? "Test sent" : "Couldn't reach this phone. Try turning notifications on again."))}
+          onNotifSet={(patch) => putNotif({ ...notifRef.current, ...patch })} onNotifTest={(kind) => N.sync(notifRef.current, savedForPush, "test", typeof kind === "string" ? kind : "basic").then((r) => toast(r?.test?.ok ? "Test sent" : "Couldn't reach this phone. Try turning notifications on again."))}
           onNotifOff={() => { N.sync(notifRef.current, [], "off"); putNotif({ ...notifRef.current, on: false, offByUser: true }); }}
           onUnbell={(k) => { const b = { ...notifRef.current.bells }; delete b[k]; putNotif({ ...notifRef.current, bells: b }); }}
           backend={backend} setBackend={setBackend} lastRefreshed={lastRefreshed} eventCount={events.length} onRefresh={() => refresh(false)} refreshing={refreshing} refreshLog={refreshLog}

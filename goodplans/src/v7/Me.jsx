@@ -240,8 +240,14 @@ export default function Me(p) {
             </div>
             <span className="muted" style={{ fontSize: 12.5 }}>Paused automatically while your phone is on another time zone than New York. Quiet at night.</span>
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-              <button className="pill pill-line" style={{ height: 38, fontSize: 14 }} onClick={onNotifTest}>Send a test</button>
               <button className="pill pill-line" style={{ height: 38, fontSize: 14 }} onClick={onNotifOff}>Turn off on this phone</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <span className="disp" style={{ fontSize: 16 }}>Send a test</span>
+              <span className="muted" style={{ fontSize: 13 }}>Shows each kind of notification on this phone, using one of your saved plans when you have one.</span>
+              <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                {[["basic", "Welcome"], ["reminder", "Reminder"], ["evening", "Evening before"], ["ends", "Ends soon"], ["change", "Time change"], ["digest", "New for you"]].map(([k, l]) => <button key={k} className="chip" style={{ height: 34 }} onClick={() => onNotifTest(k)}>{l}</button>)}
+              </div>
             </div>
           </>
         )}
