@@ -1,0 +1,13 @@
+# Good Plans notifications scheduler: asks the server every half hour to send what is due.
+# (Vercel's free plan only runs scheduled jobs once a day; reminders need finer timing.)
+name: notify
+on:
+  schedule:
+    - cron: "4,34 * * * *"
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: curl -sS --max-time 90 "https://goodplans-proxy.vercel.app/api/notify?run=1"

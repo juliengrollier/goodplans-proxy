@@ -24,7 +24,7 @@ function Card({ title, children, right }) {
 export default function Me(p) {
   const [pane, setPane] = useState("profile");
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
-    calStatus, busyCount, onCheckCal, calName, pushState, onEnablePush, pushInfo,
+    calStatus, busyCount, onCheckCal, calName, notif = {}, perm, onNotifOn, onNotifSet, onNotifTest, onNotifOff, onUnbell,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
     locSt, onRetryGPS, resetTaste, axes, onNudge, quiz, onRetakeQuiz, onTour, maps, mapsBusy, mapsMatches = 0, onImportMaps, onRemoveMaps, learned = {}, cardBusy, onCardRefresh, onMuteLine, onResetLearning } = p;
   const [fine, setFine] = useState(false);
@@ -206,9 +206,45 @@ export default function Me(p) {
       </Card>
 
       <Card title="Notifications">
-        <span style={{ fontSize: 14, color: "var(--ink2)" }}>{pushState}</span>
-        {pushInfo && <span className="muted" style={{ fontSize: 13 }}>{pushInfo}</span>}
-        <button className="pill pill-dark" onClick={onEnablePush}><Icon name="bell" size={18} /> Turn on / repair notifications</button>
+        {perm === "unsupported" ? (
+          <span style={{ fontSize: 14, color: "var(--ink2)" }}>This browser can't get notifications. On iPhone, add Good Plans to the Home Screen and open it from there.</span>
+        ) : !notif.on || perm !== "granted" ? (
+          <>
+            <span style={{ fontSize: 14, color: "var(--ink2)" }}>{perm === "denied" ? "Blocked for Good Plans in your phone settings. Allow notifications there, then tap below." : "Reminders before your saved plans, and new events for the things you bell."}</span>
+            <button className="pill pill-dark" onClick={onNotifOn}><Icon name="bell" size={18} /> Turn on notifications</button>
+          </>
+        ) : (
+          <>
+            {[["reminders", "Saved plans", "A reminder a couple of hours before, with when to leave. Also when the time or venue changes, and when a long run is about to end."],
+              ["digest", "New for your bells", "At most one notification a day with new events for the interests, venues and series you bell."]].map(([k, l, d]) => (
+              <button key={k} role="switch" aria-checked={notif[k] !== false} onClick={() => onNotifSet({ [k]: notif[k] === false })} className="row" style={{ gap: 12, border: "none", background: "none", padding: 0, textAlign: "left", alignItems: "flex-start", color: "var(--ink)" }}>
+                <span style={{ flex: 1 }}><span className="disp" style={{ fontSize: 16, display: "block" }}>{l}</span><span className="muted" style={{ fontSize: 13 }}>{d}</span></span>
+                <span aria-hidden="true" style={{ width: 44, height: 26, borderRadius: 13, flexShrink: 0, background: notif[k] !== false ? "var(--navy)" : "var(--line)", position: "relative", marginTop: 2 }}>
+                  <span style={{ position: "absolute", top: 3, left: notif[k] !== false ? 21 : 3, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "left .15s" }} />
+                </span>
+              </button>
+            ))}
+            {notif.digest !== false && (
+              <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                <span className="muted" style={{ fontSize: 13, fontWeight: 700, marginRight: 4 }}>Daily bundle at</span>
+                {[[9, "Morning"], [12, "Lunch"], [17, "Evening"]].map(([h, l]) => <button key={h} className={"chip" + ((notif.digestAt ?? 12) === h ? " on" : "")} style={{ height: 32 }} onClick={() => onNotifSet({ digestAt: h })}>{l}</button>)}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <span className="disp" style={{ fontSize: 16 }}>Your bells</span>
+              {Object.values(notif.bells || {}).length ? (
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  {Object.values(notif.bells).map((b) => <button key={b.key} className="chip" style={{ height: 32 }} onClick={() => onUnbell(b.key)} aria-label={"Remove bell: " + b.label}><Icon name="bell" size={14} fill="currentColor" /> {b.label} <Icon name="close" size={13} /></button>)}
+                </div>
+              ) : <span className="muted" style={{ fontSize: 13 }}>None yet. Ring the bell on a tile in My Interests, or on a venue or series on an event page.</span>}
+            </div>
+            <span className="muted" style={{ fontSize: 12.5 }}>Paused automatically while your phone is on another time zone than New York. Quiet at night.</span>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              <button className="pill pill-line" style={{ height: 38, fontSize: 14 }} onClick={onNotifTest}>Send a test</button>
+              <button className="pill pill-line" style={{ height: 38, fontSize: 14 }} onClick={onNotifOff}>Turn off on this phone</button>
+            </div>
+          </>
+        )}
       </Card>
 
       {(Object.keys(stars.cats || {}).length + Object.keys(stars.subs || {}).length) > 0 && (
