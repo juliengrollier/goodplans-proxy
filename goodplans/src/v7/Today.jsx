@@ -803,7 +803,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {/* 1. Your plans: today's one-off as a big card; what's next and what's ongoing in two columns */}
       {!empty && mine.length > 0 && (() => {
         const isRun = (e) => (e.X && e.X > e.E) || !!e.recurring;
-        const todayOne = planToday.filter((e) => !isRun(e)), nextOne = planNext.filter((e) => !isRun(e)), ongoing = [...planToday.filter(isRun), ...planNext.filter(isRun)];
+        const todayOne = planToday.filter((e) => !isRun(e)), nextOne = planNext, ongoing = planToday.filter(isRun);
         const head = (t) => <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>{t}</div>;
         const col = (title, list) => (
           <div style={{ minWidth: 0 }}>
