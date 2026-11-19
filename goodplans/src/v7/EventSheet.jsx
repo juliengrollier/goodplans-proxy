@@ -6,11 +6,27 @@ import { CatBullet, Media, PriceTag, Dialog, Travel, CompactCard, LeafletMap, Wh
 import { catColor } from "./theme.js";
 import { whenLabel, venueLabel, weatherBadge, fmtT } from "./engine.js";
 import { parseT, toGC, nearestSubways, LINE_COLOR, safeCoord, isImprecise, nextOn } from "../lib/core.js";
+import { nightOf, nextDatesOf, atVenueOf, upNextOf, mapsNear } from "./nextup.js";
+
+// A titled block on the event page
+function Rail({ title, sub, children, pad = "0 16px" }) {
+  return (
+    <div style={{ paddingTop: 26, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ padding: "0 20px" }}>
+        <div className="disp" style={{ fontSize: 20 }}>{title}</div>
+        {sub && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{sub}</div>}
+      </div>
+      <div style={{ padding: pad, display: "flex", flexDirection: "column", gap: 16 }}>{children}</div>
+    </div>
+  );
+}
+const fdate = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
 const NFM = [["far", "Too far", "Long trips get pushed down"], ["price", "Too pricey", "Paid nights get pushed down"], ["seen", "Seen it / not again", "Hides this series"], ["notus", "Not our thing", "Less of this kind of event"]];
 
-export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav, ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], onOpen, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
+export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav, ev, dark, today, onSignal = () => {}, onAskWhy = () => {}, similar = [], list = [], trail = [], savedIds = {}, onBack, onOpen: onOpen0, onClose, saved, onSave, taste, onReact, onFollow, toast }) {
   const [nfm, setNfm] = useState(false);
+  const onOpen = (e, rail = "similar") => onOpen0(e, rail);
   const thumb = taste.thumbs[ev.id] || 0;
   const followed = !!taste.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()];
   const stations = nearestSubways(safeCoord(ev), 0.7);
@@ -57,6 +73,24 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
     return [pat, "next " + fd(next), multi ? "until " + new Date(ev.X + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null].filter(Boolean).join(" · ");
   })();
 
+  // What comes next: each block skips what an earlier block (or the trail) already shows
+  const next = React.useMemo(() => {
+    const used = new Set([ev.id, ...trail.map((t) => t.id)]);
+    const take = (l) => l.filter((e) => e && !used.has(e.id) && (used.add(e.id), true));
+    const night = nightOf(ev, list, today);
+    if (night) ["before", "after", "same"].forEach((k) => { night[k] = night[k].filter((x) => !used.has(x.ev.id) && (used.add(x.ev.id), true)); });
+    const dates = nextDatesOf(ev, list, today);
+    dates.forEach((x) => x.ev && used.add(x.ev.id));
+    const venue = take(atVenueOf(ev, list));
+    const like = take(similar).slice(0, 4);
+    return { night, dates, venue, like, used };
+  }, [ev, list, similar, trail, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [upN, setUpN] = useState(5);
+  React.useEffect(() => setUpN(5), [ev.id]);
+  const upNext = React.useMemo(() => upNextOf(ev, list, next.used, 60), [ev, list, next]);
+  const nightDay = next.night ? fdate(next.night.day) : "";
+  const back = trail.length > 1 ? trail[trail.length - 2] : null;
+
   return (
     <div className="sheet" role="dialog" aria-label={ev.title} ref={sheetRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div style={{ width: 44, height: 5, borderRadius: 3, background: "var(--line)", margin: "8px auto 0" }} aria-hidden="true" />
@@ -69,7 +103,12 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
             <button key={al} onClick={fn} aria-label={al} aria-pressed={al === "Save to plans" ? on : undefined} style={{ width: 38, height: 38, borderRadius: 19, border: "3px solid var(--bg)", boxSizing: "content-box", background: on ? "var(--navy)" : "#fff", color: on ? "var(--onnavy)" : "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>
           ))}
         </div>
-        {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: 21, left: 14, height: 30, fontSize: 13 }}>One night only</span>}
+        {back && (
+          <button onClick={onBack} aria-label={"Back to " + back.title} className="row" style={{ position: "absolute", top: 14, left: 14, maxWidth: "70%", height: 34, padding: "0 14px 0 8px", gap: 4, borderRadius: 17, border: "none", background: "rgba(255,255,255,.94)", color: "#1B1F3B", fontSize: 13, fontWeight: 800, boxShadow: "0 2px 8px rgba(0,0,0,.2)", zIndex: 2 }}>
+            <Icon name="back" size={16} width={2.6} /><span className="ell">{back.title}</span>
+          </button>
+        )}
+        {ev.why?.includes("One night only") && <span className="tag tag-white" style={{ position: "absolute", top: back ? 56 : 21, left: 14, height: 30, fontSize: 13 }}>One night only</span>}
         <button onClick={onClose} aria-label="Close" style={{ position: "absolute", right: 16, bottom: -26, width: 52, height: 52, borderRadius: 26, border: "3px solid var(--bg)", background: "var(--navy)", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 16px rgba(27,31,59,.25)", zIndex: 2 }}><Icon name="close" size={22} width={2.6} /></button>
       </div>
 
@@ -116,17 +155,92 @@ export default function EventSheet({ tiles, onTile = () => {}, favs = [], onFav,
         </div>
       )}
 
-      {similar.length > 0 && (
-        <div style={{ padding: "26px 16px 0", display: "flex", flexDirection: "column", gap: 16 }}>
-          <div className="disp" style={{ fontSize: 20, padding: "0 4px" }}>Similar events</div>
-          {similar.map((s) => <CompactCard key={s.id} ev={s} dark={dark} today={today} onOpen={onOpen} />)}
-        </div>
+      {(next.night || coord) && (
+        <Rail title="Make a night of it" sub={next.night ? nightDay + " · all within a 20-minute walk" : "Around the venue"}>
+          {next.night?.before.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} label={"Before · " + x.walk + "′ walk"} />)}
+          {next.night && !next.night.same.length && (
+            <div className="row" style={{ gap: 10, padding: "0 4px", fontSize: 13, fontWeight: 800 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 5, background: "var(--navy)", flexShrink: 0 }} />
+              <span className="ell">This one · {next.night.startsAt}–{next.night.endsAt}</span>
+            </div>
+          )}
+          {next.night?.after.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} label={"After · " + x.walk + "′ walk"} />)}
+          {next.night?.same.map((x) => <CompactCard key={x.ev.id} ev={x.ev} dark={dark} today={today} onOpen={(e) => onOpen(e, "night")} label={"Same day · " + x.walk + "′ walk"} />)}
+          {coord && (
+            <div style={{ padding: "0 4px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Find around the venue on Google Maps</span>
+              <div className="row" style={{ gap: 8 }}>
+                {[["Dinner", "restaurants"], ["Drinks", "bars"], ["Dessert", "dessert"]].map(([l, q]) => (
+                  <a key={q} className="chip" href={mapsNear(coord, q)} target="_blank" rel="noreferrer" onClick={() => onSignal(ev, "link")} style={{ textDecoration: "none" }}>{l} <Icon name="link" size={13} /></a>
+                ))}
+              </div>
+            </div>
+          )}
+        </Rail>
+      )}
+
+      {next.dates.length > 0 && (
+        <Rail title="Next dates" sub={ev.recLabel || null}>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap", padding: "0 4px" }}>
+            {next.dates.map((x) => (
+              <button key={+x.d} className="chip" disabled={!x.ev} onClick={() => x.ev && onOpen(x.ev, "dates")} style={{ cursor: x.ev ? "pointer" : "default" }}>
+                {fdate(x.d)}{x.time && /\d/.test(x.time) ? " · " + x.time.replace(/:00/g, "") : ""}{x.ev ? <Icon name="chev" size={13} /> : null}
+              </button>
+            ))}
+          </div>
+        </Rail>
+      )}
+
+      {next.like.length > 0 && (
+        <Rail title="More like this">
+          {next.like.map((s) => <CompactCard key={s.id} ev={s} dark={dark} today={today} onOpen={(e) => onOpen(e, "like")} />)}
+        </Rail>
+      )}
+
+      {next.venue.length > 0 && (
+        <Rail title={"Also at " + venueLabel(ev)}>
+          {next.venue.map((s) => <CompactCard key={s.id} ev={s} dark={dark} today={today} onOpen={(e) => onOpen(e, "venue")} />)}
+        </Rail>
+      )}
+
+      {upNext.length > 0 && (
+        <Rail title="Up next for you" sub="Your best picks, one after the other">
+          {upNext.slice(0, upN).map((s) => <CompactCard key={s.id} ev={s} dark={dark} today={today} onOpen={(e) => onOpen(e, "upnext")} />)}
+          {upN < upNext.length
+            ? <button className="pill pill-line" style={{ alignSelf: "center" }} onClick={() => setUpN(upN + 5)}>Show more</button>
+            : <div className="muted" style={{ fontSize: 13, textAlign: "center" }}>That's the best of what's on for now.</div>}
+        </Rail>
       )}
 
       {alsoLike.length > 0 && (
         <div style={{ paddingTop: 26 }}>
           <div className="disp" style={{ fontSize: 20, padding: "0 20px 12px" }}>You may also like</div>
           <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fav={favs.includes(t.key)} onFav={onFav} />)}</DotScroll>
+        </div>
+      )}
+
+      {trail.length > 1 && (
+        <div style={{ paddingTop: 26 }}>
+          <div style={{ padding: "0 20px 12px" }}>
+            <div className="disp" style={{ fontSize: 20 }}>Your trail</div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>What you looked at just now. Save the ones you liked.</div>
+          </div>
+          <DotScroll>
+            {trail.map((t) => {
+              const on = !!savedIds[t.id], here = t.id === ev.id;
+              return (
+                <div key={t.id} style={{ width: 150, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, position: "relative" }}>
+                  <div role="button" tabIndex={0} onClick={() => !here && onOpen(t, "trail")} style={{ cursor: here ? "default" : "pointer", opacity: here ? 0.6 : 1 }}>
+                    <Media ev={t} dark={dark} height={90} radius={14} hideTitle />
+                    <div className="clamp2" style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.2, marginTop: 6 }}>{here ? "This one · " : ""}{t.title}</div>
+                  </div>
+                  <button onClick={() => onSave(t)} aria-label={on ? "Remove from plans" : "Save to plans"} aria-pressed={on} style={{ position: "absolute", top: 6, right: 6, width: 30, height: 30, borderRadius: 15, border: "none", background: on ? "var(--navy)" : "#fff", color: on ? "var(--onnavy)" : "#1B1F3B", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,.25)" }}>
+                    <Icon name="save" size={15} fill={on ? "currentColor" : "none"} />
+                  </button>
+                </div>
+              );
+            })}
+          </DotScroll>
         </div>
       )}
 

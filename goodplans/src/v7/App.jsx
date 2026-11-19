@@ -109,7 +109,15 @@ export default function App() {
   const [pushInfo, setPushInfo] = useState("");
   const [freeUntil, setFreeUntil] = useState(null);
   const [showFree, setShowFree] = useState(false);
-  const [openEv, setOpenEv] = useState(null);
+  const [openEv, setOpenEvRaw] = useState(null);
+  // The trail: events opened one after another from the event page (back goes one step at a time)
+  const [trail, setTrail] = useState([]);
+  const openEvRef = useRef(null), trailRef = useRef([]);
+  trailRef.current = trail;
+  const setOpenEv = useCallback((id) => {
+    if (id == null) { const t = trailRef.current; if (t.length > 1) T.track("trail", { id: t[t.length - 1] }, { n: t.length }); setTrail([]); }
+    openEvRef.current = id; setOpenEvRaw(id);
+  }, []);
   const [surprise, setSurprise] = useState(null); // {ev, seen:Set} | null
   const [toastMsg, setToastMsg] = useState("");
   const [tick, setTick] = useState(0); // re-evaluate "now" every few minutes
@@ -603,10 +611,12 @@ export default function App() {
   }, [ready, visible.length > 0, isoDay(today), weather ? 1 : 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Event sheet and deep links
-  const openEvent = useCallback((ev) => {
+  const openEvent = useCallback((ev, rail) => {
     if (ev?.id) clearForyouSeen(ev.id);
     if (ev?.id) getDetails([ev]);
-    T.track("open", ev, { s: tabRef.current });
+    T.track("open", ev, rail ? { s: "sheet", r: rail } : { s: tabRef.current });
+    const prev = openEvRef.current;
+    setTrail((t) => (rail && prev ? [...(t.length ? t : [prev]).filter((x) => x !== ev.id), ev.id] : [ev.id]));
     setOpenEv(ev.id); track(ev, "viewedCats");
     putModel(L.learn(L.markOpened(modelRef.current, ev.id), ev, "open", floorDay(new Date())));
   }, [beh]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -626,6 +636,8 @@ export default function App() {
       if (secs >= enough) signal(ev, "dwell"); else if (secs < 2) signal(ev, "bounce");
     };
   }, [openEv]); // eslint-disable-line react-hooks/exhaustive-deps
+  // One step back along the trail
+  const trailBack = () => setTrail((t) => { if (t.length < 2) return t; const n = t.slice(0, -1); openEvRef.current = n[n.length - 1]; setOpenEvRaw(n[n.length - 1]); return n; });
   const sheetEv = openEv ? (scored.find((e) => e.id === openEv) || regulars.find((x) => x.ev.id === openEv)?.ev || annual.find((e) => e.id === openEv) || (favs[openEv] && scoreOne(favs[openEv]))) : null;
 
   useEffect(() => {
@@ -934,7 +946,7 @@ export default function App() {
   if (!viewStack.length && tab !== "today") layers.push(() => { setTab("today"); window.scrollTo(0, 0); });
   if (showFree) layers.push(() => setShowFree(false));
   if (surprise) layers.push(() => setSurprise(null));
-  if (openEv) layers.push(() => setOpenEv(null));
+  if (openEv) { layers.push(() => setOpenEv(null)); trail.slice(1).forEach(() => layers.push(trailBack)); }
   if (whyAsk) layers.push(() => setWhyAsk(null));
   if (showTour) layers.push(() => { try { localStorage.setItem(TOUR_KEY, "1"); } catch { /* private */ } setShowTour(false); });
   if (showQuiz && account) layers.push(() => { try { sessionStorage.setItem("gp_quiz_later", "1"); } catch { /* private */ } setShowQuiz(false); });
@@ -960,7 +972,7 @@ export default function App() {
   if (!ready) return <div className="gp-app" style={{ minHeight: "100vh" }} />;
 
   const actions = {
-    onSeen: (ev) => { putModel(L.seen(modelRef.current, ev, today)); T.track("imp", ev, { s: tabRef.current }); },
+    onSeen: (ev) => { putModel(L.seen(modelRef.current, ev, today)); T.track("imp", ev, { s: openEvRef.current ? "sheet" : tabRef.current }); },
     prefOf: (kind, id) => prefs[kind]?.[id] || 0,
     onReact: (ev, kind, reason, quiet) => react(ev, kind, reason, quiet),
     askWhy: (ev, dir) => setWhyAsk({ ev, dir }),
@@ -1013,7 +1025,10 @@ export default function App() {
       {devMode && <DevFlag events={scored} screen={tab} openEv={openEv} />}
       {showQuiz && <Quiz dark={dark} startAt={showQuiz === "auth" || showQuiz === "retake" || !account ? "auth" : "moods"} needQuiz={!quiz || showQuiz === "retake"} onAuth={setAccount} onDone={(ans, prof, meet) => { if (!ans) { setShowQuiz(false); return; } finishQuiz(ans, prof, meet); }} />}
       {sheetEv && <EventSheet favs={moodFav} onFav={favMood} tiles={tileSet} onTile={(t) => { setOpenEv(null); openTile(t); }} ev={sheetEv} dark={dark} today={today} onSignal={signal} onAskWhy={(ev, dir) => setWhyAsk({ ev, dir })}
-        similar={L.similarEvents(sheetEv, visible, today)} onOpen={(e) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
+        similar={L.similarEvents(sheetEv, visible, today, 10)} list={visible} savedIds={favs}
+        trail={trail.map((id) => (id === sheetEv.id ? sheetEv : scored.find((e) => e.id === id))).filter(Boolean)}
+        onBack={() => window.history.back()}
+        onOpen={(e, rail) => { document.querySelector(".sheet")?.scrollTo({ top: 0 }); openEvent(e, rail); }} onClose={() => setOpenEv(null)} saved={!!favs[sheetEv.id]} onSave={toggleSave}
         taste={taste} onReact={react} onFollow={follow} toast={toast} />}
       {showFree && <FreeUntilDialog freeUntil={effFree} autoFree={autoFree} onClose={() => setShowFree(false)}
         onPick={(m) => { setFreeUntil(m); setShowFree(false); }} />}
