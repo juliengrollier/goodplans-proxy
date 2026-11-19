@@ -61,9 +61,14 @@ a{color:inherit}
 .hscroll>*{scroll-snap-align:start}
 @keyframes gp-marq{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(var(--mq))}}
 .gp-marq{animation:gp-marq 9s ease-in-out infinite alternate}
-@keyframes gp-kb{0%{transform:scale(1) translate3d(0,0,0)}100%{transform:scale(1.12) translate3d(-1.5%,-1%,0)}}
-.gp-kb{animation:gp-kb 14s ease-in-out infinite alternate;will-change:transform;transform-origin:50% 40%}
-@media (prefers-reduced-motion:reduce){.gp-marq,.gp-kb{animation:none}}
+@keyframes gp-kb{0%{transform:scale(1.1) translate3d(0,0,0)}100%{transform:scale(1.18) translate3d(-1.5%,-1%,0)}}
+.gp-kb{transform:scale(1.1);transform-origin:50% 40%}
+.gp-kb.on{animation:gp-kb 14s ease-in-out infinite alternate;will-change:transform}
+.gp-enter{opacity:0;transform:translateY(10px);transition:opacity .7s ease,transform .7s ease}
+.gp-enter.on{opacity:1;transform:none}
+@keyframes gp-pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)}70%,100%{box-shadow:0 0 0 7px rgba(74,222,128,0)}}
+.gp-pulse{width:8px;height:8px;border-radius:4px;background:#4ADE80;flex-shrink:0;animation:gp-pulse 2.2s ease-out infinite}
+@media (prefers-reduced-motion:reduce){.gp-marq,.gp-kb.on,.gp-pulse{animation:none}.gp-enter{opacity:1;transform:none;transition:none}}
 .card{background:var(--card);border-radius:26px;box-shadow:var(--shadow)}
 .card-sm{background:var(--card);border-radius:22px;box-shadow:var(--shadow-sm)}
 [data-theme="dark"] .card,[data-theme="dark"] .card-sm{border:1px solid var(--line)}
