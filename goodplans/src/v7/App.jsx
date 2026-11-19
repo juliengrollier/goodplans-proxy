@@ -655,7 +655,7 @@ export default function App() {
   }, []);
   const notifyCtx = useMemo(() => ({ bells: notif.bells || {}, toggle: (t) => toggleBell(N.bellOf(t), t), offer: offerBell }), [notif.bells, toggleBell, offerBell]);
   // A list sent by a notification ("New for you"): open it in Explore
-  const openIds = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids, list: title, price: "any", when: "now", noClash: false, q: "" }); setTab("explore"); window.scrollTo(0, 0); };
+  const openIds = (ids, title) => { pushView(); setFilters({ ...filters, fam: null, mi: null, with: null, cats: [], subs: [], ids, list: title, price: "any", when: "any", noClash: false, q: "" }); setTab("explore"); window.scrollTo(0, 0); };
   const openIdsRef = useRef(openIds); openIdsRef.current = openIds;
   const navFromUrl = (href) => {
     const u = new URL(href, location.origin);

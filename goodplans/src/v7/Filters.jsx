@@ -31,7 +31,7 @@ export function applyFilters(list, f, today) {
   const now = nowMinutes();
   const ql = f.q.trim().toLowerCase();
   return list.filter((e) => {
-    if ((f.ids || []).length && !f.ids.includes(e.id)) return false; // a curated list opened from a Home tile
+    if ((f.ids || []).length && !f.ids.includes(e.id) && !(e.altIds || []).some((x) => f.ids.includes(x))) return false; // a curated list opened from a Home tile
     if (f.fam && e.fam !== f.fam) return false;
     if (f.mi && member(e, f.mi) < 0.45) return false;
     if (f.cats.length && !f.cats.includes(e.ncat)) return false;
