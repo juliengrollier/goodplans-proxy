@@ -3,7 +3,7 @@
  *
  * POST (from the app)   { user, dev, sub, tz, saved, bells, prefs, action }
  *   action "sync" (default) stores this phone's subscription and the person's saved events, bells and settings;
- *   "test" also sends a test notification to this phone; "off" removes this phone.
+ *   "test" also sends a test notification to this phone (kind: basic, reminder, evening, ends, change, digest); "off" removes this phone.
  * GET ?run=1            the scheduler (every ~30 min, public, rate-limited): sends what is due.
  * GET ?key=…&stats=1    overview for maintenance.
  *
@@ -177,6 +177,29 @@ async function deliver(u, doc, st, msgs) {
   return ok;
 }
 
+// Sample notifications for the "test" buttons in Settings: same wording as the real ones, built from a saved or current event
+async function sampleMessage(kind, doc) {
+  if (kind === "basic") return null;
+  const today = clock(NY).day;
+  let e = (doc.saved || []).find((x) => x.title);
+  if (!e) { const ev = await feed().catch(() => []); const f = ev.find((x) => x.title && (x.X || x.E) >= today); if (f) e = { id: f.id, title: f.title, venue: f.venue, E: f.E, X: f.X, time: f.time }; }
+  if (!e) e = { id: "", title: "Jazz night", venue: "Your neighbourhood", E: today, time: "8 PM" };
+  const url = e.id ? "/?event=" + encodeURIComponent(e.id) : "/";
+  const where = e.venue || "";
+  const t = (m) => ({ ...m, url: m.url || url, tag: "test-" + kind });
+  if (kind === "reminder") return t({ title: "Tonight 8 PM · " + e.title, body: (where ? where + " · " : "") + "Leave by 7:15 PM" });
+  if (kind === "evening") return t({ title: "Tomorrow 10 AM · " + e.title, body: (where ? where + " · " : "") + "Leave by 9:20 AM" });
+  if (kind === "ends") return t({ title: "Ends tomorrow · " + e.title, body: where });
+  if (kind === "change") return t({ title: "Time changed · " + e.title, body: "Now 9 PM (Tomorrow)" });
+  if (kind === "digest") {
+    const ev = (await feed().catch(() => [])).filter((x) => x.title && (x.X || x.E) >= today && x.E <= addDays(today, 14)).slice(0, 5);
+    const lines = (ev.length ? ev : [e]).slice(0, 3).map((x) => x.title + " · " + shortWhen(x, today));
+    const label = Object.values(doc.bells || {})[0]?.label || "Jazz";
+    return { title: "New for you: " + label, body: lines.join("\n") + (ev.length > 3 ? "\n+" + (ev.length - 3) + " more" : ""), url: "/?ids=" + encodeURIComponent(ev.slice(0, 30).map((x) => x.id).join(",")) + "&list=" + encodeURIComponent("New for you"), tag: "test-digest" };
+  }
+  return null;
+}
+
 export default async function handler(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -202,7 +225,8 @@ export default async function handler(req, res) {
       await putJSON(uKey(u), doc);
       let test = null;
       if (b.action === "test" && doc.devices[dev]) {
-        test = await sendPush(doc.devices[dev].sub, { title: "Good Plans notifications are on", body: "Reminders for saved plans, and new events for the things you bell.", url: "/", tag: "test" }, { ttl: 600, urgency: "high" }).catch((e) => ({ ok: false, err: String(e.message || e) }));
+        const msg = await sampleMessage(String(b.kind || "basic"), doc).catch(() => null);
+        test = await sendPush(doc.devices[dev].sub, msg || { title: "Good Plans notifications are on", body: "Reminders for saved plans, and new events for the things you bell.", url: "/", tag: "test" }, { ttl: 600, urgency: "high" }).catch((e) => ({ ok: false, err: String(e.message || e) }));
       }
       if (test?.gone) { delete doc.devices[dev]; await putJSON(uKey(u), doc); }
       return res.status(200).json({ ok: true, devices: Object.keys(doc.devices).length, test });

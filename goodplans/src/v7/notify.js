@@ -53,14 +53,14 @@ export const seriesBell = (key, label) => ({ key: "series:" + key, label: label.
 
 let timer = null, last = "";
 // Tell the server (debounced; skipped when nothing changed). action "test" sends a test notification to this phone.
-export function sync(n, saved, action) {
+export function sync(n, saved, action, kind) {
   if (!n.on && action !== "off") return Promise.resolve(null);
   clearTimeout(timer);
   let retried = false;
   const go = async () => {
     // Make sure this phone has a live subscription whenever notifications are allowed (it can vanish after a reinstall)
     const sub = action === "off" ? null : await subscription(permission() === "granted").catch(() => null);
-    const body = { user: userId(), dev: dev(), sub, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, saved, bells: Object.values(n.bells || {}), prefs: { reminders: n.reminders, digest: n.digest, digestAt: n.digestAt }, action };
+    const body = { user: userId(), dev: dev(), sub, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, saved, bells: Object.values(n.bells || {}), prefs: { reminders: n.reminders, digest: n.digest, digestAt: n.digestAt }, action, kind };
     const sig = JSON.stringify(body);
     if (!action && sig === last) return null;
     last = sig;
