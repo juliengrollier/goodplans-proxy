@@ -299,10 +299,15 @@ export function shortWhen(ev, today) {
 
 // Large cards come alive with your thumb, never on their own: one shared scroll listener drives a small parallax on the
 // picture, a slow zoom only on the card that is on screen, and a one-time fade-up of the text when it first appears
-const lifeSet = new Set(); let lifeRaf = 0, lifeBound = false;
-const lifeKick = () => { if (!lifeRaf) lifeRaf = requestAnimationFrame(() => { lifeRaf = 0; lifeSet.forEach((f) => f()); }); };
-function lifeAdd(f) {
-  lifeSet.add(f);
+const lifeSet = new Map(); let lifeRaf = 0, lifeBound = false, lifeWin = null;
+const lifeVis = (b) => { const r = b.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth; return Math.min(r.right, vw) - Math.max(r.left, 0) > r.width * 0.6 && r.bottom > vh * 0.15 && r.top < vh * 0.85 ? Math.hypot(r.left + r.width / 2 - vw / 2, r.top + r.height / 2 - vh / 2) : -1; };
+const lifeKick = () => { if (!lifeRaf) lifeRaf = requestAnimationFrame(() => {
+  lifeRaf = 0; lifeWin = null; let best = 1e9;
+  lifeSet.forEach((ref) => { const b = ref.current; if (!b) return; const d = lifeVis(b); if (d >= 0 && d < best) { best = d; lifeWin = b; } });
+  lifeSet.forEach((_, f) => f());
+}); };
+function lifeAdd(f, ref) {
+  lifeSet.set(f, ref);
   if (!lifeBound) { lifeBound = true; window.addEventListener("scroll", lifeKick, { passive: true, capture: true }); window.addEventListener("resize", lifeKick); }
   lifeKick();
   return () => lifeSet.delete(f);
@@ -316,10 +321,10 @@ function useCardLife(boxRef, parRef, kbRef, txtRef) {
       const r = b.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
       const vis = Math.min(r.right, vw) - Math.max(r.left, 0) > r.width * 0.6 && r.bottom > vh * 0.15 && r.top < vh * 0.85;
       if (!reduce && parRef.current && r.bottom > 0 && r.top < vh) { const t = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh)); parRef.current.style.transform = "translate3d(0," + (t * -26).toFixed(1) + "px,0)"; }
-      kbRef.current?.classList.toggle("on", vis && !reduce);
+      kbRef.current?.classList.toggle("on", vis && b === lifeWin && !reduce);
       if (vis && !entered) { entered = true; txtRef.current?.classList.add("on"); }
     };
-    const off = lifeAdd(f), t = setTimeout(() => txtRef.current?.classList.add("on"), 3000);
+    const off = lifeAdd(f, boxRef), t = setTimeout(() => txtRef.current?.classList.add("on"), 3000);
     return () => { off(); clearTimeout(t); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
