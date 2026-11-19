@@ -106,7 +106,11 @@ export default async function handler(req, res) {
     const w = enough ? fitLogistic(rows) : null;
     if (w) parts.forEach((x, j) => { x.fittedWeight = w[j]; });
 
-    return { events: ev.length, phones: [...new Set(ev.map((e) => e.dev))].length, counts, forYou: { byPos, shuffles }, openRateByScreen: byScreen, openRateByScore: dec.filter((d) => d.shown), parts, note: enough ? "Fitted weights: how much each part predicts an open (bigger = stronger)." : `Need more data to fit weights (have ${yes.length} opened / ${no.length} ignored impressions; want 25 / 100).` };
+    // Event-page chains: opens by block (make a night of it, next dates, more like this, venue, up next, trail) and trail lengths
+    const rails = {}; ev.filter((e) => e.k === "open" && e.r).forEach((e) => { rails[e.r] = (rails[e.r] || 0) + 1; });
+    const tl = ev.filter((e) => e.k === "trail").map((e) => e.n || 0);
+    const trails = { chains: tl.length, avgLength: tl.length ? Math.round((tl.reduce((a, b) => a + b, 0) / tl.length) * 10) / 10 : null, longest: tl.length ? Math.max(...tl) : null };
+    return { events: ev.length, phones: [...new Set(ev.map((e) => e.dev))].length, counts, forYou: { byPos, shuffles }, openRateByScreen: byScreen, openRateByScore: dec.filter((d) => d.shown), eventPage: { opensByBlock: rails, trails }, parts, note: enough ? "Fitted weights: how much each part predicts an open (bigger = stronger)." : `Need more data to fit weights (have ${yes.length} opened / ${no.length} ignored impressions; want 25 / 100).` };
     };
     const out = {};
     for (const u of users) { out[u] = summarize(all.filter((e) => e.user === u)); out[u].weights = (await getJSON(`weights/${u}.json`).catch(() => null)) || "default"; }
