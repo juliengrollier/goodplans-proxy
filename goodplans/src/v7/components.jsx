@@ -247,7 +247,7 @@ export function DotScroll({ children, className = "hscroll", style, onMore }) {
   );
 }
 
-export function CompactCard({ ev, dark, today, onOpen, label, when }) {
+export function CompactCard({ ev, dark, today, onOpen, label, when, walk }) {
   const seenRef = useSeen(ev);
   return (
     <div {...tap(onOpen, ev)} ref={seenRef} className="ev-flat" style={{ padding: "0 4px", display: "flex", gap: 12, width: "100%", opacity: 1, cursor: "pointer" }}>
@@ -257,7 +257,7 @@ export function CompactCard({ ev, dark, today, onOpen, label, when }) {
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
 
         <span className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}>
-          <span style={{ whiteSpace: "nowrap" }}><When text={when || whenLabel(ev, today)} plain />{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}><Travel tt={ev.tt} /></span>
+          <span style={{ whiteSpace: "nowrap" }}><When text={when || whenLabel(ev, today)} plain />{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}>{walk ? <span className="row" style={{ gap: 3, whiteSpace: "nowrap" }}><Icon name="walk" size={13} width={2.2} />{walk}</span> : <Travel tt={ev.tt} />}</span>
         </span>
         <div className="row" style={{ justifyContent: "flex-end", marginTop: 2 }}><CardActions ev={ev} size={28} noSave /></div>
       </div>
@@ -515,21 +515,21 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFav }) {
   return (
     <div role="button" tabIndex={0} onClick={t.open} onKeyDown={(e) => { if (e.key === "Enter") t.open(); }}
       style={{ width: compact ? 168 : undefined, flexShrink: compact ? 0 : undefined, borderRadius: 20, padding: "14px 14px 8px 14px", background: t.color, color: "#fff", textAlign: "left", minHeight: 132, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, position: "relative", overflow: "hidden", cursor: "pointer", opacity: fb === -1 ? 0.5 : 1 }}>
-      <span style={{ position: "absolute", right: -6, top: -6, opacity: 0.22 }} aria-hidden="true">
+      <span style={{ position: "absolute", right: -8, bottom: -10, opacity: 0.22 }} aria-hidden="true">
         {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
       </span>
+        <span className="row" style={{ gap: 6, position: "absolute", top: 8, right: 8 }}>
+        {onFav && fav && nc && <button aria-label={belled ? "Stop notifications for " + t.title : "Notify me about new " + t.title} aria-pressed={belled} onClick={act(() => nc.toggle(t))} style={{ width: 32, height: 32, borderRadius: 16, border: "none", background: belled ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: belled ? t.color || "#1B1F3B" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="bell" size={18} fill={belled ? "currentColor" : "none"} /></button>}
+        {onFav && <button aria-label={fav ? "Remove from My Interests" : "Add to My Interests"} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ width: 32, height: 32, borderRadius: 16, border: "none", background: fav ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: fav ? t.color || "#E11D48" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={19} fill={fav ? "currentColor" : "none"} /></button>}
+        </span>
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {t.verb && <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.85 }}>{t.verb}</span>}
-        <span className="disp" style={{ fontSize: 18, lineHeight: 1.08, maxWidth: "86%" }}>{t.title}</span>
+        <span className="disp" style={{ fontSize: 18, lineHeight: 1.08, maxWidth: onFav ? "74%" : "86%" }}>{t.title}</span>
 
         {t.teaser && <span style={{ fontSize: 12.5, lineHeight: 1.3, opacity: 0.88, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.teaser}</span>}
       </span>
       <span className="row" style={{ justifyContent: "space-between", minHeight: 30 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
-        <span className="row" style={{ gap: 6 }}>
-        {onFav && fav && nc && <button aria-label={belled ? "Stop notifications for " + t.title : "Notify me about new " + t.title} aria-pressed={belled} onClick={act(() => nc.toggle(t))} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: belled ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: belled ? t.color || "#1B1F3B" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="bell" size={18} fill={belled ? "currentColor" : "none"} /></button>}
-        {onFav && <button aria-label={fav ? "Remove from My Interests" : "Add to My Interests"} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ width: 34, height: 34, marginRight: -6, borderRadius: 17, border: "none", background: fav ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: fav ? t.color || "#E11D48" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={19} fill={fav ? "currentColor" : "none"} /></button>}
-        </span>
       </span>
     </div>
   );
@@ -537,3 +537,20 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFav }) {
 
 // One square carousel layout everywhere: picture on top; category, title, blurb, when and distance, thumbs below
 export const SquareCard = PosterCard;
+
+
+// A line of text that slides left and back when it is wider than its box (so a long title can be read in full)
+export function Marquee({ children, style }) {
+  const outer = useRef(null), inner = useRef(null);
+  const [d, setD] = useState(0);
+  useEffect(() => {
+    const m = () => { const o = outer.current, n = inner.current; if (o && n) setD(Math.max(0, Math.ceil(n.scrollWidth - o.clientWidth))); };
+    m(); const t = setTimeout(m, 300); window.addEventListener("resize", m);
+    return () => { clearTimeout(t); window.removeEventListener("resize", m); };
+  }, [children]);
+  return (
+    <span ref={outer} style={{ display: "block", overflow: "hidden", whiteSpace: "nowrap", minWidth: 0, flex: 1, ...style }}>
+      <span ref={inner} className={d > 4 ? "gp-marq" : undefined} style={{ display: "inline-block", "--mq": "-" + d + "px", animationDuration: Math.max(6, d / 14 + 4) + "s" }}>{children}</span>
+    </span>
+  );
+}

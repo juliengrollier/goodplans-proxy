@@ -59,6 +59,9 @@ a{color:inherit}
 .row{display:flex;align-items:center}
 .hscroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x proximity;padding:0 20px;scroll-padding-inline:20px}
 .hscroll>*{scroll-snap-align:start}
+@keyframes gp-marq{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(var(--mq))}}
+.gp-marq{animation:gp-marq 9s ease-in-out infinite alternate}
+@media (prefers-reduced-motion:reduce){.gp-marq{animation:none}}
 .card{background:var(--card);border-radius:26px;box-shadow:var(--shadow)}
 .card-sm{background:var(--card);border-radius:22px;box-shadow:var(--shadow-sm)}
 [data-theme="dark"] .card,[data-theme="dark"] .card-sm{border:1px solid var(--line)}

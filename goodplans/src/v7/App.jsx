@@ -964,14 +964,15 @@ export default function App() {
     const group = t.group || (/^(gen-(act|sub|term|cut)|intent-act)-/.test(t.key || "") || t.key === "weekend" || t.key === "week" ? "day" : "cat");
     // A plain description of the page, never a list of event titles
     const k = t.key || "", low = String(t.title || "").toLowerCase();
+    // One short line (it is shown on a single line): the page opens Ranked, so no "soonest first" here
     const desc = k === "top-picks" ? "Everything coming up, ranked by your taste."
-      : /^intent-act-/.test(k) ? "All the " + low + " coming up for this mood, soonest first."
-      : /^intent-/.test(k) ? "Plans for when you're in the mood to " + low + ", ranked by your taste."
-      : /^gen-(act|sub|term|cut)-/.test(k) ? "All the " + low + " coming up around the city, soonest first."
-      : /^hood-act-/.test(k) ? "Soonest first."
-      : ["today", "tonight", "tomorrow", "weekend", "week"].includes(k) ? "Everything on " + low + ", grouped by what you'd be doing."
-      : t.teaser && !/·/.test(t.teaser) ? t.teaser : "Events that fit, ranked by your taste.";
-    setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: desc, verb: t.verb, group, intro: t.intro, kind: t.kind });
+      : /^intent-act-/.test(k) ? "Coming up for this mood, ranked for you."
+      : /^intent-/.test(k) ? "Ranked by your taste."
+      : /^gen-(act|sub|term|cut)-/.test(k) ? "Coming up around the city, ranked for you."
+      : /^hood-act-/.test(k) ? "Ranked for you."
+      : ["today", "tonight", "tomorrow", "weekend", "week"].includes(k) ? "Everything on " + low + "."
+      : t.teaser && !/·/.test(t.teaser) && t.teaser.length <= 48 ? t.teaser : "Events that fit, ranked by your taste.";
+    setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: desc, verb: t.verb, group, intro: t.intro, kind: t.kind, tile: t });
     if (/^(mood|pick|gen)-/.test(t.key || "") && t.list) { moodSession.current = { key: t.key, ids: new Set(t.list.map((e) => e.id)), at: Date.now(), adj: !!t.adj, title: t.title }; logMood("opened", t.key, !!t.adj, t.title); }
     if (t.f && /^gen-/.test(t.key || "")) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.08); putModel(m); } // opening is a light vote
     if (/^(mood|pick|gen)-/.test(t.key || "")) { const c = { ...moodClicks, [t.key]: { n: (moodClicks[t.key]?.n || 0) + 1, at: Date.now() } }; setMoodClicks(c); try { localStorage.setItem("gp_moodclicks_v1", JSON.stringify(c)); } catch { /* full */ } if (moodHide.includes(t.key)) { const h = moodHide.filter((k) => k !== t.key); setMoodHide(h); try { localStorage.setItem("gp_moodhide_v1", JSON.stringify(h)); } catch { /* full */ } } }

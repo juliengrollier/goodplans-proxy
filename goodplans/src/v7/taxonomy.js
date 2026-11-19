@@ -128,11 +128,11 @@ function classifyText(ev, claudeCat) {
   // Order: strong title signals, Claude's pick, then the rules on the title, sub and full text
   const early = EARLY.find(([, re]) => re.test(title));
   if (early) return early[0];
-  if (claudeCat && CAT[claudeCat]) return claudeCat;
   const full = [ev.title, ev.sub, ev.desc, ...(ev.kw || [])].join(" ").toLowerCase();
   // "Workshop" alone is a format, not a craft: a talk, policy or career "workshop" isn't Arts & Crafts. It counts
-  // only with a craft word, or when nothing about the event reads as a talk.
+  // only with a craft word, or when nothing about the event reads as a talk (this also holds for Claude's pick).
   const talkish = ev.cat === "Talk & Learn" || /\btalk|lecture|panel|conversation|discussion|q ?& ?a|in-depth|interview|keynote|seminar/.test(full);
+  if (claudeCat && CAT[claudeCat] && !(claudeCat === "Arts & Crafts" && talkish && !CRAFT_RE.test(full))) return claudeCat;
   const ok = (c, text) => c.re.test(text) && !(c.id === "Arts & Crafts" && talkish && !CRAFT_RE.test(full));
   for (const c of CATEGORIES) if (ok(c, title)) return c.id;
   const bySub = ev.sub && CATEGORIES.find((c) => ok(c, String(ev.sub).toLowerCase()));
