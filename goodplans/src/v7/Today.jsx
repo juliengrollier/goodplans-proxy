@@ -483,8 +483,9 @@ function markForyouSeen(ids, today) {
 export function clearForyouSeen(id) { try { const st = JSON.parse(localStorage.getItem(FY_KEY) || "{}"); if (st.n && st.n[id]) { delete st.n[id]; localStorage.setItem(FY_KEY, JSON.stringify(st)); } } catch { /* storage off */ } }
 
 // "+" in My Interests: the whole tree (mood > category > activity) with a heart on each, to add or remove from one place
-function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose }) {
+function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose, hiddenCats = [], onHideCat = () => {} }) {
   const [open, setOpen] = useState(null);
+  const [catOpen, setCatOpen] = useState({});
   const pool = React.useMemo(() => (tiles?.every || tiles?.all || []).filter((t) => t.list?.length), [tiles]);
   const acts = React.useMemo(() => { const m = {}; pool.filter((t) => /^gen-(act|sub|term)-/.test(t.key)).forEach((t) => { const c = t.list[0]?.ncat; if (c) (m[c] = m[c] || []).push(t); }); // The whole activity list, not just what has events right now: the rest become empty tiles that fill in when something comes up
     const have = new Set(pool.map((t) => t.key));
@@ -496,7 +497,7 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
   const heart = (on, color, label, onClick) => <button aria-pressed={on} aria-label={label} onClick={onClick} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: on ? color : "var(--chip)", color: on ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>;
   return (
     <Dialog title="Add to My Interests" onClose={onClose}>
-      <div className="muted" style={{ fontSize: 13.5, margin: "-6px 0 10px" }}>Tap a mood to open it, then heart what you like: the mood, a category, or one activity. Faded ones have nothing on right now.</div>
+      <div className="muted" style={{ fontSize: 13.5, margin: "-6px 0 10px" }}>Open a mood, then a category. Heart what you like, or thumb a category down to hide it. Faded activities have nothing on right now.</div>
       <div style={{ maxHeight: "60vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, margin: "0 -4px", padding: "0 4px" }}>
         {groups.map((g) => { const isOpen = open === g.id; return (
           <div key={g.id} style={{ flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (isOpen ? g.color : "var(--line, rgba(128,128,128,.25))"), overflow: "hidden" }}>
@@ -510,13 +511,17 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
             </div>
             {isOpen && (
               <div style={{ padding: "4px 12px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {g.cats.map((c) => { const ct = catTile(c), list = acts[c] || []; return (
-                  <div key={c}>
+                {g.cats.map((c) => { const ct = catTile(c), list = acts[c] || [], hid = hiddenCats.includes(c), nOn = list.filter((t) => moodFav.includes(t.key)).length, isC = !!catOpen[c] && !hid; return (
+                  <div key={c} style={{ opacity: hid ? 0.55 : 1 }}>
                     <div className="row" style={{ gap: 8, minHeight: 34 }}>
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 800, letterSpacing: 0.4, color: "var(--ink2)" }}>{c}</span>
-                      {ct && heart(moodFav.includes(ct.key), g.color, (moodFav.includes(ct.key) ? "Remove " : "Add ") + c, () => onFav({ ...ct, title: ct.short || ct.title, color: g.color }))}
+                      <button aria-expanded={isC} onClick={() => setCatOpen({ ...catOpen, [c]: !catOpen[c] })} className="row" style={{ flex: 1, gap: 6, border: "none", background: "none", padding: 0, color: "var(--ink2)", textAlign: "left", fontSize: 13, fontWeight: 800, letterSpacing: 0.4, minHeight: 34 }}>
+                        <span style={{ display: "flex", transform: isC ? "none" : "rotate(-90deg)", transition: "transform .15s" }}><Icon name="chevdown" size={16} /></span>
+                        {c}{nOn > 0 && <span style={{ fontSize: 11.5, color: g.color }}>· {nOn} picked</span>}{hid && <span style={{ fontSize: 11.5 }}>· hidden</span>}
+                      </button>
+                      <button aria-pressed={hid} aria-label={(hid ? "Show " : "Hide ") + c} onClick={() => onHideCat(c)} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: hid ? "#B91C1C" : "var(--chip)", color: hid ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="down" size={16} /></button>
+                      {ct && !hid && heart(moodFav.includes(ct.key), g.color, (moodFav.includes(ct.key) ? "Remove " : "Add ") + c, () => onFav({ ...ct, title: ct.short || ct.title, color: g.color }))}
                     </div>
-                    {list.length > 0 && (
+                    {isC && list.length > 0 && (
                       <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                         {list.map((t) => { const on = moodFav.includes(t.key); return (
                           <button key={t.key} aria-pressed={on} onClick={() => onFav({ ...t, title: t.short || t.title, color: g.color })} className="chip" style={{ height: 32, gap: 5, opacity: t.empty && !on ? 0.7 : 1, background: on ? g.color : undefined, color: on ? "#fff" : undefined, borderColor: on ? g.color : undefined }}>
@@ -901,7 +906,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
           {(
             <div id="my-favs" style={{ scrollMarginTop: 12 }}>
               <Head title="My Interests" sub="Your moods and activities, one tap away." />
-              {picker && <InterestPicker tiles={tiles} moodFavs={moodFavs} onToggleMood={toggleMoodFav} moodFav={moodFav} onFav={onMoodFav} onClose={() => setPicker(false)} />}
+              {picker && <InterestPicker hiddenCats={hiddenCats} onHideCat={onHideCat} tiles={tiles} moodFavs={moodFavs} onToggleMood={toggleMoodFav} moodFav={moodFav} onFav={onMoodFav} onClose={() => setPicker(false)} />}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 16px 2px" }}>
                 {favFlat.slice(0, favRows * 4).map((x) => x.kind === "mood" ? (
                   <div key={x.key} role="button" tabIndex={0} onClick={() => { putIntent([x.id]); document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" }); }} onKeyDown={(e) => { if (e.key === "Enter") putIntent([x.id]); }}
