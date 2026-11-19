@@ -16,8 +16,8 @@
  */
 import { getJSON, putJSON, blobApi } from "./_blob.js";
 import { sendPush, VAPID_PUBLIC } from "./_webpush.js";
-import { ACT_RE } from "./activity-ids.js";
-import { CAT_RE } from "./taxonomy-re.js";
+import { ACT_RE } from "./_activity-ids.js";
+import { CAT_RE } from "./_taxonomy-re.js";
 
 export const config = { maxDuration: 60 };
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;

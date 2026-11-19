@@ -9,7 +9,7 @@
  */
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
-import { ACTIVITIES, ACT_CAT } from "./activity-ids.js";
+import { ACTIVITIES, ACT_CAT } from "./_activity-ids.js";
 import { getJSON } from "./_blob.js";
 // Built-in activities plus the ones the weekly discovery job added (activities/extra.json), refreshed every 10 min
 let extra = { at: 0, list: [] };
