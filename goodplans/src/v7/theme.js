@@ -59,6 +59,8 @@ a{color:inherit}
 .row{display:flex;align-items:center}
 .hscroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x proximity;padding:0 20px;scroll-padding-inline:20px}
 .hscroll>*{scroll-snap-align:start}
+.gp-snap{scroll-snap-type:x mandatory}
+.gp-snap>*{scroll-snap-stop:always}
 @keyframes gp-marq{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(var(--mq))}}
 .gp-marq{animation:gp-marq 9s ease-in-out infinite alternate}
 @keyframes gp-kb{0%{transform:scale(1.10) translate3d(0,0,0)}100%{transform:scale(1.18) translate3d(-1.5%,-1%,0)}}

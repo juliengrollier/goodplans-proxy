@@ -220,9 +220,10 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
 }
 
 // A horizontal carousel with page dots under it, so it is obvious there is more to swipe to
-export function DotScroll({ children, className = "hscroll", style, onMore }) {
+export function DotScroll({ children, className = "hscroll", style, onMore, snap }) {
   const ref = useRef(null);
   const [i, setI] = useState(0);
+  const last = useRef({ x: 0, dir: 0, idx: 0, t: 0 });
   const n = React.Children.count(children);
   const onScroll = () => {
     const el = ref.current; if (!el) return;
@@ -234,11 +235,25 @@ export function DotScroll({ children, className = "hscroll", style, onMore }) {
     // Endless: ask for more when within about two cards of the end
     if (onMore && el.scrollLeft + el.clientWidth >= el.scrollWidth - 380) onMore();
     setI(best);
+    if (snap) {
+      // Springy settle: when a swipe comes to rest, the card lands with a small overshoot
+      const L = last.current;
+      if (el.scrollLeft !== L.x) L.dir = el.scrollLeft > L.x ? 1 : -1;
+      L.x = el.scrollLeft; clearTimeout(L.t);
+      L.t = setTimeout(() => {
+        const k = [...el.children][best];
+        if (!k || !k.animate || best === L.idx && L.dir === 0) return;
+        L.idx = best;
+        if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        const d = L.dir || 1; L.dir = 0;
+        k.animate([{ transform: "translateX(" + d * 12 + "px)" }, { transform: "translateX(" + d * -4 + "px)", offset: 0.55 }, { transform: "none" }], { duration: 420, easing: "cubic-bezier(.2,.7,.3,1)" });
+      }, 120);
+    }
   };
   const shown = Math.min(n, 7), at = n > 1 ? Math.round((i / (n - 1)) * (shown - 1)) : 0;
   return (
     <>
-      <div ref={ref} className={className} style={style} onScroll={onScroll}>{children}</div>
+      <div ref={ref} className={className + (snap ? " gp-snap" : "")} style={style} onScroll={onScroll}>{children}</div>
       {n > 1 && (
         <div className="row" style={{ justifyContent: "center", gap: 5, padding: "20px 0 0" }} aria-hidden="true">
           {Array.from({ length: shown }, (_, k) => <span key={k} style={{ width: k === at ? 16 : 6, height: 6, borderRadius: 3, background: "var(--ink)", opacity: k === at ? 0.85 : 0.22, transition: "all .2s" }} />)}
