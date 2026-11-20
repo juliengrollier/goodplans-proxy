@@ -216,6 +216,36 @@ function sqsEvents(json, src, base) {
   return out;
 }
 
+// WordPress "The Events Calendar" REST feed (/wp-json/tribe/events/v1/events): structured dates, cost and categories. Used for parks and gardens.
+function tribeEvents(list, src) {
+  const out = [];
+  for (const x of list) {
+    const title = unent(String(x.title || "").replace(/<[^>]+>/g, " ").replace(/&#8217;|&#8216;/g, "'").replace(/&#8211;|&#8212;/g, "-").replace(/&#038;/g, "&"));
+    const start = String(x.start_date || "").slice(0, 10), end = String(x.end_date || "").slice(0, 10);
+    if (!title || /^cancel/i.test(title) || x.is_virtual) continue;
+    const names = (x.categories || []).map((c) => c.name).join(" | "), tx = title + " " + names, T = (re) => re.test(tx);
+    let cat = "Other", sub = (x.categories && x.categories[0] && x.categories[0].name) || "Program";
+    if (T(/\brun\b|running|\b[0-9]+k\b/i)) { cat = "Sports"; sub = "Running"; }
+    else if (T(/yoga|pilates|tai chi|qigong|fitness|wellness|meditat/i)) { cat = "Sports"; sub = /meditat/i.test(tx) ? "Meditation" : "Yoga & fitness"; }
+    else if (T(/volunteer|stewardship|clean ?up|planting|restoration/i)) { cat = "Outdoors"; sub = "Volunteering"; }
+    else if (T(/story ?time|kids|family|children|toddler|youth/i)) { cat = "Family"; sub = "Kids"; }
+    else if (T(/tour|walk|hike|birding|bird|nature|garden|forag|astronomy|stargaz/i)) { cat = "Outdoors"; sub = /tour/i.test(tx) ? "Walking tour" : "Nature walk"; }
+    else if (T(/concert|music|jazz|choir|sing/i)) { cat = "Music"; sub = "Concert"; }
+    else if (T(/film|movie|screening/i)) { cat = "Film"; sub = "Screening"; }
+    else if (T(/workshop|class|craft|pottery|paint|draw|writing/i)) { cat = "Art & Culture"; sub = "Workshop"; }
+    else if (T(/talk|lecture|panel|discussion|conversation|reading|book/i)) { cat = "Talk & Learn"; sub = "Talk"; }
+    else if (T(/exhibit|art|gallery|museum|history/i)) { cat = "Art & Culture"; sub = "Exhibit"; }
+    else if (T(/market|food|tasting|cider|wine|beer/i)) { cat = "Food & Drink"; sub = "Market"; }
+    const hm = (String(x.start_date || "").match(/(\d\d):(\d\d):\d\d$/) || []);
+    let time = ""; if (hm[1] && !x.all_day) { let h = +hm[1]; time = ((h + 11) % 12 + 1) + (hm[2] === "00" ? "" : ":" + hm[2]) + (h < 12 ? " AM" : " PM"); }
+    const cost = String(x.cost || "").replace(/<[^>]+>/g, "").trim(), free = /^free$/i.test(cost) || (x.categories || []).some((c) => /^free$/i.test(c.name));
+    const v = Array.isArray(x.venue) ? {} : (x.venue || {});
+    const desc = unent(String(x.excerpt || x.description || "").replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&#8217;/g, "'").replace(/&[#a-z0-9]+;/gi, " "));
+    out.push({ title, start, end: end > start ? end : "", time, price: free ? "Free" : cost.length <= 30 ? cost : "", venue: unent(v.venue) || src.venue || src.name, borough: v.city && /new york|brooklyn|queens|bronx|staten/i.test(v.city) ? v.city : (src.hood || "Manhattan"), cat, sub, desc, url: x.url });
+  }
+  return out;
+}
+
 async function runSource(src, store, force) {
   const st = store.by[src.id] || (store.by[src.id] = {});
   const t0 = Date.now(), today = iso(new Date(t0 - 5 * 3600e3)), limit = iso(new Date(t0 + src.horizon * DAY));
@@ -230,6 +260,15 @@ async function runSource(src, store, force) {
     }
     const hash = createHash("sha1").update(html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " ")).digest("hex");
     if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+    if (src.kind === "tribe") {
+      const all = []; let page = JSON.parse(html), guard = 0;
+      for (;;) { all.push(...(page.events || [])); if (!page.next_rest_url || ++guard >= 4) break; page = JSON.parse((await fetchPage(page.next_rest_url)).html); }
+      const hash = createHash("sha1").update(JSON.stringify(all.map((e) => [e.id, e.modified]))).digest("hex");
+      if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+      const raw = tribeEvents(all, src), seen = new Set();
+      st.events = raw.map((x) => toEvent(src, x, today, limit)).filter((e) => e && !seen.has(e.id) && seen.add(e.id));
+      return Object.assign(st, { at: t0, hash, ok: true, how: "feed", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
+    }
     if (src.kind === "squarespace") {
       const hash = createHash("sha1").update(html).digest("hex");
       if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }

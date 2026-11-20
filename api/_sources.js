@@ -4,6 +4,8 @@
 // cadence: how often the page is read. horizon: days ahead worth keeping. Add or retire sources here.
 export const SOURCES = [
   { id: "jazzgallery", name: "The Jazz Gallery", kind: "squarespace", url: "https://jazzgallery.org/calendar?format=json", cadence: "daily", horizon: 45, hint: "live jazz, Flatiron" },
+  { id: "prospectpark", name: "Prospect Park Alliance", kind: "tribe", hood: "Brooklyn", venue: "Prospect Park", url: "https://www.prospectpark.org/wp-json/tribe/events/v1/events?per_page=50", cadence: "daily", horizon: 30, hint: "park programs, wellness, kids, walks, volunteering" },
+  { id: "greenwood", name: "Green-Wood", kind: "tribe", hood: "Brooklyn", venue: "Green-Wood Cemetery", url: "https://www.green-wood.com/wp-json/tribe/events/v1/events?per_page=50", cadence: "daily", horizon: 45, hint: "cemetery tours, walks, kids story hours, concerts" },
   { id: "nycparks", name: "NYC Parks", kind: "nycparks", url: "https://www.nycgovparks.org/xml/events_300_rss.json", cadence: "daily", horizon: 14, hint: "official NYC Parks feed: recreation-center classes, runs, volunteering, kids, tours, concerts, movies" },
   { id: "nypl", off: "page is rendered by JavaScript (no events in the HTML); needs the NYPL events API", name: "NYPL", url: "https://www.nypl.org/events/calendar", cadence: "daily", horizon: 30, hint: "free library programs: talks, book clubs, classes, film, kids" },
   { id: "bpl", off: "JavaScript calendar (Communico); needs its feed", name: "Brooklyn Public Library", url: "https://www.bklynlibrary.org/calendar", cadence: "daily", horizon: 30, hint: "free library programs in Brooklyn" },
