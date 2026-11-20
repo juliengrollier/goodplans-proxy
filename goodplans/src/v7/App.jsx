@@ -246,7 +246,7 @@ export default function App() {
       let extra = [];
       try { extra = (await fetchJSON(API_BASE + "/api/ingest?feed=1", 15000)).events || []; } catch { /* optional */ }
       // Events listed outside the city (London, Sydney…) are not for this app
-      const inNYC = (e) => !e.hood || /manhattan|brooklyn|queens|bronx|staten|new york|nyc|other/i.test(e.hood) && !/london|sydney/i.test(e.venue || "");
+      const inNYC = (e) => !e.hood || /manhattan|brooklyn|queens|bronx|staten|new york|nyc/i.test(e.hood) && !/london|sydney/i.test(e.venue || "");
       const have = new Set((data.events || []).map((e) => e.id));
       const list = [...(data.events || []), ...extra.filter((e) => !have.has(e.id))].filter((e) => e.id && e.E && evActive(e, t0) && inNYC(e));
       const ts = new Date().toISOString();

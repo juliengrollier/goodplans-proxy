@@ -11,7 +11,8 @@
  * Events come from the page's JSON-LD when it has them, otherwise from Claude reading the page text.
  * Nothing is invented: a price or time that the page does not state stays empty.
  */
-import { SOURCES } from "./_sources.js";
+import { SOURCES as ALL } from "./_sources.js";
+const SOURCES = ALL.filter((s) => !s.off);
 import { getJSON, putJSON } from "./_blob.js";
 import { createHash } from "node:crypto";
 
@@ -75,7 +76,7 @@ function fromLd(o, src, base) {
 async function readWithClaude(src, text, today) {
   const system = `You extract upcoming events from the text of a web page for a New York City events app. Answer with a JSON array only.
 Each item: {"title":"","start":"YYYY-MM-DD","end":"YYYY-MM-DD" or "","time":"7:30 PM" or "","price":"Free" | "$25" | "$20–45" or "","venue":"","borough":"Manhattan|Brooklyn|Queens|Bronx|Staten Island|","cat":one of ${CATS.join(" | ")},"sub":"short subtype","desc":"one plain sentence, no hype","url":"absolute link to this event if the text shows one"}
-Rules: only events the text states, dated ${today} or later (the page may list past ones: skip them). Never invent a date, time, price, venue or link: leave it empty when the text does not say. Price only if stated ("Free" counts). Max 60 events, soonest first. Recurring weekly programs: list each of the next 4 dates. Output [] if there are none.`;
+Rules: only events the text states, dated ${today} or later (the page may list past ones: skip them). Skip member-only, private, sold-out-for-members or staff events. Never invent a date, time, price, venue or link: leave it empty when the text does not say. Price only if stated ("Free" counts). Max 60 events, soonest first. Recurring weekly programs: list each of the next 4 dates. Output [] if there are none.`;
   const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST",
     headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({ model: MODEL, max_tokens: 8000, system, messages: [{ role: "user", content: `Source: ${src.name} (${src.hint})\nToday: ${today}\nPage text:\n${text.slice(0, 26000)}` }] }) });
@@ -138,7 +139,7 @@ export default async function handler(req, res) {
   const vercelCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
   const manual = !!process.env.FLAGS_KEY && req.query.key === process.env.FLAGS_KEY;
   if (!cron && !vercelCron && !manual) return res.status(401).json({ error: "Unauthorized" });
-  if (req.query.status) return res.status(200).json(SOURCES.map((s) => { const x = store.by[s.id] || {}; return { id: s.id, cadence: s.cadence, at: x.at ? new Date(x.at).toISOString() : null, ok: x.ok, how: x.how, count: x.count, raw: x.raw, err: x.err, note: x.note }; }));
+  if (req.query.status) return res.status(200).json(ALL.map((s) => { const x = store.by[s.id] || {}; return { id: s.id, off: s.off, cadence: s.cadence, at: x.at ? new Date(x.at).toISOString() : null, ok: x.ok, how: x.how, count: x.count, raw: x.raw, err: x.err, note: x.note }; }));
   if (req.query.probe) {
     try {
       const { html, url } = await fetchPage(String(req.query.probe));
