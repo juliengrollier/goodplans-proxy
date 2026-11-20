@@ -1,6 +1,7 @@
 // Onboarding v7: three quiet screens. 1) Sign in (logo + promise; Google, or continue without an account)
 // 2) Favourite moods (at least one) 3) "Which would you rather?" (at least three rows). Then Home and the tour.
 import React, { useEffect, useRef, useState } from "react";
+import { tx } from "./i18n.js";
 import { createPortal } from "react-dom";
 import { ROWS, profileFrom, meetFrom } from "./quiz.js";
 import { ACT } from "./activities.js";
@@ -44,14 +45,14 @@ function GoogleButton({ onAccount, dark, width }) {
   return (
     <div style={{ minHeight: 44, display: "flex", justifyContent: "center" }}>
       <div ref={ref} style={{ display: state === "off" ? "none" : "block", colorScheme: "light" }} />
-      {state === "off" && <div className="muted" style={{ fontSize: 13, textAlign: "center", padding: "12px 0" }}>Google sign-in isn't available right now.</div>}
+      {state === "off" && <div className="muted" style={{ fontSize: 13, textAlign: "center", padding: "12px 0" }}>{tx("Google sign-in isn't available right now.")}</div>}
     </div>
   );
 }
 
 function Progress({ at }) {
   return (
-    <div className="row" style={{ gap: 6, flex: 1, maxWidth: 120 }} aria-label={"Step " + at + " of 2"}>
+    <div className="row" style={{ gap: 6, flex: 1, maxWidth: 120 }} aria-label={tx("Step ") + at + " of 2"}>
       {[1, 2].map((k) => <span key={k} style={{ flex: 1, height: 4, borderRadius: 2, background: k <= at ? "var(--ink)" : "var(--line)", transition: "background .3s" }} />)}
     </div>
   );
@@ -81,7 +82,7 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
   const sub = { margin: 0, fontSize: 15.5, lineHeight: 1.45, color: "var(--ink2)" };
 
   return createPortal(
-    <div className="gp-ob" style={wrap} role="dialog" aria-label="Welcome to Good Plans">
+    <div className="gp-ob" style={wrap} role="dialog" aria-label={tx("Welcome to Good Plans")}>
       <style>{CSS}</style>
 
       {step === "auth" && (
@@ -89,15 +90,15 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 6px 24px", animation: "gpRise .5s ease both" }}>
             <div className="row" style={{ gap: 10, marginBottom: 44 }}>
               <Logo size={40} dark={dark} />
-              <span className="disp" style={{ fontSize: 27, letterSpacing: -0.3 }}>good plans</span>
+              <span className="disp" style={{ fontSize: 27, letterSpacing: -0.3 }}>{tx("good plans")}</span>
             </div>
-            <h1 className="disp" style={{ margin: 0, fontSize: 42, lineHeight: 1.02, letterSpacing: -1 }}>Never wonder what to do next.</h1>
-            <p style={{ margin: "16px 0 0", fontSize: 17.5, lineHeight: 1.45, color: "var(--ink2)", maxWidth: 330 }}>Good Plans knows you, the city, and how to make you love it.</p>
+            <h1 className="disp" style={{ margin: 0, fontSize: 42, lineHeight: 1.02, letterSpacing: -1 }}>{tx("Never wonder what to do next.")}</h1>
+            <p style={{ margin: "16px 0 0", fontSize: 17.5, lineHeight: 1.45, color: "var(--ink2)", maxWidth: 330 }}>{tx("Good Plans knows you, the city, and how to make you love it.")}</p>
           </div>
           <div style={{ padding: "0 0 calc(22px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 14, animation: "gpRise .5s .12s ease both" }}>
             <GoogleButton onAccount={authed} dark={dark} width={w} />
-            <button className="tap" onClick={() => authed({ provider: "guest", at: Date.now() })} style={{ border: "none", background: "none", padding: "8px 0", fontSize: 15, fontWeight: 700, color: "var(--ink2)" }}>Continue without an account</button>
-            <p style={{ margin: "2px 0 0", fontSize: 12, lineHeight: 1.45, color: "var(--ink3)", textAlign: "center" }}>Your name and email stay on this phone. Nothing is ever posted.</p>
+            <button className="tap" onClick={() => authed({ provider: "guest", at: Date.now() })} style={{ border: "none", background: "none", padding: "8px 0", fontSize: 15, fontWeight: 700, color: "var(--ink2)" }}>{tx("Continue without an account")}</button>
+            <p style={{ margin: "2px 0 0", fontSize: 12, lineHeight: 1.45, color: "var(--ink3)", textAlign: "center" }}>{tx("Your name and email stay on this phone. Nothing is ever posted.")}</p>
           </div>
         </div>
       )}
@@ -106,8 +107,8 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
         <div key="moods" style={col}>
           <div className="row" style={{ height: 36, gap: 14 }}><Progress at={1} /></div>
           <div style={anim}>
-            <h1 className="disp" style={h1}>What are you often in the mood for?</h1>
-            <p style={sub}>Pick as many as you like. They'll always come first.</p>
+            <h1 className="disp" style={h1}>{tx("What are you often in the mood for?")}</h1>
+            <p style={sub}>{tx("Pick as many as you like. They'll always come first.")}</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "24px 0 16px" }}>
               {INTENTS.map((it) => { const on = moods.includes(it.id); return (
                 <button key={it.id} className="tap" aria-pressed={on} onClick={() => flip(it.id)}
@@ -119,19 +120,19 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
               ); })}
             </div>
           </div>
-          <div style={footer}>{cta(moods.length > 0, moods.length ? "Continue" : "Pick at least one", () => go("rather"))}</div>
+          <div style={footer}>{cta(moods.length > 0, moods.length ? tx("Continue") : tx("Pick at least one"), () => go("rather"))}</div>
         </div>
       )}
 
       {step === "rather" && (
         <div key="rather" style={col}>
           <div className="row" style={{ height: 36, gap: 14 }}>
-            <button className="tap" aria-label="Back" onClick={() => go("moods", -1)} style={{ border: "none", background: "none", padding: 0, marginLeft: -4, display: "flex", color: "var(--ink)" }}><Icon name="back" size={24} /></button>
+            <button className="tap" aria-label={tx("Back")} onClick={() => go("moods", -1)} style={{ border: "none", background: "none", padding: 0, marginLeft: -4, display: "flex", color: "var(--ink)" }}><Icon name="back" size={24} /></button>
             <Progress at={2} />
           </div>
           <div style={anim}>
-            <h1 className="disp" style={h1}>Which would you rather?</h1>
-            <p style={sub}>One tap per row. Skip any you can't decide.</p>
+            <h1 className="disp" style={h1}>{tx("Which would you rather?")}</h1>
+            <p style={sub}>{tx("One tap per row. Skip any you can't decide.")}</p>
             <div style={{ display: "flex", flexDirection: "column", margin: "16px 0 16px" }}>
               {ROWS.map((r, ri) => (
                 <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "18px 0", borderTop: ri ? "1px solid var(--line)" : "none" }}>
@@ -151,7 +152,7 @@ export default function Quiz({ onDone, onAuth, dark, startAt = "auth", needQuiz 
               ))}
             </div>
           </div>
-          <div style={footer}>{cta(n >= 3, n >= 3 ? "Show me good plans" : "Pick " + (3 - n) + " more", finish)}</div>
+          <div style={footer}>{cta(n >= 3, n >= 3 ? tx("Show me good plans") : tx("Pick ") + (3 - n) + " more", finish)}</div>
         </div>
       )}
     </div>,

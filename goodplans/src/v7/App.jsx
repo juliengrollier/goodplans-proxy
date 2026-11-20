@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { tx } from "./i18n.js";
 import { CSS, FONTS_HREF } from "./theme.js";
 import { TabBar, ActionsCtx } from "./components.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
@@ -225,32 +226,32 @@ export default function App() {
 
   // ── Backend calls
   const api = useCallback((action, extra = "", ms) => {
-    if (!backend.url) return Promise.reject(new Error("No backend URL. Add it in Me → Events feed."));
+    if (!backend.url) return Promise.reject(new Error(tx("No backend URL. Add it in Me → Events feed.")));
     const q = (action ? "action=" + action + "&" : "") + "key=" + encodeURIComponent(backend.key) + extra;
     return fetchJSON(backend.url + (backend.url.includes("?") ? "&" : "?") + q, ms);
   }, [backend]);
 
   const refresh = useCallback(async (silent) => {
     setRefreshing(true);
-    if (!silent) setRefreshLog("Asking your Apps Script…");
+    if (!silent) setRefreshLog(tx("Asking your Apps Script…"));
     try {
       const data = await api("", "", 30000);
       if (data.error) {
-        if (/Unauthorized/i.test(data.error)) throw new Error("Wrong secret key (Me → Events feed → Backend settings).");
-        if (/No cache/i.test(data.error)) throw new Error("Apps Script has no cache yet. Run runDailySync() once in script.google.com.");
+        if (/Unauthorized/i.test(data.error)) throw new Error(tx("Wrong secret key (Me → Events feed → Backend settings)."));
+        if (/No cache/i.test(data.error)) throw new Error(tx("Apps Script has no cache yet. Run runDailySync() once in script.google.com."));
         throw new Error(data.error);
       }
       const t0 = floorDay(new Date());
       const list = (data.events || []).filter((e) => e.id && e.E && evActive(e, t0));
       const ts = new Date().toISOString();
       setEvents(list); setLastRefreshed(ts);
-      ss("gp_events_v1", { events: list, refreshed: ts, backendRefreshed: data.refreshed || null, count: list.length, sources: ["Apps Script"] });
+      ss("gp_events_v1", { events: list, refreshed: ts, backendRefreshed: data.refreshed || null, count: list.length, sources: [tx("Apps Script")] });
       setRefreshLog(`${list.length} upcoming events${data.refreshed ? " (backend synced " + new Date(data.refreshed).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) + ")" : ""}.`);
-      if (!silent) toast(list.length + " events loaded");
+      if (!silent) toast(list.length + " " + tx("events loaded"));
     } catch (e) {
-      const msg = e.name === "AbortError" ? "Apps Script took more than 30 s. Try again." : e.message;
-      setRefreshLog("Refresh failed: " + msg);
-      if (!silent) toast("Refresh failed");
+      const msg = e.name === "AbortError" ? tx("Apps Script took more than 30 s. Try again.") : e.message;
+      setRefreshLog(tx("Refresh failed: ") + msg);
+      if (!silent) toast(tx("Refresh failed"));
     } finally { setRefreshing(false); }
   }, [api, toast]);
 
@@ -263,8 +264,8 @@ export default function App() {
         ss("gp_cal_slots_v1", d.busySlots);
         if (!silent) toast(d.busySlots.length + " busy slots from " + (d.calendarName || "your calendar"));
       } else if (d.error && /authori|Calendar/i.test(d.error)) setCalStatus("unauth");
-      else throw new Error(d.error || "No data");
-    } catch (e) { setCalStatus(busySlots.length ? "ok" : "error"); if (!silent) toast("Calendar: " + e.message); }
+      else throw new Error(d.error || tx("No data"));
+    } catch (e) { setCalStatus(busySlots.length ? "ok" : "error"); if (!silent) toast(tx("Calendar: ") + e.message); }
   }, [api, toast, busySlots.length]);
 
   // Turn notifications on (from a tap): permission, subscription, then a test notification to this phone
@@ -273,11 +274,11 @@ export default function App() {
     setPerm(N.permission());
     if (r !== "on") {
       putNotif({ ...notifRef.current, asked: true });
-      toast(r === "unsupported" ? "This phone can't get notifications here. On iPhone, add Good Plans to the Home Screen first." : "Notifications are blocked. Allow them for Good Plans in your phone settings.");
+      toast(r === "unsupported" ? tx("This phone can't get notifications here. On iPhone, add Good Plans to the Home Screen first.") : tx("Notifications are blocked. Allow them for Good Plans in your phone settings."));
       return false;
     }
     const n = { ...notifRef.current, on: true, asked: true, offByUser: false }; putNotif(n);
-    toast("Notifications on");
+    toast(tx("Notifications on"));
     return n;
   }, [putNotif, toast]);
 
@@ -287,8 +288,8 @@ export default function App() {
     if (!navigator.geolocation) return;
     setLocSt((s) => (interactive || s === "default" ? "locating" : s));
     navigator.geolocation.getCurrentPosition(
-      (p) => { const c = [p.coords.latitude, p.coords.longitude]; setHome(c); setLocSt("ok"); ss("gp_loc_v1", { coord: c, ts: Date.now() }); if (interactive) toast("Location updated"); },
-      () => { setLocSt((s) => (s === "locating" ? "default" : s)); if (interactive) toast("Location not available"); },
+      (p) => { const c = [p.coords.latitude, p.coords.longitude]; setHome(c); setLocSt("ok"); ss("gp_loc_v1", { coord: c, ts: Date.now() }); if (interactive) toast(tx("Location updated")); },
+      () => { setLocSt((s) => (s === "locating" ? "default" : s)); if (interactive) toast(tx("Location not available")); },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
     );
   }, [toast]);
@@ -429,7 +430,7 @@ export default function App() {
       if (place) {
         const want = place.lists.find(M.isWantList);
         boost = want ? 6 : 3; s.savedPlace = place;
-        s.why = [want ? "On your “" + want + "” list" : "A place you saved · " + place.lists[0], ...s.why];
+        s.why = [want ? tx("On your “") + want + "” list" : tx("A place you saved · ") + place.lists[0], ...s.why];
       }
       s.calChecked = calStatus === "ok";
       // One score for "how much would I want this, now" (rank.js); every screen orders by it
@@ -452,7 +453,7 @@ export default function App() {
     if (live) return { ev: live, r };
     const E = nextDate(r, today);
     const ev = scoreOne({ ...r.ev, id: "rec-" + r.key.replace(/[^a-z0-9]+/gi, "-") + "-" + (E || "x"), E: E || r.dates?.[r.dates.length - 1] || isoDay(today), recurring: "synthetic", recKey: r.key, recLabel: patternLabel(r) });
-    return { ev, r, when: E ? null : "Dates vary · last " + (r.dates?.length ? new Date(r.dates[r.dates.length - 1] + "T12:00:00").toLocaleDateString([], { month: "short", day: "numeric" }) : "?") };
+    return { ev, r, when: E ? null : tx("Dates vary · last ") + (r.dates?.length ? new Date(r.dates[r.dates.length - 1] + "T12:00:00").toLocaleDateString([], { month: "short", day: "numeric" }) : "?") };
   }).filter((x) => !x.ev.hidden), [rec, scored, today, scoreOne]);
 
   // Auto free-until from the next calendar busy slot today
@@ -523,15 +524,15 @@ export default function App() {
   }, [ready, mKey("you", youA), mKey("you", youB), cityHol.map((m) => mKey("city", m)).join(), cityWx.map((m) => mKey("city", m)).join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const view = (scope, m, fallbackSub) => m && { id: m.id, icon: PULSE_ICON[m.id] || null, title: moodTxt[mKey(scope, m)]?.title || m.fallback, sub: moodTxt[mKey(scope, m)]?.sub || fallbackSub, list: m.list, facts: m.facts, writing: !moodTxt[mKey(scope, m)] };
   const moodProps = {
-    you: view("you", youA, youR.readLine ? "Reading the room: " + youR.readLine : youA?.offer), youOther: view("you", youB, youB?.offer),
+    you: view("you", youA, youR.readLine ? tx("Reading the room: ") + youR.readLine : youA?.offer), youOther: view("you", youB, youB?.offer),
     city: view("city", cityA, cityA?.facts), cityOther: view("city", cityB, cityB?.facts),
     cities: [view("city", cityA, cityA?.facts), view("city", cityB, cityB?.facts), view("city", cityC, cityC?.facts)].filter((c) => c && c.list?.length),
     onYouSwitch: () => { if (!youB) return; let st = learnYou(youStore, youR.slot, youB.id, 1); if (youA) st = learnYou(st, youR.slot, youA.id, -0.5); saveYou(st); setYouPick(youB.id); },
     onYouFeedback: (good) => {
       if (!youA) return;
       saveYou(learnYou(youStore, youR.slot, youA.id, good ? 1 : -1));
-      if (good) toast("Noted. More of this at this time.");
-      else if (youB) { setYouPick(youB.id); toast("Got it. How about this?"); } else toast("Got it");
+      if (good) toast(tx("Noted. More of this at this time."));
+      else if (youB) { setYouPick(youB.id); toast(tx("Got it. How about this?")); } else toast(tx("Got it"));
     },
     onCitySwitch: () => {
       if (!cityB) return;
@@ -621,11 +622,11 @@ export default function App() {
   // A bell: on an interest tile, a venue or a series. Ringing one turns notifications on first if needed.
   const toggleBell = useCallback(async (bell, tile) => {
     let n = notifRef.current;
-    if (n.bells[bell.key]) { const b = { ...n.bells }; delete b[bell.key]; putNotif({ ...n, bells: b }); toast("Bell off: " + bell.label); return; }
+    if (n.bells[bell.key]) { const b = { ...n.bells }; delete b[bell.key]; putNotif({ ...n, bells: b }); toast(tx("Bell off: ") + bell.label); return; }
     if (!n.on || N.permission() !== "granted") { const r = await turnOnNotif(); if (!r) return; n = r; }
     putNotif({ ...n, bells: { ...n.bells, [bell.key]: bell } });
     if (tile && !moodFav.includes(tile.key)) favMood(tile);
-    toast("We'll tell you about new " + bell.label + (bell.venue ? " events" : bell.series ? " dates" : ""));
+    toast(tx("We'll tell you about new ") + bell.label + (bell.venue ? " events" : bell.series ? " dates" : ""));
   }, [putNotif, turnOnNotif, toast, moodFav]); // eslint-disable-line react-hooks/exhaustive-deps
   // Nobody should have to go to Settings: already allowed → on silently; otherwise ask once,
   // right when onboarding ends (a tap, so the phone shows its own prompt) or with a one-tap card for people already set up.
@@ -661,7 +662,7 @@ export default function App() {
     const u = new URL(href, location.origin);
     const id = u.searchParams.get("event"), ids = u.searchParams.get("ids");
     if (id) { setTab("today"); setOpenEv(id); return true; }
-    if (ids) { setOpenEv(null); openIdsRef.current(ids.split(",").filter(Boolean), u.searchParams.get("list") || "From a notification"); return true; }
+    if (ids) { setOpenEv(null); openIdsRef.current(ids.split(",").filter(Boolean), u.searchParams.get("list") || tx("From a notification")); return true; }
     return false;
   };
 
@@ -722,11 +723,11 @@ export default function App() {
     if (!backend.url || calOff()) return;
     const q = Object.entries(calPayload(ev, today)).map(([k, v]) => "&" + k + "=" + encodeURIComponent(v ?? "")).join("");
     api("calAdd", q, 20000).then((d) => {
-      if (d?.gid) { setCalMap({ ...calMap(), [ev.id]: d.gid }); toast("Added to plans and your calendar"); return; }
+      if (d?.gid) { setCalMap({ ...calMap(), [ev.id]: d.gid }); toast(tx("Added to plans and your calendar")); return; }
       // The Apps Script doesn't know calAdd yet: pause tries for a few hours
       try { localStorage.setItem("gp_caladd_off", String(Date.now())); } catch { /* full */ }
-      toast("Saved. Calendar sync needs the Apps Script update");
-    }).catch(() => toast("Saved, but the calendar didn't answer"));
+      toast(tx("Saved. Calendar sync needs the Apps Script update"));
+    }).catch(() => toast(tx("Saved, but the calendar didn't answer")));
   };
   const calRemove = (id) => {
     const m = calMap(), gid = m[id]; if (!gid || !backend.url) return;
@@ -735,10 +736,10 @@ export default function App() {
   };
   const toggleSave = (ev) => {
     const n = { ...favs };
-    if (n[ev.id]) { delete n[ev.id]; track(favs[ev.id] || ev, "savedCats", -1); calRemove(ev.id); putModel(L.unlearn(modelRef.current, ev.id, "save"), true); toast("Removed from plans"); }
+    if (n[ev.id]) { delete n[ev.id]; track(favs[ev.id] || ev, "savedCats", -1); calRemove(ev.id); putModel(L.unlearn(modelRef.current, ev.id, "save"), true); toast(tx("Removed from plans")); }
     else {
       const { bd, why, sc, hidden, tt, rain, dark: _d, busy, outdoor, followed, calChecked, ...raw } = ev; // eslint-disable-line no-unused-vars
-      n[ev.id] = raw; track(ev, "savedCats"); toast("Added to plans"); calAdd(ev); signal(ev, "save");
+      n[ev.id] = raw; track(ev, "savedCats"); toast(tx("Added to plans")); calAdd(ev); signal(ev, "save");
       if (!notifRef.current.on && !notifRef.current.asked && N.supported() && N.permission() !== "denied") setTimeout(() => setAskNotif(true), 900);
       const ts = Date.now(); setLastSaveAt(ts); try { localStorage.setItem("gp_lastsave", String(ts)); } catch { /* full */ }
     }
@@ -758,15 +759,15 @@ export default function App() {
       putModel(m, true);
     }
     if (quiet) return;
-    if (kind === "up") toast("Got it, more like this");
-    if (kind === "down") toast("Got it, less like this");
-    if (kind === "why") toast("Thanks, noted");
-    if (kind === "nfm") { toast("Hidden. Undo in Me."); setOpenEv(null); }
+    if (kind === "up") toast(tx("Got it, more like this"));
+    if (kind === "down") toast(tx("Got it, less like this"));
+    if (kind === "why") toast(tx("Thanks, noted"));
+    if (kind === "nfm") { toast(tx("Hidden. Undo in Me.")); setOpenEv(null); }
   };
-  const follow = (ev) => { const t = toggleFollow(taste, ev); saveTaste(t); toast(t.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()] ? "Following " + ev.venue.split(",")[0] : "Unfollowed"); };
+  const follow = (ev) => { const t = toggleFollow(taste, ev); saveTaste(t); toast(t.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()] ? tx("Following ") + ev.venue.split(",")[0] : tx("Unfollowed")); };
   const unfollow = (k) => { const follows = { ...taste.follows }; delete follows[k]; saveTaste({ ...taste, follows }); };
-  const undo = (l) => { const ev = events.find((e) => e.id === l.id) || { id: l.id, title: l.title, cat: l.cat }; saveTaste(applyReaction(taste, prof, ev, "undo")); toast("Restored"); };
-  const resetTaste = () => { saveTaste({ ...emptyTaste(), follows: taste.follows }); toast("Learning reset (follows kept)"); };
+  const undo = (l) => { const ev = events.find((e) => e.id === l.id) || { id: l.id, title: l.title, cat: l.cat }; saveTaste(applyReaction(taste, prof, ev, "undo")); toast(tx("Restored")); };
+  const resetTaste = () => { saveTaste({ ...emptyTaste(), follows: taste.follows }); toast(tx("Learning reset (follows kept)")); };
 
   // Surprise: weighted pick among the strongest options in the next 3 days
   const pickSurprise = (seen = new Set()) => {
@@ -780,7 +781,7 @@ export default function App() {
     return { ev, seen: s2 };
   };
 
-  const locLabel = locSt === "ok" ? "Near you" : locSt === "cached" ? "Near you" : locSt === "locating" ? "Locating…" : "Lower East Side";
+  const locLabel = locSt === "ok" ? tx("Near you") : locSt === "cached" ? tx("Near you") : locSt === "locating" ? tx("Locating…") : tx("Lower East Side");
   const plansCount = Object.values(favs).filter((e) => evActive(e, today) && daysUntil(e, today) <= 1).length;
 
   // Learned preference per category and sub-type: boosts, thumbs, reasons, saves and filter choices
@@ -797,7 +798,7 @@ export default function App() {
   }, [taste, favs, scored]);
   // ── Whose phone this is (the learned taste is backed up to the Apps Script under that name)
   const postBackend = useCallback(async (action, extra, body) => {
-    if (!backend.url) throw new Error("No backend");
+    if (!backend.url) throw new Error(tx("No backend"));
     // text/plain body: no CORS preflight, which Apps Script can't answer
     const u = backend.url + (backend.url.includes("?") ? "&" : "?") + "action=" + action + "&key=" + encodeURIComponent(backend.key) + (extra || "");
     const r = await fetch(u, { method: "POST", body: JSON.stringify(body) });
@@ -820,12 +821,12 @@ export default function App() {
     try {
       const d = await postJSON("/api/enrich", { mode: "taste", ...L.topFeatures(m), counts: { signals: m.count || 0, strong: m.strong || 0 } });
       if (d?.lines?.length) putModel({ ...modelRef.current, card: { lines: d.lines, at: Date.now(), strong: m.strong || 0 } }, true);
-    } catch { if (force) toast("Couldn't write the taste card right now"); }
+    } catch { if (force) toast(tx("Couldn't write the taste card right now")); }
     setCardBusy(false);
   }, [cardBusy, toast]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready) buildCard(false); }, [ready, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
-  const muteLine = (line) => { putModel(L.mute(modelRef.current, line.f), true); toast("Got it, that's not you"); };
-  const resetLearning = () => { putModel(L.emptyModel(), true); toast("Learning reset"); };
+  const muteLine = (line) => { putModel(L.mute(modelRef.current, line.f), true); toast(tx("Got it, that's not you")); };
+  const resetLearning = () => { putModel(L.emptyModel(), true); toast(tx("Learning reset")); };
 
   // ── "Did you go?" for a saved event that just ended
   const goAsk = useMemo(() => L.pendingGoAsk(modelRef.current, pastSaves, today), [pastSaves, today, modelVer]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -834,7 +835,7 @@ export default function App() {
     if (ans === "yes") m = L.learn(m, ev, "went", today);
     if (ans === "no") m = L.learn(m, ev, "missed", today);
     putModel(m, true);
-    if (ans === "yes") toast("Nice. More like that");
+    if (ans === "yes") toast(tx("Nice. More like that"));
   };
 
   // ── Google Maps lists (Takeout import): boosts events at saved places; list themes teach the taste model
@@ -845,7 +846,7 @@ export default function App() {
     setMapsBusy(true);
     try {
       const d = await M.parseTakeout([...files]);
-      if (!d.lists.length) { toast("No saved lists found in that file"); setMapsBusy(false); return; }
+      if (!d.lists.length) { toast(tx("No saved lists found in that file")); setMapsBusy(false); return; }
       const data = { lists: d.lists, at: Date.now(), themes: null };
       setMapsData(data); M.saveMaps(data);
       toast(d.lists.length + " lists · " + d.lists.reduce((a, l) => a + l.places.length, 0) + " places imported");
@@ -862,10 +863,10 @@ export default function App() {
         putModel(m, true);
         const withThemes = { ...data, themes }; setMapsData(withThemes); M.saveMaps(withThemes);
       } catch { /* list themes are a bonus; place matching works without them */ }
-    } catch (e) { toast("Couldn't read that file: " + (e.message || e)); }
+    } catch (e) { toast(tx("Couldn't read that file: ") + (e.message || e)); }
     setMapsBusy(false);
   };
-  const removeMaps = () => { putModel(forgetMapsLearning(modelRef.current), true); setMapsData(null); M.saveMaps(null); toast("Google Maps lists removed"); };
+  const removeMaps = () => { putModel(forgetMapsLearning(modelRef.current), true); setMapsData(null); M.saveMaps(null); toast(tx("Google Maps lists removed")); };
   const mapsMatches = mapsData ? visible.filter((e) => e.savedPlace).length : 0;
 
   // ── Onboarding quiz: first open on a phone that has learned little, and any time from Me
@@ -883,7 +884,7 @@ export default function App() {
     m = L.nudge(m, L.dimFeature("social", "solo-friendly"), 0.3 * k);
     putModel(m, true);
     setMeetState(on); try { localStorage.setItem("gp_meet_v1", on ? "1" : "0"); } catch { /* private */ }
-    toast(on ? "Got it. More ways to meet people." : "Okay, back to normal.");
+    toast(on ? tx("Got it. More ways to meet people.") : tx("Okay, back to normal."));
   };
   const finishQuiz = (ans, prof, wantMeet) => {
     const W = Q.weightsFrom(ans); const weights = W.weights, price = W.price, far = W.far;
@@ -891,7 +892,7 @@ export default function App() {
     const t = { ...tasteRef.current, priceSens: Math.max(tasteRef.current.priceSens || 0, price), farSens: Math.max(tasteRef.current.farSens || 0, far) };
     tasteRef.current = t; saveTaste(t);
     const qz = { answers: ans, profile: prof, v: Q.QUIZ_VERSION, at: Date.now() }; setQuiz(qz); Q.saveQuiz(qz);
-    setShowQuiz(false); setTab("today"); window.scrollTo(0, 0); { let nm = "", seen = false; try { nm = localStorage.getItem("gp_name_v1") || ""; seen = !!localStorage.getItem(TOUR_KEY); } catch { /* private */ } if (seen) toast("Nice to meet you" + (nm ? ", " + nm : "") + ". Here are your good plans."); }
+    setShowQuiz(false); setTab("today"); window.scrollTo(0, 0); { let nm = "", seen = false; try { nm = localStorage.getItem("gp_name_v1") || ""; seen = !!localStorage.getItem(TOUR_KEY); } catch { /* private */ } if (seen) toast(tx("Nice to meet you") + (nm ? ", " + nm : "") + ". Here are your good plans."); }
     if (wantMeet != null) setTimeout(() => setMeetOn(wantMeet), 0);
     if (ans.moods?.length) setTimeout(() => learnIntentOrder(ans.moods), 0); // favourite moods teach taste like the custom order
     { let seen = false; try { seen = !!localStorage.getItem(TOUR_KEY); } catch { /* private */ } if (!seen) setTimeout(() => setShowTour(true), 800); }
@@ -939,7 +940,7 @@ export default function App() {
     markFavAt(t.key, !on);
     setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
     // Adding: the bell offer doubles as the confirmation; otherwise a toast
-    if (on || !offerBell(t)) toast(on ? "Removed from My Interests" : "Added to My Interests");
+    if (on || !offerBell(t)) toast(on ? tx("Removed from My Interests") : tx("Added to My Interests"));
   };
   const [listMeta, setListMeta] = useState(null);
   // ── View history: every move between tabs and lists remembers where you were, so "back" retraces your steps
@@ -965,13 +966,13 @@ export default function App() {
     // A plain description of the page, never a list of event titles
     const k = t.key || "", low = String(t.title || "").toLowerCase();
     // One short line (it is shown on a single line): the page opens Ranked, so no "soonest first" here
-    const desc = k === "top-picks" ? "Everything coming up, ranked by your taste."
-      : /^intent-act-/.test(k) ? "Coming up for this mood, ranked for you."
-      : /^intent-/.test(k) ? "Ranked by your taste."
-      : /^gen-(act|sub|term|cut)-/.test(k) ? "Coming up around the city, ranked for you."
-      : /^hood-act-/.test(k) ? "Ranked for you."
-      : ["today", "tonight", "tomorrow", "weekend", "week"].includes(k) ? "Everything on " + low + "."
-      : t.teaser && !/·/.test(t.teaser) && t.teaser.length <= 48 ? t.teaser : "Events that fit, ranked by your taste.";
+    const desc = k === "top-picks" ? tx("Everything coming up, ranked by your taste.")
+      : /^intent-act-/.test(k) ? tx("Coming up for this mood, ranked for you.")
+      : /^intent-/.test(k) ? tx("Ranked by your taste.")
+      : /^gen-(act|sub|term|cut)-/.test(k) ? tx("Coming up around the city, ranked for you.")
+      : /^hood-act-/.test(k) ? tx("Ranked for you.")
+      : ["today", "tonight", "tomorrow", "weekend", "week"].includes(k) ? tx("Everything on ") + low + "."
+      : t.teaser && !/·/.test(t.teaser) && t.teaser.length <= 48 ? t.teaser : tx("Events that fit, ranked by your taste.");
     setListMeta({ title: t.title, color: t.color, icon: t.icon, node: t.node, teaser: desc, verb: t.verb, group, intro: t.intro, kind: t.kind, tile: t });
     if (/^(mood|pick|gen)-/.test(t.key || "") && t.list) { moodSession.current = { key: t.key, ids: new Set(t.list.map((e) => e.id)), at: Date.now(), adj: !!t.adj, title: t.title }; logMood("opened", t.key, !!t.adj, t.title); }
     if (t.f && /^gen-/.test(t.key || "")) { let m = modelRef.current; for (const f of t.f) m = L.nudge(m, f, 0.08); putModel(m); } // opening is a light vote
@@ -1053,7 +1054,7 @@ export default function App() {
         markFavAt(tile.key, on);
         setMoodFav(f); try { localStorage.setItem("gp_moodfav_v1", JSON.stringify(f)); } catch { /* full */ }
       }
-      toast(on ? "Added to My Interests" : "Removed from My Interests");
+      toast(on ? tx("Added to My Interests") : tx("Removed from My Interests"));
     },
     thumbOf: (id) => taste.thumbs[id] || 0,
   };
@@ -1075,7 +1076,7 @@ export default function App() {
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
           notif={notif} perm={perm} onNotifOn={async () => { const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}
-          onNotifSet={(patch) => putNotif({ ...notifRef.current, ...patch })} onNotifTest={(kind) => N.sync(notifRef.current, savedForPush, "test", typeof kind === "string" ? kind : "basic").then((r) => toast(r?.test?.ok ? "Test sent" : "Couldn't reach this phone. Try turning notifications on again."))}
+          onNotifSet={(patch) => putNotif({ ...notifRef.current, ...patch })} onNotifTest={(kind) => N.sync(notifRef.current, savedForPush, "test", typeof kind === "string" ? kind : "basic").then((r) => toast(r?.test?.ok ? tx("Test sent") : tx("Couldn't reach this phone. Try turning notifications on again.")))}
           onNotifOff={() => { N.sync(notifRef.current, [], "off"); putNotif({ ...notifRef.current, on: false, offByUser: true }); }}
           onUnbell={(k) => { const b = { ...notifRef.current.bells }; delete b[k]; putNotif({ ...notifRef.current, bells: b }); }}
           backend={backend} setBackend={setBackend} lastRefreshed={lastRefreshed} eventCount={events.length} onRefresh={() => refresh(false)} refreshing={refreshing} refreshLog={refreshLog}
@@ -1107,29 +1108,29 @@ export default function App() {
             m = L.learnTargeted(m, whyAsk.ev, L.reasonFeatures(whyAsk.ev, k, rest.join(":"), today), whyAsk.dir === "up" ? 1 : 0, today);
           });
           putModel(m, true);
-          toast("Thanks, noted"); setWhyAsk(null);
+          toast(tx("Thanks, noted")); setWhyAsk(null);
         }} onClose={() => setWhyAsk(null)} />}
       {bellAsk && (
-        <Dialog title="Added to My Interests" onClose={() => setBellAsk(null)}>
+        <Dialog title={tx("Added to My Interests")} onClose={() => setBellAsk(null)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div className="row" style={{ gap: 10 }}>
               <span style={{ width: 40, height: 40, borderRadius: 20, background: "var(--navy)", color: "var(--onnavy)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="bell" size={20} /></span>
-              <div className="disp" style={{ fontSize: 21, lineHeight: 1.15 }}>Get notified about new {bellAsk.bell.label}?</div>
+              <div className="disp" style={{ fontSize: 21, lineHeight: 1.15 }}>{tx("Get notified about new")} {bellAsk.bell.label}?</div>
             </div>
-            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>When new ones come up, they go in your daily bundle: at most one notification a day for all your bells.</div>
-            <button className="pill pill-dark" onClick={() => { const x = bellAsk; setBellAsk(null); toggleBell(x.bell, x.tile); }}><Icon name="bell" size={18} /> Yes, notify me</button>
-            <button className="pill pill-line" onClick={() => setBellAsk(null)}>Not now</button>
-            <button onClick={() => { setBellAsk(null); putNotif({ ...notifRef.current, noBellAsk: true }); toast("Won't ask again. Bells stay on the tiles."); }} style={{ border: "none", background: "none", color: "var(--ink3)", fontSize: 13, fontWeight: 700, padding: 4 }}>Don't ask when I heart something</button>
+            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>{tx("When new ones come up, they go in your daily bundle: at most one notification a day for all your bells.")}</div>
+            <button className="pill pill-dark" onClick={() => { const x = bellAsk; setBellAsk(null); toggleBell(x.bell, x.tile); }}><Icon name="bell" size={18} /> {tx("Yes, notify me")}</button>
+            <button className="pill pill-line" onClick={() => setBellAsk(null)}>{tx("Not now")}</button>
+            <button onClick={() => { setBellAsk(null); putNotif({ ...notifRef.current, noBellAsk: true }); toast(tx("Won't ask again. Bells stay on the tiles.")); }} style={{ border: "none", background: "none", color: "var(--ink3)", fontSize: 13, fontWeight: 700, padding: 4 }}>{tx("Don't ask when I heart something")}</button>
           </div>
         </Dialog>
       )}
       {askNotif && (
-        <Dialog title="Notifications" onClose={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>
+        <Dialog title={tx("Notifications")} onClose={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div className="disp" style={{ fontSize: 22 }}>Never miss a good plan</div>
-            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>A reminder a couple of hours before your saved plans, with when to leave, and a heads-up if the time or venue changes. Ring the bell on things you love to hear about new ones, at most once a day.</div>
-            <button className="pill pill-dark" onClick={async () => { setAskNotif(false); const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}>Yes, notify me</button>
-            <button className="pill pill-line" onClick={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>Not now</button>
+            <div className="disp" style={{ fontSize: 22 }}>{tx("Never miss a good plan")}</div>
+            <div style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink2)" }}>{tx("A reminder a couple of hours before your saved plans, with when to leave, and a heads-up if the time or venue changes. Ring the bell on things you love to hear about new ones, at most once a day.")}</div>
+            <button className="pill pill-dark" onClick={async () => { setAskNotif(false); const n = await turnOnNotif(); if (n) N.sync(n, savedForPush, "test"); }}>{tx("Yes, notify me")}</button>
+            <button className="pill pill-line" onClick={() => { setAskNotif(false); putNotif({ ...notifRef.current, asked: true }); }}>{tx("Not now")}</button>
           </div>
         </Dialog>
       )}

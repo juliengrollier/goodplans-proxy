@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { tx } from "./i18n.js";
 import { ResultRow, CompactCard, SquareCard, MoodTile, DotScroll, CatBullet, ActionsCtx } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { LIcon } from "./taxonomy.js";
@@ -55,16 +56,16 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
   const savedHere = fromTile ? results.filter((e) => act.isSaved(e.id)) : [];
   // Grouping: by category (default), by day (soonest first) or by neighbourhood (biggest first)
   const keyOf = (e) => {
-    if (groupBy === "day") { const d = Math.max(0, daysUntil(e, today)); return [d === 0 ? "Today" : d === 1 ? "Tomorrow" : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }), d]; }
-    if (groupBy === "area") { const a = neighbourhoodOf(e) || (e.hood ? String(e.hood).split(",")[0].trim() : "") || "Elsewhere"; return [a, 0]; }
-    return [e.ncat || e.cat || "Other", 0];
+    if (groupBy === "day") { const d = Math.max(0, daysUntil(e, today)); return [d === 0 ? tx("Today") : d === 1 ? tx("Tomorrow") : new Date(today.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }), d]; }
+    if (groupBy === "area") { const a = neighbourhoodOf(e) || (e.hood ? String(e.hood).split(",")[0].trim() : "") || tx("Elsewhere"); return [a, 0]; }
+    return [e.ncat || e.cat || tx("Other"), 0];
   };
   const groupUp = (list) => {
     const by = new Map(), ord = {};
     list.forEach((e) => { const [k, o] = keyOf(e); if (!by.has(k)) { by.set(k, []); ord[k] = o; } by.get(k).push(e); });
     let out = [...by.entries()];
     if (groupBy === "day") out = out.sort((a, b) => ord[a[0]] - ord[b[0]]).map(([k, l]) => [k, l.slice().sort((x, y) => (startMinutes(x) ?? 9999) - (startMinutes(y) ?? 9999))]);
-    if (groupBy === "area") out = out.sort((a, b) => (a[0] === "Elsewhere") - (b[0] === "Elsewhere") || b[1].length - a[1].length);
+    if (groupBy === "area") out = out.sort((a, b) => (a[0] === tx("Elsewhere")) - (b[0] === tx("Elsewhere")) || b[1].length - a[1].length);
     // Categories you like come first: ranked by the average score of their best three events (your taste is in the score)
     // Categories you like come first (your moods, favourites, what the app learned), then by their best events (rank.js)
     if (groupBy === "cat" && rankCtx) out = orderGroups(out, rankCtx);
@@ -87,16 +88,16 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
       const by = {};
       regulars.filter((x) => keep.has(x.ev.id) && (freq === "all" || kindOf(x) === freq))
         .sort((a, b) => (!!a.when - !!b.when) || (a.ev.E < b.ev.E ? -1 : 1))
-        .forEach((x) => { const k = x.ev.recLabel || "Recurring"; (by[k] = by[k] || []).push({ ev: x.ev, when: x.when, key: x.r.key }); });
+        .forEach((x) => { const k = x.ev.recLabel || tx("Recurring"); (by[k] = by[k] || []).push({ ev: x.ev, when: x.when, key: x.r.key }); });
       groups.push(...Object.entries(by));
     }
     if (freq === "all" || freq === "annual") {
       const byM = {};
       annual.filter((e) => keep.has(e.id)).forEach((e) => {
         const m = new Date(e.E + "T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
-        (byM[m] = byM[m] || []).push({ ev: e, when: e.exact ? null : "Usually in " + e.usual, key: e.id });
+        (byM[m] = byM[m] || []).push({ ev: e, when: e.exact ? null : tx("Usually in ") + e.usual, key: e.id });
       });
-      groups.push(...Object.entries(byM).map(([m, l]) => ["Every year · " + m, l]));
+      groups.push(...Object.entries(byM).map(([m, l]) => [tx("Every year · ") + m, l]));
     }
     return groups;
   }, [regulars, annual, filters, today, freq]);
@@ -123,11 +124,11 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
               <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <span className="row" style={{ gap: 10, alignItems: "center" }}>
                   <span style={{ width: 44, height: 44, borderRadius: 14, background: col, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{ico(22)}</span>
-                  <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", color: col }}>{meta?.verb || "Your list"}</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", color: col }}>{meta?.verb || tx("Your list")}</span>
                 </span>
                 <span className="row" style={{ gap: 8 }}>
-                  {listTile && onMoodFav && <button aria-label={on ? "Remove from your moods" : "Add to your moods"} aria-pressed={on} onClick={() => onMoodFav(listTile)} style={{ ...btn, color: on ? col : "var(--ink)" }}><Icon name="heart" size={18} fill={on ? "currentColor" : "none"} /></button>}
-                  <button aria-label="Close and go back to Home" onClick={() => (onClose ? onClose() : setFilters({ ...filters, ids: [], list: null }))} style={btn}><Icon name="close" size={16} /></button>
+                  {listTile && onMoodFav && <button aria-label={on ? tx("Remove from your moods") : tx("Add to your moods")} aria-pressed={on} onClick={() => onMoodFav(listTile)} style={{ ...btn, color: on ? col : "var(--ink)" }}><Icon name="heart" size={18} fill={on ? "currentColor" : "none"} /></button>}
+                  <button aria-label={tx("Close and go back to Home")} onClick={() => (onClose ? onClose() : setFilters({ ...filters, ids: [], list: null }))} style={btn}><Icon name="close" size={16} /></button>
                 </span>
               </div>
               <h1 className="disp" style={{ margin: 0, fontSize: 30, lineHeight: 1.08 }}>{filters.list}</h1>
@@ -135,9 +136,9 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
                 : meta?.teaser && <div className="ell" style={{ fontSize: 15, lineHeight: 1.45, marginTop: 8, color: "var(--ink2, var(--ink3))", whiteSpace: "nowrap" }}>{meta.teaser}</div>}
               {meta?.kind === "hood" && greatFor.length > 0 && (
                 <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 7 }}>Great for</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 7 }}>{tx("Great for")}</div>
                   <div className="hscroll" style={{ gap: 6, margin: "0 -20px", padding: "0 20px" }}>
-                    {greatFor.map(([id, l]) => { const it = primaryIntent(l[0]); const cc = it?.color || col; const ci = CATI[ACT[id].ncat]?.icon; return <button key={id} style={{ height: 36, flexShrink: 0, padding: "0 13px 0 10px", borderRadius: 18, border: "none", background: cc, color: "#fff", fontSize: 13.5, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }} onClick={() => onTile({ key: "hood-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1) + " in " + filters.list, list: l, color: col, icon: meta.icon, teaser: "Soonest first.", verb: filters.list, group: "day" })}>{ci && <LIcon node={ci} size={15} color="#fff" />}{ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1)}<span style={{ opacity: 0.75 }}>{l.length}</span></button>; })}
+                    {greatFor.map(([id, l]) => { const it = primaryIntent(l[0]); const cc = it?.color || col; const ci = CATI[ACT[id].ncat]?.icon; return <button key={id} style={{ height: 36, flexShrink: 0, padding: "0 13px 0 10px", borderRadius: 18, border: "none", background: cc, color: "#fff", fontSize: 13.5, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }} onClick={() => onTile({ key: "hood-act-" + id, title: ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1) + " in " + filters.list, list: l, color: col, icon: meta.icon, teaser: tx("Soonest first."), verb: filters.list, group: "day" })}>{ci && <LIcon node={ci} size={15} color="#fff" />}{ACT[id].label[0].toUpperCase() + ACT[id].label.slice(1)}<span style={{ opacity: 0.75 }}>{l.length}</span></button>; })}
                   </div>
                 </div>
               )}
@@ -146,12 +147,12 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
               <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink3)", minWidth: 0 }} className="ell">{results.length} {results.length === 1 ? "event" : "events"}{first ? " · from " + whenLabel(first, today).split(" · until")[0].replace(/\s[-–]\s\d.*$/, "") : ""}</div>
               </div>
             </div>
-            {mapEvs.length > 0 && home && <><div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "30px 16px 26px" }} /><div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Happening next</div><AroundMap legend evs={mapEvs.slice(0, 12)} home={home} dark={dark} today={today} onOpen={onOpen} height={200} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></>}
+            {mapEvs.length > 0 && home && <><div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "30px 16px 26px" }} /><div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{tx("Happening next")}</div><AroundMap legend evs={mapEvs.slice(0, 12)} home={home} dark={dark} today={today} onOpen={onOpen} height={200} onFull={() => onFullMap && onFullMap(mapEvs.map((e) => e.id), filters.list)} /></>}
             <div style={{ height: 1, background: "var(--line, rgba(128,128,128,.25))", margin: "30px 16px 26px" }} />
             <div className="row" style={{ padding: "0 16px 12px 20px", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Coming up</span>
-              <span className="row" role="group" aria-label="Group by" style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)" }}>
-                {[["rank", "Ranked"], ["day", "Soonest"], ["cat", "Category"]].map(([k, l]) => <button key={k} aria-pressed={groupBy === k} onClick={() => setGroupBy(k)} style={{ height: 26, padding: "0 11px", borderRadius: 12, border: "none", background: groupBy === k ? "var(--card)" : "transparent", color: groupBy === k ? "var(--ink)" : "var(--ink3)", fontSize: 12.5, fontWeight: 700, boxShadow: groupBy === k ? "0 1px 3px rgba(0,0,0,.12)" : "none" }}>{l}</button>)}
+              <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{tx("Coming up")}</span>
+              <span className="row" role="group" aria-label={tx("Group by")} style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)" }}>
+                {[["rank", tx("Ranked")], ["day", tx("Soonest")], ["cat", tx("Category")]].map(([k, l]) => <button key={k} aria-pressed={groupBy === k} onClick={() => setGroupBy(k)} style={{ height: 26, padding: "0 11px", borderRadius: 12, border: "none", background: groupBy === k ? "var(--card)" : "transparent", color: groupBy === k ? "var(--ink)" : "var(--ink3)", fontSize: 12.5, fontWeight: 700, boxShadow: groupBy === k ? "0 1px 3px rgba(0,0,0,.12)" : "none" }}>{l}</button>)}
               </span>
             </div>
           </div>
@@ -162,17 +163,17 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
         <div className="row" style={{ padding: "20px 12px 12px 20px", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)", whiteSpace: "nowrap" }}>{view === "regulars" ? nReg : results.length}</span>
           <span className="row" style={{ gap: 6, alignItems: "center", minWidth: 0 }}>
-            <span className="row hscroll" role="group" aria-label="Group by" style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)", minWidth: 0, overflowX: "auto", flexWrap: "nowrap" }}>
-              {[["rank", "Ranked"], ["day", "Soonest"], ["cat", "Category"], ["rec", "Recurring"]].map(([k, l]) => { const on = k === "rec" ? view === "regulars" : view === "all" && groupBy === k; return <button key={k} aria-pressed={on} onClick={() => { if (k === "rec") setView("regulars"); else { setView("all"); setGroupBy(k); } }} style={{ height: 26, padding: "0 7px", borderRadius: 12, border: "none", background: on ? "var(--card)" : "transparent", color: on ? "var(--ink)" : "var(--ink3)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>{l}</button>; })}
+            <span className="row hscroll" role="group" aria-label={tx("Group by")} style={{ gap: 2, padding: 2, borderRadius: 14, background: "var(--chip)", minWidth: 0, overflowX: "auto", flexWrap: "nowrap" }}>
+              {[["rank", tx("Ranked")], ["day", tx("Soonest")], ["cat", tx("Category")], ["rec", tx("Recurring")]].map(([k, l]) => { const on = k === "rec" ? view === "regulars" : view === "all" && groupBy === k; return <button key={k} aria-pressed={on} onClick={() => { if (k === "rec") setView("regulars"); else { setView("all"); setGroupBy(k); } }} style={{ height: 26, padding: "0 7px", borderRadius: 12, border: "none", background: on ? "var(--card)" : "transparent", color: on ? "var(--ink)" : "var(--ink3)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>{l}</button>; })}
             </span>
-            {view === "all" && groupBy !== "rank" && <button className="chip" aria-label={style === "list" ? "Show as carousels" : "Show as a list"} style={{ height: 30, width: 32, flexShrink: 0, padding: 0, justifyContent: "center" }} onClick={() => setStyle(style === "list" ? "carousel" : "list")}><Icon name={style === "list" ? "rows" : "list"} size={15} /></button>}
+            {view === "all" && groupBy !== "rank" && <button className="chip" aria-label={style === "list" ? tx("Show as carousels") : tx("Show as a list")} style={{ height: 30, width: 32, flexShrink: 0, padding: 0, justifyContent: "center" }} onClick={() => setStyle(style === "list" ? "carousel" : "list")}><Icon name={style === "list" ? "rows" : "list"} size={15} /></button>}
           </span>
         </div>
       )}
 
       {savedHere.length > 0 && (
         <div style={{ paddingTop: 8, marginBottom: 14 }}>
-          <div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>Saved · {savedHere.length}</div>
+          <div style={{ padding: "0 20px 12px", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{tx("Saved ·")} {savedHere.length}</div>
           {savedHere.length === 1
             ? <div style={{ padding: "0 16px" }}><CompactCard ev={savedHere[0]} dark={dark} today={today} onOpen={onOpen} /></div>
             : <DotScroll>{savedHere.map((ev) => <SquareCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
@@ -186,7 +187,7 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
               {!collapsed[cat] && <DotScroll>{list.map((ev) => <SquareCard hideCat={groupBy === "cat"} key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>}
             </div>
           ))}
-          {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
+          {!results.length && <div className="card" style={{ margin: "0 16px", padding: 20, fontSize: 15 }}>{tx("Nothing matches. Try clearing a filter.")}</div>}
         </div>
       ) : view === "all" ? (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
@@ -198,24 +199,24 @@ export default function Explore({ rankCtx, listMeta, tiles, moodFav = [], onMood
               </React.Fragment>
             ))
             : (groupBy === "rank" ? ranked : results).slice(0, limit).map((ev, i) => <ResultRow key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
-          {!results.length && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing matches. Try clearing a filter.</div>}
-          {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>Show more</button>}
+          {!results.length && <div className="card" style={{ padding: 20, fontSize: 15 }}>{tx("Nothing matches. Try clearing a filter.")}</div>}
+          {results.length > limit && <button className="pill pill-line" onClick={() => setLimit(limit + 40)}>{tx("Show more")}</button>}
         </div>
       ) : null}
       {view === "all" && fromTile && alsoLike.length > 0 && (
         <div style={{ marginTop: 30 }}>
-          <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 3 }}><h2>You may also like</h2><span className="muted" style={{ fontSize: 14 }}>Activities close to this one.</span></div>
+          <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 3 }}><h2>{tx("You may also like")}</h2><span className="muted" style={{ fontSize: 14 }}>{tx("Activities close to this one.")}</span></div>
           <DotScroll onMore={() => alsoN < alsoLike.length && setAlsoN(alsoN + 6)}>{alsoLike.slice(0, alsoN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} onFb={onMoodFb} fav={moodFav.includes(t.key)} onFav={onMoodFav} />)}</DotScroll>
         </div>
       )}
       {view !== "all" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-          <div className="row" style={{ gap: 6, flexWrap: "wrap" }} role="tablist" aria-label="How often">
-            {[["all", "All"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["annual", "Yearly"]].map(([k, l]) => (
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }} role="tablist" aria-label={tx("How often")}>
+            {[["all", tx("All")], ["weekly", tx("Weekly")], ["monthly", tx("Monthly")], ["annual", tx("Yearly")]].map(([k, l]) => (
               <button key={k} role="tab" aria-selected={freq === k} className={"chip" + (freq === k ? " on" : "")} style={{ height: 30 }} onClick={() => setFreq(k)}>{l}</button>
             ))}
           </div>
-          {!nReg && <div className="card" style={{ padding: 20, fontSize: 15 }}>Nothing recurring yet. A series shows up here once it appears on two dates with a pattern (weekly, every other week, monthly), or says "every Tuesday". The app keeps them between refreshes.</div>}
+          {!nReg && <div className="card" style={{ padding: 20, fontSize: 15 }}>{tx("Nothing recurring yet. A series shows up here once it appears on two dates with a pattern (weekly, every other week, monthly), or says \"every Tuesday\". The app keeps them between refreshes.")}</div>}
           {regGroups.map(([label, list]) => (
             <React.Fragment key={label}>
               <div className="disp" style={{ fontSize: 19, padding: "8px 4px 0" }}>{label}</div>

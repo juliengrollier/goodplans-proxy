@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { tx } from "./i18n.js";
 import { createPortal } from "react-dom";
 import { Glyph, Icon, glyphSvgString } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
@@ -23,7 +24,7 @@ export function CatBullet({ cat, ev, size = 30, dark }) {
 }
 
 export function PriceTag({ ev }) {
-  if (isFree(ev)) return <span className="tag tag-free">Free</span>;
+  if (isFree(ev)) return <span className="tag tag-free">{tx("Free")}</span>;
   const p = (ev.price || "").split("/")[0].trim();
   // Only real prices: "See website" or "Tickets" say nothing on a card
   if (!/\$\s?\d|\d\s?(usd|\$)/i.test(p)) return null;
@@ -102,8 +103,8 @@ export function CardActions({ ev, size = 34, onNfm, noSave }) {
   const is = Math.round(size * 0.5);
   return (
     <div className="row" style={{ gap: 6 }}>
-      <button aria-label="Less like this" aria-pressed={t === -1} style={btn(t === -1, true)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
-      {!noSave && <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} style={{ ...btn(saved), width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, border: saved ? "none" : "2px solid var(--ink)", background: saved ? "var(--navy)" : "transparent" }} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is + 2} fill={saved ? "currentColor" : "none"} /></button>}
+      <button aria-label={tx("Less like this")} aria-pressed={t === -1} style={btn(t === -1, true)} onClick={stop(() => { if (onNfm) return onNfm(ev); if (t === -1) a.onReact(ev, "undo"); else { a.onReact(ev, "down", null, true); a.askWhy(ev, "down"); } })}><Icon name="down" size={is} /></button>
+      {!noSave && <button aria-label={saved ? tx("Remove from plans") : tx("Save to plans")} aria-pressed={saved} style={{ ...btn(saved), width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, border: saved ? "none" : "2px solid var(--ink)", background: saved ? "var(--navy)" : "transparent" }} onClick={stop(() => a.onSave(ev))}><Icon name="save" size={is + 2} fill={saved ? "currentColor" : "none"} /></button>}
     </div>
   );
 }
@@ -115,7 +116,7 @@ export function PicOverlay({ ev, size = 36, mood }) {
   const m = primaryIntent(ev);
   return (
     <>
-      <button aria-label={saved ? "Remove from plans" : "Save to plans"} aria-pressed={saved} onClick={(e) => { e.stopPropagation(); a.onSave(ev); }}
+      <button aria-label={saved ? tx("Remove from plans") : tx("Save to plans")} aria-pressed={saved} onClick={(e) => { e.stopPropagation(); a.onSave(ev); }}
         style={{ position: "absolute", top: 8, right: 8, width: size - 4, height: size - 4, borderRadius: (size - 4) / 2, border: "none", display: "flex", alignItems: "center", justifyContent: "center", background: saved ? "rgba(255,255,255,.92)" : "rgba(10,12,30,.28)", color: saved ? "#1B1F3B" : "#fff", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
         <Icon name="save" size={Math.round(size * 0.46)} fill={saved ? "currentColor" : "none"} />
       </button>
@@ -153,7 +154,7 @@ export function Media({ ev, dark, height, radius = 18, big, hideTitle, credit, t
 export function Flags({ ev }) {
   return (
     <>
-      {ev.recurring && <span className="tag tag-plain">{(ev.recLabel || "Recurring").split(" · ")[0]}</span>}
+      {ev.recurring && <span className="tag tag-plain">{(ev.recLabel || tx("Recurring")).split(" · ")[0]}</span>}
       <WeatherTag ev={ev} />
     </>
   );
@@ -270,7 +271,7 @@ export function CompactCard({ ev, dark, today, onOpen, label, when, walk }) {
 export const actLabel = (ev) => { const l = (ev.act && ACT[ev.act]?.label) || ev.nsub || ev.sub || ev.ncat || ev.cat || ""; return l ? l[0].toUpperCase() + l.slice(1) : ""; };
 export const areaLabel = (ev) => neighbourhoodOf(ev) || (ev.hood ? String(ev.hood).split(",")[0].trim() : "");
 export const minsLabel = (ev) => (ev.tt?.mins != null ? Math.round(ev.tt.mins) + "\u2032" : "");
-export const priceShort = (ev) => { if (isFree(ev)) return "Free"; const m = String(ev.price || "").match(/\$\s?\d+(\.\d+)?/); return m ? m[0].replace(/\s/g, "") : ""; };
+export const priceShort = (ev) => { if (isFree(ev)) return tx("Free"); const m = String(ev.price || "").match(/\$\s?\d+(\.\d+)?/); return m ? m[0].replace(/\s/g, "") : ""; };
 export function TravelMini({ ev, size = 13 }) {
   if (ev.tt?.mins == null) return null;
   return <span className="row" style={{ gap: 2, color: "var(--ink3)", flexShrink: 0, whiteSpace: "nowrap" }}><Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={size} width={2.2} />{minsLabel(ev)}</span>;
@@ -284,16 +285,16 @@ export function shortWhen(ev, today) {
   let d = nx ? Math.round((nx - t0) / 86400000) : Math.max(0, daysUntil(ev, today));
   if (d === 0) {
     const w = eventWindow(ev), end = endMinutes(ev) ?? (st != null ? st + 120 : null);
-    if (st != null && st <= now && (end ?? st + 120) > now) return "On now";
-    if (st == null && multi && w.s <= now && w.e > now) return "On now";
+    if (st != null && st <= now && (end ?? st + 120) > now) return tx("On now");
+    if (st == null && multi && w.s <= now && w.e > now) return tx("On now");
     if (st != null && st > now) return fmtClock(st);
-    if (st == null) return "Today";
+    if (st == null) return tx("Today");
     // today's session is over: next one
     if (multi) { nx = nextOn(ev, new Date(t0.getTime() + 86400000)); if (nx) d = Math.round((nx - t0) / 86400000); }
     if (d === 0) return fmtClock(st);
   }
   // a weekday name only within the coming week; further out, the date ("Thu Nov 26")
-  const day = d === 1 ? "Tomorrow" : d < 7 ? new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long" }) : new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "");
+  const day = d === 1 ? tx("Tomorrow") : d < 7 ? new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "long" }) : new Date(t0.getTime() + d * 86400000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "");
   return day + (st != null ? " " + fmtClock(st) : "");
 }
 
@@ -347,7 +348,7 @@ export function PosterCard({ ev, dark, today, onOpen, fluid, label }) {
           <span className="disp ell" style={{ fontSize: 20, lineHeight: 1.15, whiteSpace: "nowrap" }}>{ev.title}</span>
           {ev.desc && <span style={{ fontSize: 12, lineHeight: 1.35, opacity: 0.62, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ev.desc}</span>}
           <span className="row" style={{ justifyContent: "space-between", alignItems: "center", fontSize: 12.5, minWidth: 0 }}>
-            <span className="row" style={{ gap: 6, opacity: 0.9, minWidth: 0, whiteSpace: "nowrap" }}>{shortWhen(ev, today) === "On now" && <span className="gp-pulse" aria-hidden="true" />}<span className="ell">{shortWhen(ev, today)}{priceShort(ev) ? " · " + priceShort(ev) : ""}</span>{ev.tt?.mins != null && <span className="row" style={{ gap: 2 }}>·&nbsp;<Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={12} width={2.2} />{minsLabel(ev)}</span>}</span>
+            <span className="row" style={{ gap: 6, opacity: 0.9, minWidth: 0, whiteSpace: "nowrap" }}>{shortWhen(ev, today) === tx("On now") && <span className="gp-pulse" aria-hidden="true" />}<span className="ell">{shortWhen(ev, today)}{priceShort(ev) ? " · " + priceShort(ev) : ""}</span>{ev.tt?.mins != null && <span className="row" style={{ gap: 2 }}>·&nbsp;<Icon name={ev.tt.mode === "walk" ? "walk" : "train"} size={12} width={2.2} />{minsLabel(ev)}</span>}</span>
             <span className="onpic" style={{ display: "flex", marginRight: -6 }}><CardActions ev={ev} size={24} noSave /></span>
           </span>
         </div>
@@ -393,16 +394,16 @@ export function SectionHead({ title, n, color, icon, onMore }) {
       <h2>{title}</h2>
       {color && <svg width="56" height="14" viewBox="0 0 64 14" aria-hidden="true"><path d="M3 7c8-6 14 6 22 0s14-6 22 0 10 4 14 0" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" /></svg>}
       {n != null && !onMore && <span className="n">{n}</span>}
-      {onMore && <button className="chip" onClick={onMore} style={{ marginLeft: "auto", height: 32, flexShrink: 0 }} aria-label={"See all: " + title}>More <Icon name="chev" size={14} /></button>}
+      {onMore && <button className="chip" onClick={onMore} style={{ marginLeft: "auto", height: 32, flexShrink: 0 }} aria-label={tx("See all: ") + title}>{tx("More")} <Icon name="chev" size={14} /></button>}
     </div>
   );
 }
 
 export function TabBar({ tab, setTab, plansCount }) {
   const night = new Date().getHours() >= 18;
-  const items = [["today", night ? "Tonight" : "Today"], ["explore", "Explore"], ["map", "Map"], ["plans", "Plans"], ["me", "Me"]];
+  const items = [["today", night ? tx("Tonight") : tx("Today")], ["explore", tx("Explore")], ["map", tx("Map")], ["plans", tx("Plans")], ["me", "Me"]];
   return (
-    <nav className="tabbar" aria-label="Main">
+    <nav className="tabbar" aria-label={tx("Main")}>
       {items.map(([k, l]) => (
         <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)} style={{ position: "relative" }}>
           <span className="tab-ic"><Icon name={k === "today" && night ? "moon" : k} size={22} width={tab === k ? 2.4 : 2.2} /></span>
@@ -421,7 +422,7 @@ export function Dialog({ title, onClose, children }) {
       <div className="dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
         <div className="row" style={{ marginBottom: 14 }}>
           <span className="disp" style={{ fontSize: 22 }}>{title}</span>
-          <button onClick={onClose} aria-label="Close" style={{ marginLeft: "auto", border: "none", background: "var(--chip)", width: 36, height: 36, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={18} /></button>
+          <button onClick={onClose} aria-label={tx("Close")} style={{ marginLeft: "auto", border: "none", background: "var(--chip)", width: 36, height: 36, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={18} /></button>
         </div>
         {children}
       </div>
@@ -467,7 +468,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       setTimeout(() => m.invalidateSize(), 120);
       m.on("zoomend", () => drawRef.current && drawRef.current());
       draw();
-    }).catch(() => setErr("Map could not load"));
+    }).catch(() => setErr(tx("Map could not load")));
     return () => { alive = false; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; tileRef.current = null; } };
     // eslint-disable-next-line
   }, []);
@@ -523,7 +524,7 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
   return (
     <div style={{ position: "relative", isolation: "isolate", height, borderRadius: rounded ? 22 : interactive ? 0 : 20, overflow: "hidden", background: "var(--mapbg)" }}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} />
-      {hint && <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(20,24,51,.45)", color: "#fff", fontWeight: 800, fontSize: 15, pointerEvents: "none" }}>Use two fingers to move the map</div>}
+      {hint && <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(20,24,51,.45)", color: "#fff", fontWeight: 800, fontSize: 15, pointerEvents: "none" }}>{tx("Use two fingers to move the map")}</div>}
       {err && <div className="muted" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{err}</div>}
     </div>
   );
@@ -554,8 +555,8 @@ export function MoodTile({ t, compact, fb = 0, fav = false, onFav }) {
         {t.node ? <LIcon node={t.node} size={64} color="#fff" stroke={1.8} /> : t.icon ? React.createElement(t.icon, { size: 64, strokeWidth: 1.8 }) : null}
       </span>
         <span className="row" style={{ gap: 6, position: "absolute", top: 8, right: 8 }}>
-        {onFav && fav && nc && <button aria-label={belled ? "Stop notifications for " + t.title : "Notify me about new " + t.title} aria-pressed={belled} onClick={act(() => nc.toggle(t))} style={{ width: 32, height: 32, borderRadius: 16, border: "none", background: belled ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: belled ? t.color || "#1B1F3B" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="bell" size={18} fill={belled ? "currentColor" : "none"} /></button>}
-        {onFav && <button aria-label={fav ? "Remove from My Interests" : "Add to My Interests"} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ width: 32, height: 32, borderRadius: 16, border: "none", background: fav ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: fav ? t.color || "#E11D48" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={19} fill={fav ? "currentColor" : "none"} /></button>}
+        {onFav && fav && nc && <button aria-label={belled ? tx("Stop notifications for ") + t.title : tx("Notify me about new ") + t.title} aria-pressed={belled} onClick={act(() => nc.toggle(t))} style={{ width: 32, height: 32, borderRadius: 16, border: "none", background: belled ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: belled ? t.color || "#1B1F3B" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="bell" size={18} fill={belled ? "currentColor" : "none"} /></button>}
+        {onFav && <button aria-label={fav ? tx("Remove from My Interests") : tx("Add to My Interests")} aria-pressed={fav} onClick={act(() => onFav(t))} style={{ width: 32, height: 32, borderRadius: 16, border: "none", background: fav ? "rgba(255,255,255,.95)" : "rgba(0,0,0,.18)", color: fav ? t.color || "#E11D48" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon name="heart" size={19} fill={fav ? "currentColor" : "none"} /></button>}
         </span>
       <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {t.verb && <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 1.3, textTransform: "uppercase", opacity: 0.85 }}>{t.verb}</span>}

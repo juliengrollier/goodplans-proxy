@@ -1,6 +1,7 @@
 // Quick tour after onboarding: a welcome, five tips on the real screen (spotlight + card), a goodbye.
 // Skippable, shown once, replayable from Me. Each tip scrolls so the highlighted part and its card sit centred together.
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { tx } from "./i18n.js";
 import { createPortal } from "react-dom";
 import { Maximize2 } from "lucide-react";
 import { Icon } from "./icons.jsx";
@@ -13,19 +14,19 @@ const I = ({ n, fill }) => <span style={{ display: "inline-flex", verticalAlign:
 
 // Vocabulary: picks = what Good Plans suggests; plans = what you saved (bookmark); favourites = what you hearted
 export const TOUR_STEPS = [
-  { title: () => (firstName() ? "Hi " + firstName() : "Hi there"),
-    text: () => "Never wonder what to do next. Good Plans knows you, the city, and how to make you love it. Quick tour?", next: "Show me", skip: "Skip" },
-  { sel: "#tour-around", from: "#tour-around .sec-h > span", title: "Right now, nearby",
-    text: () => <>What's happening within a 25-minute walk, soonest first. Tap one for details, or <span style={{ display: "inline-flex", verticalAlign: "-3px" }}><Maximize2 size={15} strokeWidth={2.4} /></span> for the full map.</> },
-  { sel: "#tour-card", title: "Picked for you",
-    text: () => <>Your best picks for the next outing. Tap <I n="save" /> to save one to your plans, the list under <I n="plans" /> Plans at the bottom.</> },
-  { sel: "#tour-moods", title: "What are you in the mood for?",
-    text: () => <>Tap a mood and your picks follow: live music tonight, a good laugh, something creative… Tap <I n="heart" /> to add a mood to My Interests.</> },
-  { sel: "#my-favs", from: "#my-favs .sec-h > span", title: "One tap to what you love",
-    text: () => <>Every mood and activity you <I n="heart" fill /> is kept here. You can also reach them from <I n="heart" /> at the top.</> },
-  { sel: "#tour-city-first > :first-child", from: "#tour-city .sec-h > span", title: "Today's local heartbeat",
-    text: () => "What the city is up to today: the season, the neighbourhoods, the weather. New every day." },
-  { title: "You're set", text: () => "The more you save, the better your picks get. Enjoy the city!", next: "Let's go" },
+  { title: () => (firstName() ? tx("Hi, ") + firstName() : tx("Hi there")),
+    text: () => tx("Never wonder what to do next. Good Plans knows you, the city, and how to make you love it. Quick tour?"), next: tx("Show me"), skip: tx("Skip") },
+  { sel: "#tour-around", from: "#tour-around .sec-h > span", title: tx("Right now, nearby"),
+    text: () => <>{tx("What's happening within a 25-minute walk, soonest first. Tap one for details, or")} <span style={{ display: "inline-flex", verticalAlign: "-3px" }}><Maximize2 size={15} strokeWidth={2.4} /></span> {tx("for the full map.")}</> },
+  { sel: "#tour-card", title: tx("Picked for you"),
+    text: () => <>{tx("Your best picks for the next outing. Tap")} <I n="save" /> {tx("to save one to your plans, the list under")} <I n="plans" /> {tx("Plans at the bottom.")}</> },
+  { sel: "#tour-moods", title: tx("What are you in the mood for?"),
+    text: () => <>{tx("Tap a mood and your picks follow: live music tonight, a good laugh, something creative… Tap")} <I n="heart" /> {tx("to add a mood to My Interests.")}</> },
+  { sel: "#my-favs", from: "#my-favs .sec-h > span", title: tx("One tap to what you love"),
+    text: () => <>{tx("Every mood and activity you")} <I n="heart" fill /> {tx("is kept here. You can also reach them from")} <I n="heart" /> {tx("at the top.")}</> },
+  { sel: "#tour-city-first > :first-child", from: "#tour-city .sec-h > span", title: tx("Today's local heartbeat"),
+    text: () => tx("What the city is up to today: the season, the neighbourhoods, the weather. New every day.") },
+  { title: tx("You're set"), text: () => tx("The more you save, the better your picks get. Enjoy the city!"), next: tx("Let's go") },
 ];
 
 const CARD_H = 200, GAP = 12, BOTTOM = 92; // tip card height (approx.), gap to the highlight, tab bar
@@ -72,7 +73,7 @@ export default function Tour({ steps = TOUR_STEPS, onDone }) {
   const cardTop = hole ? (below ? hole.top + hole.height + GAP : Math.max(12, hole.top - GAP - cardH)) : (vh - cardH) / 2 - 30;
   const val = (x) => (typeof x === "function" ? x() : x);
   return createPortal(
-    <div role="dialog" aria-label={"Tour, step " + (i + 1) + " of " + live.length} style={{ position: "fixed", inset: 0, zIndex: 300 }}>
+    <div role="dialog" aria-label={tx("Tour, step ") + (i + 1) + " of " + live.length} style={{ position: "fixed", inset: 0, zIndex: 300 }}>
       <style>{"@keyframes gpTourIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}"}</style>
       {hole
         ? <div style={{ position: "fixed", ...hole, borderRadius: 18, boxShadow: "0 0 0 9999px rgba(10,12,30,.64)", transition: "all .25s ease", pointerEvents: "none" }} />
@@ -84,8 +85,8 @@ export default function Tour({ steps = TOUR_STEPS, onDone }) {
           <div className="disp" style={{ fontSize: centred ? 24 : 20, margin: centred ? "0 0 8px" : "4px 0 6px" }}>{val(step.title)}</div>
           <div style={{ fontSize: 14.5, lineHeight: 1.5, color: "var(--ink2)" }}>{val(step.text)}</div>
           <div className="row" style={{ justifyContent: "space-between", marginTop: 14 }}>
-            {i + 1 < live.length ? <button onClick={done} style={{ border: "none", background: "none", padding: "6px 0", fontSize: 14, fontWeight: 700, color: "var(--ink3)" }}>{step.skip || "Skip tour"}</button> : <span />}
-            <button className="pill pill-dark" onClick={next} style={{ height: 40, padding: "0 20px" }}>{step.next || "Next"}</button>
+            {i + 1 < live.length ? <button onClick={done} style={{ border: "none", background: "none", padding: "6px 0", fontSize: 14, fontWeight: 700, color: "var(--ink3)" }}>{step.skip || tx("Skip tour")}</button> : <span />}
+            <button className="pill pill-dark" onClick={next} style={{ height: 40, padding: "0 20px" }}>{step.next || tx("Next")}</button>
           </div>
         </div>
       )}
