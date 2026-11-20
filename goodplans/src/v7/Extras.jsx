@@ -1,4 +1,5 @@
 import React from "react";
+import { tx } from "./i18n.js";
 import { Dialog, Media, CatBullet, PriceTag } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 import { nowMinutes, fmtClock, whenLabel, travelLabel, venueLabel, isoDay, todOf } from "./engine.js";
@@ -8,29 +9,29 @@ export function FreeUntilDialog({ freeUntil, autoFree, onPick, onClose }) {
   const now = nowMinutes();
   const round = (m) => Math.ceil(m / 15) * 15;
   const opts = [
-    ["For 1 hour", round(now + 60)],
-    ["For 2 hours", round(now + 120)],
-    ["For 3 hours", round(now + 180)],
-    ["Until midnight", 24 * 60 - 1],
+    [tx("For 1 hour"), round(now + 60)],
+    [tx("For 2 hours"), round(now + 120)],
+    [tx("For 3 hours"), round(now + 180)],
+    [tx("Until midnight"), 24 * 60 - 1],
   ].filter(([, m]) => m <= 24 * 60 - 1 || m === 24 * 60 - 1);
   return (
-    <Dialog title="I'm free until…" onClose={onClose}>
+    <Dialog title={tx("I'm free until…")} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {autoFree != null && (
           <button className="card-sm" style={{ border: "none", textAlign: "left", padding: "14px 16px" }} onClick={() => onPick(autoFree)}>
-            <div style={{ fontWeight: 800 }}>{fmtClock(autoFree)} · next thing in your calendar</div>
-            <div className="muted" style={{ fontSize: 13 }}>From your calendar busy times</div>
+            <div style={{ fontWeight: 800 }}>{fmtClock(autoFree)} {tx("· next thing in your calendar")}</div>
+            <div className="muted" style={{ fontSize: 13 }}>{tx("From your calendar busy times")}</div>
           </button>
         )}
         {opts.map(([l, m]) => (
           <button key={l} className="card-sm" style={{ border: "none", textAlign: "left", padding: "14px 16px", fontWeight: 800 }} onClick={() => onPick(m)}>
-            {l} <span className="muted" style={{ fontWeight: 600 }}>· until {fmtClock(m)}</span>
+            {l} <span className="muted" style={{ fontWeight: 600 }}>{tx("· until")} {fmtClock(m)}</span>
           </button>
         ))}
-        <label className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 4 }}>Pick a time</label>
+        <label className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 4 }}>{tx("Pick a time")}</label>
         <input className="input" type="time" defaultValue={freeUntil != null ? `${String(Math.floor(freeUntil / 60)).padStart(2, "0")}:${String(freeUntil % 60).padStart(2, "0")}` : ""}
           onChange={(e) => { const [h, m] = e.target.value.split(":").map(Number); if (!isNaN(h)) onPick(h * 60 + (m || 0)); }} />
-        {freeUntil != null && <button className="pill pill-line" onClick={() => onPick(null)}>Clear</button>}
+        {freeUntil != null && <button className="pill pill-line" onClick={() => onPick(null)}>{tx("Clear")}</button>}
       </div>
     </Dialog>
   );
@@ -42,11 +43,11 @@ export function Surprise({ ev, dark, today, weather, onOpen, onAnother, onClose,
     <div className="overlay" style={{ alignItems: "stretch" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", width: "100%", maxWidth: 520, margin: "0 auto", minHeight: "100%", display: "flex", flexDirection: "column", padding: "calc(16px + env(safe-area-inset-top)) 18px calc(22px + env(safe-area-inset-bottom))", gap: 14, overflowY: "auto" }}>
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <span className="disp" style={{ fontSize: 26 }}>Surprise!</span>
-          <button onClick={onClose} aria-label="Close" style={{ border: "none", background: "var(--chip)", width: 40, height: 40, borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}><Icon name="close" size={18} /></button>
+          <span className="disp" style={{ fontSize: 26 }}>{tx("Surprise!")}</span>
+          <button onClick={onClose} aria-label={tx("Close")} style={{ border: "none", background: "var(--chip)", width: 40, height: 40, borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}><Icon name="close" size={18} /></button>
         </div>
         {empty || !ev ? (
-          <div className="card" style={{ padding: 22 }}><span style={{ fontSize: 15 }}>Nothing left to surprise you with in the next few days. Try a refresh, or loosen your taste settings in Me.</span></div>
+          <div className="card" style={{ padding: 22 }}><span style={{ fontSize: 15 }}>{tx("Nothing left to surprise you with in the next few days. Try a refresh, or loosen your taste settings in Me.")}</span></div>
         ) : (
           <>
             <Media ev={ev} dark={dark} height={300} radius={26} big hideTitle />
@@ -54,10 +55,10 @@ export function Surprise({ ev, dark, today, weather, onOpen, onAnother, onClose,
             <h2 className="disp" style={{ margin: 0, fontSize: 30, lineHeight: 1.1 }}>{ev.title}</h2>
             <div style={{ fontSize: 15, color: "var(--ink2)", fontWeight: 700 }}>{whenLabel(ev, today)} · {venueLabel(ev) || ev.hood}{ev.tt ? " · " + travelLabel(ev.tt) : ""}</div>
             {ev.why?.length > 0 && <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>{ev.why.slice(0, 3).map((w) => <span key={w} className="tag tag-plain">{w}</span>)}</div>}
-            {weather?.now?.rainingNow && <div className="tag tag-warn" style={{ alignSelf: "flex-start" }}>It's raining now; this one is indoors-friendly</div>}
+            {weather?.now?.rainingNow && <div className="tag tag-warn" style={{ alignSelf: "flex-start" }}>{tx("It's raining now; this one is indoors-friendly")}</div>}
             <div style={{ flex: 1 }} />
-            <button className="pill pill-dark" onClick={() => onOpen(ev)}>Tell me more</button>
-            <button className="pill pill-line" onClick={onAnother}><Icon name="refresh" size={18} /> Another one</button>
+            <button className="pill pill-dark" onClick={() => onOpen(ev)}>{tx("Tell me more")}</button>
+            <button className="pill pill-line" onClick={onAnother}><Icon name="refresh" size={18} /> {tx("Another one")}</button>
           </>
         )}
       </div>
@@ -76,15 +77,15 @@ function whyOptions(ev, dir, today, counts = {}, smart = []) {
   const vibe = feel || (ev.kw || []).slice(0, 2).join(", ");
   const base = dir === "up"
     ? [
-      ["act", "This act or show", ev.title.length > 34 ? ev.title.slice(0, 32) + "…" : ev.title],
-      ["genre", "The topic or genre", kinds.join(" · ") || ev.cat],
-      ["unique", "Unusual or one-off", "More rare, only-in-NYC things"],
-      ["vibe", "The atmosphere", vibe || "The setting and crowd"],
-      ["value", free ? "It's free" : "Good value", free ? "Free things get a boost" : money(ev) || "Price"],
+      ["act", tx("This act or show"), ev.title.length > 34 ? ev.title.slice(0, 32) + "…" : ev.title],
+      ["genre", tx("The topic or genre"), kinds.join(" · ") || ev.cat],
+      ["unique", tx("Unusual or one-off"), tx("More rare, only-in-NYC things")],
+      ["vibe", tx("The atmosphere"), vibe || tx("The setting and crowd")],
+      ["value", free ? tx("It's free") : tx("Good value"), free ? tx("Free things get a boost") : money(ev) || tx("Price")],
     ]
     : [
-      ["scene", "Not our scene", kinds.join(" · ") || ev.cat],
-      ["pricey", "Too expensive", free ? "Free, but not worth it" : money(ev) || "Price"],
+      ["scene", tx("Not our scene"), kinds.join(" · ") || ev.cat],
+      ["pricey", tx("Too expensive"), free ? tx("Free, but not worth it") : money(ev) || tx("Price")],
     ];
   base.sort((a, b) => (counts[dir + ":" + b[0]] || 0) - (counts[dir + ":" + a[0]] || 0));
   // Up to 3 traits of this event the learning engine suspects matter, or knows least about
@@ -99,8 +100,8 @@ export function WhyDialog({ ev, dir, today, counts, smart = [], onPick, onClose 
   const done = () => onPick([...sel, ...(note ? ["other:" + note] : [])]);
   const tog = (k) => setSel(sel.includes(k) ? sel.filter((y) => y !== k) : [...sel, k]);
   return (
-    <Dialog title={dir === "up" ? "What do you like about it?" : "What's not right?"} onClose={onClose}>
-      <div className="muted ell" style={{ fontSize: 14, marginTop: -6, marginBottom: 12 }}>{ev.title} · pick any</div>
+    <Dialog title={dir === "up" ? tx("What do you like about it?") : tx("What's not right?")} onClose={onClose}>
+      <div className="muted ell" style={{ fontSize: 14, marginTop: -6, marginBottom: 12 }}>{ev.title} {tx("· pick any")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {opts.map(([k, l, d]) => (
           <button key={k} className="card-sm" aria-pressed={sel.includes(k)} onClick={() => tog(k)}
@@ -115,17 +116,17 @@ export function WhyDialog({ ev, dir, today, counts, smart = [], onPick, onClose 
         <button className="card-sm" aria-pressed={other !== null} onClick={() => setOther(other === null ? "" : null)}
           style={{ border: other !== null ? "2px solid var(--ink)" : "2px solid transparent", textAlign: "left", padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, background: other !== null ? "var(--chip)" : undefined }}>
           <span style={{ width: 22, height: 22, borderRadius: 11, flexShrink: 0, border: "2px solid var(--ink)", background: other !== null ? "var(--ink)" : "transparent", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800 }}>{other !== null ? "✓" : ""}</span>
-          <span style={{ fontSize: 15.5, fontWeight: 800 }}>Other</span>
+          <span style={{ fontSize: 15.5, fontWeight: 800 }}>{tx("Other")}</span>
         </button>
         {other !== null && (
           <textarea autoFocus rows={2} maxLength={200} value={other} onChange={(e) => setOther(e.target.value)}
-            placeholder={dir === "up" ? "What made it a yes?" : "What put you off?"}
+            placeholder={dir === "up" ? tx("What made it a yes?") : tx("What put you off?")}
             style={{ width: "100%", boxSizing: "border-box", borderRadius: 14, padding: "10px 12px", font: "inherit", fontSize: 15.5, border: "2px solid var(--line, rgba(255,255,255,.2))", background: "transparent", color: "inherit", resize: "none" }} />
         )}
       </div>
       <div className="row" style={{ gap: 8, marginTop: 16 }}>
-        <button className="pill pill-line" style={{ flex: 1 }} onClick={onClose}>Skip</button>
-        <button className="pill pill-dark" style={{ flex: 1 }} disabled={!sel.length && !note} onClick={done}>Done</button>
+        <button className="pill pill-line" style={{ flex: 1 }} onClick={onClose}>{tx("Skip")}</button>
+        <button className="pill pill-dark" style={{ flex: 1 }} disabled={!sel.length && !note} onClick={done}>{tx("Done")}</button>
       </div>
     </Dialog>
   );

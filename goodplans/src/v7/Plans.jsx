@@ -1,4 +1,5 @@
 import { evColor, evNode, LIcon } from "./taxonomy.js";
+import { tx } from "./i18n.js";
 import React, { useState } from "react";
 import { Icon, Glyph } from "./icons.jsx";
 import { catColor, catIcon } from "./theme.js";
@@ -20,7 +21,7 @@ export default function Plans({ favs, scoreOne, dark, today, onOpen, onRemove, b
   });
   const dayLabel = (d) => {
     const diff = Math.round((d - today) / 86400000);
-    return (diff === 0 ? "Today · " : diff === 1 ? "Tomorrow · " : "") + DAYS[d.getDay()] + " " + MONTHS[d.getMonth()] + " " + d.getDate();
+    return (diff === 0 ? tx("Today · ") : diff === 1 ? tx("Tomorrow · ") : "") + DAYS[d.getDay()] + " " + MONTHS[d.getMonth()] + " " + d.getDate();
   };
   const Item = ({ ev }) => {
     const c = evColor(ev, dark), clash = isEventBusy(ev, busySlots);
@@ -30,9 +31,9 @@ export default function Plans({ favs, scoreOne, dark, today, onOpen, onRemove, b
         <button onClick={() => onOpen(ev)} style={{ flex: 1, minWidth: 0, border: "none", background: "none", textAlign: "left", padding: 0, display: "flex", flexDirection: "column", gap: 3 }}>
           <span className="disp clamp2" style={{ fontSize: 16, lineHeight: 1.15 }}>{ev.title}</span>
           <span className="muted ell" style={{ fontSize: 13 }}>{whenLabel(ev, today)} · {travelLabel(ev.tt)}</span>
-          {clash && <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800 }}><Icon name="cal" size={14} /> Clashes with your calendar</span>}
+          {clash && <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800 }}><Icon name="cal" size={14} /> {tx("Clashes with your calendar")}</span>}
         </button>
-        <button onClick={() => onRemove(ev)} aria-label={"Remove " + ev.title} style={{ border: "none", background: "var(--chip)", width: 36, height: 36, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="close" size={16} /></button>
+        <button onClick={() => onRemove(ev)} aria-label={tx("Remove ") + ev.title} style={{ border: "none", background: "var(--chip)", width: 36, height: 36, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="close" size={16} /></button>
       </div>
     );
   };
@@ -40,13 +41,13 @@ export default function Plans({ favs, scoreOne, dark, today, onOpen, onRemove, b
   return (
     <div>
       <div style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <h1 className="disp" style={{ margin: 0, fontSize: 34 }}>Our plans</h1>
+        <h1 className="disp" style={{ margin: 0, fontSize: 34 }}>{tx("Our plans")}</h1>
         <div className="seg" style={{ gridTemplateColumns: "1fr 1fr" }}>
-          <button className={tab === "up" ? "on" : ""} onClick={() => setTab("up")}>Upcoming · {dated.length}</button>
-          <button className={tab === "ideas" ? "on" : ""} onClick={() => setTab("ideas")}>Ideas · {ideas.length}</button>
+          <button className={tab === "up" ? "on" : ""} onClick={() => setTab("up")}>{tx("Upcoming ·")} {dated.length}</button>
+          <button className={tab === "ideas" ? "on" : ""} onClick={() => setTab("ideas")}>{tx("Ideas ·")} {ideas.length}</button>
         </div>
         <div className="muted" style={{ fontSize: 13 }}>
-          {calStatus === "ok" ? "Plans that clash with your calendar are dimmed." : "Connect your calendar in Me to see clashes."} Sharing with your partner comes with accounts.
+          {calStatus === "ok" ? tx("Plans that clash with your calendar are dimmed.") : tx("Connect your calendar in Me to see clashes.")} {tx("Sharing with your partner comes with accounts.")}
         </div>
       </div>
       {tab === "up" && (groups.length ? groups.map((g) => (
@@ -54,8 +55,8 @@ export default function Plans({ favs, scoreOne, dark, today, onOpen, onRemove, b
           <div style={{ background: "var(--navy)", color: "var(--onnavy)", margin: "6px 16px 0", borderRadius: 14, padding: "8px 14px", fontSize: 13, fontWeight: 800 }}>{dayLabel(g.d)}</div>
           <div style={{ padding: "0 20px" }}>{g.items.map((e) => <Item key={e.id} ev={e} />)}</div>
         </div>
-      )) : <Empty text="Tap “Add to plans” on any event and it lands here, grouped by day." />)}
-      {tab === "ideas" && (ideas.length ? <div style={{ padding: "0 20px" }}>{ideas.map((e) => <Item key={e.id} ev={e} />)}</div> : <Empty text="Exhibitions and long runs you save wait here until you're free." />)}
+      )) : <Empty text={tx("Tap “Add to plans” on any event and it lands here, grouped by day.")} />)}
+      {tab === "ideas" && (ideas.length ? <div style={{ padding: "0 20px" }}>{ideas.map((e) => <Item key={e.id} ev={e} />)}</div> : <Empty text={tx("Exhibitions and long runs you save wait here until you're free.")} />)}
     </div>
   );
 }

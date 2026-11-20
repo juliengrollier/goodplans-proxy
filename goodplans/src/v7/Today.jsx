@@ -1,4 +1,5 @@
 import React, { useState, useContext } from "react";
+import { tx } from "./i18n.js";
 import { favAt, markFavAt } from "./moodlog.js";
 import { INTENTS, INTENT, intentEvents, intentCount, blend, bestIntent, joinMoods, primaryIntent, SOCIAL, SOCIAL_BY, applySocial } from "./intents.js";
 import { markSeen } from "./moods2.js";
@@ -19,20 +20,20 @@ import { User, Users, Maximize2 } from "lucide";
 
 function greeting(d) {
   const h = d.getHours(), day = DAYS[d.getDay()];
-  const part = h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
-  const blurb = "Let's find what's around for you!";
-  return { line: (day === "Sat" ? "Saturday" : day === "Sun" ? "Sunday" : day === "Fri" ? "Friday" : ["Monday", "Tuesday", "Wednesday", "Thursday"][d.getDay() - 1]) + " " + part, blurb };
+  const part = tx(h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night");
+  const blurb = tx("Let's find what's around for you!");
+  return { line: (day === "Sat" ? tx("Saturday") : day === "Sun" ? tx("Sunday") : day === "Fri" ? tx("Friday") : [tx("Monday"), tx("Tuesday"), tx("Wednesday"), tx("Thursday")][d.getDay() - 1]) + " " + part, blurb };
 }
 
 function soonLabel(ev) {
   const sm = startMinutes(ev), em = endMinutes(ev), now = nowMinutes();
-  if (sm == null) return "Today";
-  if (sm <= now) return em != null ? "On now · until " + fmtClock(em % 1440) : "On now";
+  if (sm == null) return tx("Today");
+  if (sm <= now) return em != null ? tx("On now · until ") + fmtClock(em % 1440) : tx("On now");
   const d = sm - now;
   return d < 60 ? "In " + d + " min" : "At " + fmtClock(sm);
 }
 
-const FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const FULL = [tx("Sunday"), tx("Monday"), tx("Tuesday"), tx("Wednesday"), tx("Thursday"), tx("Friday"), tx("Saturday")];
 const wxIcon = (pp) => (pp >= 50 ? "rain" : pp >= 25 ? "cloud" : "sun");
 
 // Next ~12 hours in 3-hour steps, then the next days
@@ -44,10 +45,10 @@ function Forecast({ weather, today }) {
   const days = Object.entries(weather.byDate).filter(([d]) => d > isoDay(today)).slice(0, 5);
   const t = isoDay(today), w = weather.byDate[t];
   const restRain = weather.hours.slice(Math.max(start, 0), Math.max(start, 0) + 10).find((h) => h.pp >= 50);
-  const note = weather.now?.rainingNow ? "Raining now: indoor picks go first."
-    : restRain ? "Rain likely from " + fmtClock(parseInt(restRain.t.slice(11, 13)) * 60) + ": outdoor plans are flagged."
-    : w && w.hi < 45 ? "Dry but cold: outdoor plans need a warm layer."
-    : "Dry for the next few hours: good time for outdoor plans.";
+  const note = weather.now?.rainingNow ? tx("Raining now: indoor picks go first.")
+    : restRain ? tx("Rain likely from ") + fmtClock(parseInt(restRain.t.slice(11, 13)) * 60) + ": outdoor plans are flagged."
+    : w && w.hi < 45 ? tx("Dry but cold: outdoor plans need a warm layer.")
+    : tx("Dry for the next few hours: good time for outdoor plans.");
   const cell = (key, top, icon, temp, pp, strong) => (
     <div key={key} style={{ flexShrink: 0, width: 58, padding: "8px 0", borderRadius: 16, background: strong ? "var(--navy)" : "var(--card)", color: strong ? "var(--onnavy)" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, border: "1px solid var(--line)" }}>
       <span style={{ fontSize: 11, fontWeight: 800, opacity: 0.8 }}>{top}</span>
@@ -59,7 +60,7 @@ function Forecast({ weather, today }) {
   return (
     <div style={{ padding: "0 0 6px" }}>
       <div className="hscroll" style={{ gap: 6 }}>
-        {hrs.map((h, i) => cell(h.t, i === 0 ? "Now" : fmtClock(parseInt(h.t.slice(11, 13)) * 60).replace(":00", ""), wxIcon(h.pp), i === 0 && weather.now ? weather.now.temp : h.temp, h.pp, i === 0))}
+        {hrs.map((h, i) => cell(h.t, i === 0 ? tx("Now") : fmtClock(parseInt(h.t.slice(11, 13)) * 60).replace(":00", ""), wxIcon(h.pp), i === 0 && weather.now ? weather.now.temp : h.temp, h.pp, i === 0))}
         <div style={{ width: 1, flexShrink: 0, background: "var(--line)", margin: "6px 2px" }} />
         {days.map(([d, v]) => cell(d, DAYS[new Date(d + "T12:00:00").getDay()], wxIcon(v.pmax), v.hi, v.pmax))}
       </div>
@@ -98,8 +99,8 @@ function TopPicks({ data, dark, today, onOpen, eprof, onMore, xcats = [], xsubs 
   const shown = collapseSeries(list).slice(0, 5);
   return (
     <>
-      <SectionHead title={"Top picks · " + (curSub || curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], subs: curSub ? [curSub] : [], when: "week" })} />
-      <div className="hscroll" style={{ gap: 4, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="tablist" aria-label="Topic">
+      <SectionHead title={tx("Top picks · ") + (curSub || curCat || FAM[cur].label)} color={famColor(cur, dark)} onMore={() => onMore({ fam: cur, cats: curCat ? [curCat] : [], subs: curSub ? [curSub] : [], when: "week" })} />
+      <div className="hscroll" style={{ gap: 4, padding: "0 12px 14px", scrollPaddingInline: 12 }} role="tablist" aria-label={tx("Topic")}>
         {fams.map((id) => FAM[id]).map((f) => {
           const on = f.id === cur, col = famColor(f.id, dark);
           return (
@@ -169,9 +170,9 @@ function MoodSection({ eyebrow, m, other, onSwitch, onOpen, dark, today, childre
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
         {hero && <HeroCard ev={hero} dark={dark} today={today} onOpen={onOpen} label="Top pick for now" />}
         {rest.slice(0, hero ? 3 : 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}
-        {!m.list.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
+        {!m.list.length && <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>{tx("Nothing in your feed is truly about this yet.")}</div>}
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{other.title}</span></button>}
+          {other && <button className="chip" style={{ height: 36, maxWidth: "100%" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>{tx("Or:")}</span> <span className="ell">{other.title}</span></button>}
           {children}
         </div>
       </div>
@@ -186,7 +187,7 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today, hero }) {
   return (
     <>
       <div className="sec-h" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-        <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><Icon name="pin" size={14} /> City pulse</span>
+        <span className="row" style={{ gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><Icon name="pin" size={14} /> {tx("City pulse")}</span>
         <div className="row" style={{ gap: 12, alignItems: "center" }}>
           {m.icon && <span aria-hidden="true" style={{ width: 46, height: 46, borderRadius: 23, flexShrink: 0, background: dark ? "#2A2F5C" : "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FBF7EF" }}>{React.createElement(m.icon, { size: 23, strokeWidth: 2.2 })}</span>}
           <h2 style={{ lineHeight: 1.1, opacity: m.writing ? 0.55 : 1, transition: "opacity .3s" }}>{String(m.title || "").replace(/[.!]+$/, "")}</h2>
@@ -196,8 +197,8 @@ function CityPulse({ m, other, onSwitch, onOpen, dark, today, hero }) {
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 18 }}>
         {hero && <HeroCard ev={hero} dark={dark} today={today} onOpen={onOpen} label="Top pick for today" />}
         {m.list.length ? rest.slice(0, hero ? 3 : 4).map((ev) => <CompactCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)
-          : <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>Nothing in your feed is truly about this yet.</div>}
-        {other && <button className="chip" style={{ height: 36, maxWidth: "100%", alignSelf: "flex-start" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>Or:</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
+          : <div className="muted" style={{ fontSize: 14, padding: "0 4px" }}>{tx("Nothing in your feed is truly about this yet.")}</div>}
+        {other && <button className="chip" style={{ height: 36, maxWidth: "100%", alignSelf: "flex-start" }} onClick={onSwitch}><span className="muted" style={{ fontWeight: 700 }}>{tx("Or:")}</span> <span className="ell">{String(other.title || "").replace(/[.!]+$/, "")}</span></button>}
       </div>
     </>
   );
@@ -213,13 +214,13 @@ function WhenTabs({ tabs, dark, today, onOpen, onMore }) {
   return (
     <>
       <div className="sec-h" style={{ gap: 6 }}>
-        <div className="row" role="tablist" aria-label="When" style={{ gap: 6, overflowX: "auto", flex: 1, minWidth: 0 }}>
+        <div className="row" role="tablist" aria-label={tx("When")} style={{ gap: 6, overflowX: "auto", flex: 1, minWidth: 0 }}>
           {avail.map(([k, l]) => (
             <button key={k} role="tab" aria-selected={k === active[0]} onClick={() => setCur(k)}
               style={{ border: "none", background: "none", padding: "4px 6px", fontFamily: "'Fredoka',sans-serif", fontWeight: 600, fontSize: 20, color: k === active[0] ? "var(--ink)" : "var(--ink3)", whiteSpace: "nowrap", borderBottom: k === active[0] ? "3px solid var(--ink)" : "3px solid transparent" }}>{l}</button>
           ))}
         </div>
-        <button className="chip" onClick={() => onMore(patch)} style={{ height: 32, flexShrink: 0 }} aria-label={"See all: " + label}>More <Icon name="chev" size={14} /></button>
+        <button className="chip" onClick={() => onMore(patch)} style={{ height: 32, flexShrink: 0 }} aria-label={tx("See all: ") + label}>{tx("More")} <Icon name="chev" size={14} /></button>
       </div>
       <DotScroll key={active[0]}>{list.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
     </>
@@ -286,18 +287,18 @@ function Glance({ highlights, data, onOpen, quick = [], onTile }) {
   if (!quick.length) return null;
   return (
     <div>
-      <Head title="This week's picks" />
+      <Head title={tx("This week's picks")} />
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
         {quick.filter((t) => t.key !== "week").map((t) => { const bl = blurbs[keyOf(t)]; return (
           <div key={t.key} className="row" style={{ gap: 12, alignItems: "flex-start" }}>
             <button onClick={() => onTile(t)} style={{ flexShrink: 0, width: 76, height: 76, border: "none", borderRadius: 16, padding: "8px 8px 7px", background: t.color, color: "#fff", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.1 }}>{t.key === "weekend" ? "Weekend" : t.key === "week" ? "This week" : t.title}</span>
+              <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.1 }}>{t.key === "weekend" ? tx("Weekend") : t.key === "week" ? tx("This week") : t.title}</span>
               <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.85 }}>{t.n} {t.n > 1 ? "events" : "event"}</span>
             </button>
             <span style={{ flex: 1, minWidth: 0, paddingTop: 2, display: "flex", flexDirection: "column", gap: 3 }}>
               {bl ? bl.split(/\s*(?:\/|;|·|,? and )\s*/).map((x) => x.trim()).filter(Boolean).slice(0, 3).map((x, n) => (
                 <span key={n} className="ell" style={{ fontSize: 13.5, lineHeight: 1.4, color: "var(--ink2)", whiteSpace: "nowrap" }}>• {renderHighlights(x, highlights.ids, data, onOpen)}</span>
-              )) : <span style={{ fontSize: 13.5, color: "var(--ink3)" }}>{highlights.status === "loading" ? "Picking highlights…" : "Tap to see what's on."}</span>}
+              )) : <span style={{ fontSize: 13.5, color: "var(--ink3)" }}>{highlights.status === "loading" ? tx("Picking highlights…") : tx("Tap to see what's on.")}</span>}
             </span>
           </div>
         ); })}
@@ -321,7 +322,7 @@ function EventRows({ evs, today, dark, onOpen, lead, max = 3, moreLabel, onMore,
           <span style={{ fontSize: 12.5 }}><TravelMini ev={e} size={13} /></span>
         </button>
       ))}
-      {(evs.length > max || (toggle && evs.length > 3)) && <button onClick={() => (onMore ? onMore() : setAll(!all))} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: "6px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{onMore ? moreLabel || "See all" : all ? "Show less" : "Show " + (evs.length - max) + " more"}</button>}
+      {(evs.length > max || (toggle && evs.length > 3)) && <button onClick={() => (onMore ? onMore() : setAll(!all))} style={{ alignSelf: "flex-start", border: "none", background: "none", padding: "6px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{onMore ? moreLabel || tx("See all") : all ? tx("Show less") : tx("Show ") + (evs.length - max) + " more"}</button>}
     </div>
   );
 }
@@ -339,7 +340,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
     <div style={{ padding: "0 16px" }}>
       <div style={{ position: "relative" }}>
         <LeafletMap events={shown} numberOffset={legend ? page * 3 : 0} home={home} dark={dark} height={height} interactive twoFinger rounded fit onPick={(e) => setSel(e.id)} selectedId={ev?.id} zoom={14} numbered={legend} pinColor={legend ? (e) => primaryIntent(e)?.color || evColor(e, dark) : undefined} />
-        <button onClick={onFull} aria-label="Open the full map" style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
+        <button onClick={onFull} aria-label={tx("Open the full map")} style={{ position: "absolute", right: 10, top: 10, zIndex: 4, width: 38, height: 38, borderRadius: 19, border: "none", background: "#fff", color: "#1B1F3B", boxShadow: "0 2px 8px rgba(0,0,0,.25)", display: "flex", alignItems: "center", justifyContent: "center" }}><LIcon node={Maximize2} size={18} color="#1B1F3B" /></button>
         {ev && (
           <div role="button" tabIndex={0} onClick={() => onOpen(ev)} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 4, background: "var(--card)", borderRadius: 20, padding: 8, display: "flex", gap: 10, boxShadow: "0 8px 24px rgba(20,24,51,.35)", cursor: "pointer" }}>
             <div style={{ width: 92, flexShrink: 0, position: "relative" }}><Media ev={ev} dark={dark} height={96} radius={14} hideTitle /><PicOverlay ev={ev} size={26} /></div>
@@ -349,7 +350,7 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
               <span className="row" style={{ gap: 8, fontSize: 12.5, minWidth: 0 }}><When text={whenLabel(ev, today)} /><span style={{ color: "var(--ink3)" }}><Travel tt={ev.tt} /></span></span>
               <div className="row" style={{ marginTop: "auto", justifyContent: "flex-end" }}><CardActions ev={ev} size={26} noSave /></div>
             </div>
-            <button aria-label="Close preview" onClick={(e) => { e.stopPropagation(); setSel(null); }} style={{ position: "absolute", top: 6, right: 6, width: 28, height: 28, borderRadius: 14, border: "none", background: "var(--chip)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={14} /></button>
+            <button aria-label={tx("Close preview")} onClick={(e) => { e.stopPropagation(); setSel(null); }} style={{ position: "absolute", top: 6, right: 6, width: 28, height: 28, borderRadius: 14, border: "none", background: "var(--chip)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={14} /></button>
           </div>
         )}
       </div>
@@ -365,9 +366,9 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
           ); })}
           {pages > 1 && (
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center", padding: "8px 4px 0" }}>
-              <button disabled={page === 0} onClick={() => setPage(page - 1)} className="row" style={{ gap: 4, border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 800, color: "var(--ink2)", opacity: page === 0 ? 0.3 : 1 }}><Icon name="back" size={14} />Previous</button>
-              <span style={{ fontSize: 12, color: "var(--ink3)" }}>{page * 3 + 1}–{Math.min(evs.length, page * 3 + 3)} of {evs.length}</span>
-              <button disabled={page >= pages - 1} onClick={() => setPage(page + 1)} className="row" style={{ gap: 4, border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 800, color: "var(--ink2)", opacity: page >= pages - 1 ? 0.3 : 1 }}>Next 3<Icon name="chev" size={14} /></button>
+              <button disabled={page === 0} onClick={() => setPage(page - 1)} className="row" style={{ gap: 4, border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 800, color: "var(--ink2)", opacity: page === 0 ? 0.3 : 1 }}><Icon name="back" size={14} />{tx("Previous")}</button>
+              <span style={{ fontSize: 12, color: "var(--ink3)" }}>{page * 3 + 1}–{Math.min(evs.length, page * 3 + 3)} {tx("of")} {evs.length}</span>
+              <button disabled={page >= pages - 1} onClick={() => setPage(page + 1)} className="row" style={{ gap: 4, border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 800, color: "var(--ink2)", opacity: page >= pages - 1 ? 0.3 : 1 }}>{tx("Next 3")}<Icon name="chev" size={14} /></button>
             </div>
           )}
         </div>
@@ -376,11 +377,11 @@ export function AroundMap({ evs, home, dark, today, onOpen, onFull, height = 320
   );
 }
 
-const NY_TINT = [["#7C2D12", "Season"], ["#1E3A8A", "Neighbourhood"], ["#0F766E", "Weather"]];
+const NY_TINT = [["#7C2D12", tx("Season")], ["#1E3A8A", tx("Neighbourhood")], ["#0F766E", tx("Weather")]];
 function NYCard({ c, tint, label, onTile, height = 150, half, full }) {
   const [r, g, bl] = [parseInt(tint.slice(1, 3), 16), parseInt(tint.slice(3, 5), 16), parseInt(tint.slice(5, 7), 16)];
   return (
-    <button onClick={() => onTile({ title: String(c.title || "New York right now").replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.facts || c.sub, verb: label, intro: c.intro, kind: c.kind })}
+    <button onClick={() => onTile({ title: String(c.title || tx("New York right now")).replace(/[.!]+$/, ""), list: c.list, color: tint, icon: c.icon, teaser: c.facts || c.sub, verb: label, intro: c.intro, kind: c.kind })}
       style={{ flex: half ? "0 0 calc((100vw - 44px) / 2)" : full ? "0 0 calc(100vw - 32px)" : "0 0 100%", width: half ? "calc((100vw - 44px) / 2)" : full ? "calc(100vw - 32px)" : "100%", flexShrink: 0, scrollSnapAlign: "start", padding: 0, border: "none", background: "none", textAlign: "left", position: "relative", borderRadius: 20, overflow: "hidden", display: "block" }}>
       <div style={{ filter: "saturate(.85)" }}><ThemePhoto id={c.id} name={c.name || c.theme || ""} height={height} /></div>
       <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(${r},${g},${bl},.10) 0%, rgba(${r},${g},${bl},.35) 35%, rgba(8,10,26,.9) 100%)` }} />
@@ -446,13 +447,13 @@ function IntentChips({ data, today, sel, put, onOrder, favs, toggleFav: toggleFa
   }
   return (
     <div id="tour-moods" style={{ margin: "2px 0 0" }}>
-      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? "Drag to reorder" : "I'm in the mood for…"}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>Clear</button>}</div>
+      <div className="row" style={{ padding: "0 20px 8px", justifyContent: "space-between", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}><span>{drag ? tx("Drag to reorder") : tx("I'm in the mood for…")}</span>{sel.length > 0 && !drag && <button onClick={() => put([])} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 12, fontWeight: 800, padding: 0, letterSpacing: 0.4, textTransform: "none" }}>{tx("Clear")}</button>}</div>
       <div ref={rowRef} style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 16px 2px" }} onPointerMove={pm} onPointerUp={pu}>
         {shown.map((it) => { const on = sel.includes(it.id), dragging = drag === it.id; return (
           <div role="button" tabIndex={0} key={it.id} ref={(el) => { btns.current[it.id] = el; }} aria-pressed={on} onKeyDown={(e) => { if (e.key === "Enter") put(on ? [] : [it.id]); }} onPointerDown={pd(it.id)} onTouchStart={(e) => begin(it.id, e.touches[0].clientX, e.touches[0].clientY)} onContextMenu={(e) => e.preventDefault()}
             onClick={() => { if (moved.current || dragRef.current) { moved.current = false; return; } put(on ? [] : [it.id]); }}
             style={{ position: "relative", cursor: "pointer", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (on ? it.color : "var(--line, rgba(128,128,128,.25))"), background: on ? it.color : "var(--card)", color: on ? "#fff" : "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: drag ? "none" : "pan-x", transform: dragging ? "scale(1.08)" : drag ? "scale(.96)" : "none", boxShadow: dragging ? "0 8px 20px rgba(20,24,51,.25)" : "none", transition: "transform .12s, box-shadow .12s", zIndex: dragging ? 2 : 0 }}>
-            <button aria-label={(favs.includes(it.id) ? "Remove " : "Add ") + it.label + (favs.includes(it.id) ? " from favourites" : " to favourites")} aria-pressed={favs.includes(it.id)}
+            <button aria-label={(favs.includes(it.id) ? tx("Remove ") : tx("Add ")) + it.label + (favs.includes(it.id) ? " from favourites" : " to favourites")} aria-pressed={favs.includes(it.id)}
               onClick={(e) => { e.stopPropagation(); toggleFav(it.id); }} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}
               style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: on ? "#fff" : "var(--ink)", opacity: favs.includes(it.id) ? 0.5 : 0.3 }}>
               <Icon name="heart" size={12} fill={favs.includes(it.id) ? "currentColor" : "none"} />
@@ -493,11 +494,11 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
     Object.values(m).forEach((l) => l.sort((a, b) => b.list.length - a.list.length || String(a.short || a.title).localeCompare(String(b.short || b.title)))); return m; }, [pool]);
   const catTile = (c) => pool.find((t) => t.key === "gen-cat-" + c) || { key: "gen-cat-" + c, kind: "cat", id: c, title: c, short: c, cats: [c], acts: [], list: [], empty: true };
   const covered = new Set(INTENTS.flatMap((m) => m.cats || []));
-  const groups = [...INTENTS.map((m) => ({ id: m.id, label: m.label, color: m.color, icon: m.icon, cats: (m.cats || []).filter((c) => acts[c]?.length || pool.some((t) => t.key === "gen-cat-" + c)) })), { id: "more", label: "More", color: "#64748B", icon: null, cats: Object.keys(acts).filter((c) => !covered.has(c)).sort() }].filter((g) => g.cats.length);
+  const groups = [...INTENTS.map((m) => ({ id: m.id, label: m.label, color: m.color, icon: m.icon, cats: (m.cats || []).filter((c) => acts[c]?.length || pool.some((t) => t.key === "gen-cat-" + c)) })), { id: "more", label: tx("More"), color: "#64748B", icon: null, cats: Object.keys(acts).filter((c) => !covered.has(c)).sort() }].filter((g) => g.cats.length);
   const heart = (on, color, label, onClick) => <button aria-pressed={on} aria-label={label} onClick={onClick} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: on ? color : "var(--chip)", color: on ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}><Icon name="heart" size={17} fill={on ? "currentColor" : "none"} /></button>;
   return (
-    <Dialog title="Add to My Interests" onClose={onClose}>
-      <div className="muted" style={{ fontSize: 13.5, margin: "-6px 0 10px" }}>Open a mood, then a category. Heart what you like, or thumb a category down to hide it. Faded activities have nothing on right now.</div>
+    <Dialog title={tx("Add to My Interests")} onClose={onClose}>
+      <div className="muted" style={{ fontSize: 13.5, margin: "-6px 0 10px" }}>{tx("Open a mood, then a category. Heart what you like, or thumb a category down to hide it. Faded activities have nothing on right now.")}</div>
       <div style={{ maxHeight: "60vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, margin: "0 -4px", padding: "0 4px" }}>
         {groups.map((g) => { const isOpen = open === g.id; return (
           <div key={g.id} style={{ flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (isOpen ? g.color : "var(--line, rgba(128,128,128,.25))"), overflow: "hidden" }}>
@@ -507,7 +508,7 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
                 {g.label}
                 <span style={{ marginLeft: "auto", display: "flex", transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform .15s" }}><Icon name="chevdown" size={18} /></span>
               </button>
-              {INTENT[g.id] && heart(moodFavs.includes(g.id), g.color, (moodFavs.includes(g.id) ? "Remove " : "Add ") + g.label, () => onToggleMood(g.id))}
+              {INTENT[g.id] && heart(moodFavs.includes(g.id), g.color, (moodFavs.includes(g.id) ? tx("Remove ") : tx("Add ")) + g.label, () => onToggleMood(g.id))}
             </div>
             {isOpen && (
               <div style={{ padding: "4px 12px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -516,10 +517,10 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
                     <div className="row" style={{ gap: 8, minHeight: 34 }}>
                       <button aria-expanded={isC} onClick={() => setCatOpen({ ...catOpen, [c]: !catOpen[c] })} className="row" style={{ flex: 1, gap: 6, border: "none", background: "none", padding: 0, color: "var(--ink2)", textAlign: "left", fontSize: 13, fontWeight: 800, letterSpacing: 0.4, minHeight: 34 }}>
                         <span style={{ display: "flex", transform: isC ? "none" : "rotate(-90deg)", transition: "transform .15s" }}><Icon name="chevdown" size={16} /></span>
-                        {c}{nOn > 0 && <span style={{ fontSize: 11.5, color: g.color }}>· {nOn} picked</span>}{hid && <span style={{ fontSize: 11.5 }}>· hidden</span>}
+                        {c}{nOn > 0 && <span style={{ fontSize: 11.5, color: g.color }}>· {nOn} picked</span>}{hid && <span style={{ fontSize: 11.5 }}>{tx("· hidden")}</span>}
                       </button>
-                      <button aria-pressed={hid} aria-label={(hid ? "Show " : "Hide ") + c} onClick={() => onHideCat(c)} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: hid ? "#B91C1C" : "var(--chip)", color: hid ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="down" size={16} /></button>
-                      {ct && !hid && heart(moodFav.includes(ct.key), g.color, (moodFav.includes(ct.key) ? "Remove " : "Add ") + c, () => onFav({ ...ct, title: ct.short || ct.title, color: g.color }))}
+                      <button aria-pressed={hid} aria-label={(hid ? tx("Show ") : tx("Hide ")) + c} onClick={() => onHideCat(c)} style={{ width: 34, height: 34, borderRadius: 17, border: "none", background: hid ? "#B91C1C" : "var(--chip)", color: hid ? "#fff" : "var(--ink2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="down" size={16} /></button>
+                      {ct && !hid && heart(moodFav.includes(ct.key), g.color, (moodFav.includes(ct.key) ? tx("Remove ") : tx("Add ")) + c, () => onFav({ ...ct, title: ct.short || ct.title, color: g.color }))}
                     </div>
                     {isC && list.length > 0 && (
                       <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 4 }}>
@@ -543,7 +544,7 @@ function InterestPicker({ tiles, moodFavs, onToggleMood, moodFav, onFav, onClose
 const BellMini = ({ t, nc, light }) => {
   if (!nc) return null;
   const on = !!nc.bells[t.key];
-  return <button aria-label={on ? "Stop notifications for " + t.title : "Notify me about new " + t.title} aria-pressed={on} onClick={(e) => { e.stopPropagation(); nc.toggle(t); }} style={{ position: "absolute", top: 1, left: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: light ? "#fff" : "var(--ink)", opacity: on ? 1 : 0.45 }}><Icon name="bell" size={12} fill={on ? "currentColor" : "none"} /></button>;
+  return <button aria-label={on ? tx("Stop notifications for ") + t.title : tx("Notify me about new ") + t.title} aria-pressed={on} onClick={(e) => { e.stopPropagation(); nc.toggle(t); }} style={{ position: "absolute", top: 1, left: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: light ? "#fff" : "var(--ink)", opacity: on ? 1 : 0.45 }}><Icon name="bell" size={12} fill={on ? "currentColor" : "none"} /></button>;
 };
 export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [], moodClicks = {}, moodHide = [], onMoodDrop, nyRows = [], moodFb = {}, onMoodFb, onMoodFav,  onTile = () => {}, onFullMap = () => {}, cities = [], picks = [], goAsk, onGoAnswer = () => {}, data, sections, dark, today, home, locLabel, onOpen, setTab, freeUntil, autoFree, openFree, weather, onSurprise, onRefresh, refreshing, highlights, weekPicks = [], eprof, hiddenCats = [], hiddenSubs = [], onHideCat, you, youOther, city, cityOther, onMore = () => {}, onYouSwitch, onYouFeedback, onCitySwitch, onYouOpen, onCityOpen }) {
   const nc = useContext(NotifyCtx);
@@ -663,10 +664,10 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     let longs = 0;
     const adj = (e, v) => v * 0.8 ** ((cats[e.ncat || e.cat] || 0) + (e.act && acts[e.act] || 0)) * (info.get(e.id).long && longs >= 1 ? 0.4 : 1);
     const labels = new Map();
-    const weekendWord = dow === 6 || dow === 0 ? "This week" : "This weekend";
+    const weekendWord = dow === 6 || dow === 0 ? tx("This week") : tx("This weekend");
     // "Book ahead": the radar slot — further out, needs a ticket or RSVP, and one you'd love
-    const LABEL = ["Best today", "Best tomorrow", weekendWord, "Book ahead"];
-    const labelOf = (e) => { const d = info.get(e.id).d; return d === 0 ? LABEL[0] : d === 1 ? LABEL[1] : slotOffs.includes(d) ? LABEL[2] : "Coming up"; };
+    const LABEL = [tx("Best today"), tx("Best tomorrow"), weekendWord, tx("Book ahead")];
+    const labelOf = (e) => { const d = info.get(e.id).d; return d === 0 ? LABEL[0] : d === 1 ? LABEL[1] : slotOffs.includes(d) ? LABEL[2] : tx("Coming up"); };
     const take = (e, k) => { labels.set(e.id, k != null ? LABEL[k] : labelOf(e)); top.push(e); used.add(e.id); cats[e.ncat || e.cat] = (cats[e.ncat || e.cat] || 0) + 1; if (e.act) acts[e.act] = (acts[e.act] || 0) + 1; if (info.get(e.id).long) longs++; };
     const pick = (ok, key) => { let bi = null, bv = -1; for (const e of uniq) { if (used.has(e.id) || !ok(e)) continue; const v = adj(e, info.get(e.id)[key]); if (v > bv) { bv = v; bi = e; } } return [bi, bv]; };
     const open = [];
@@ -684,7 +685,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
     const out = [...top, ...rest]; out.labels = labels;
     // One carousel per slot (today, tomorrow, weekend, book ahead): the slot's own pick leads, then the best of that slot
     // (a little variety in category), ten at most; "More" opens the whole slot as a page
-    const TITLES4 = ["Today", "Tomorrow", weekendWord === "This week" ? "This week" : "This weekend", "Book ahead"];
+    const TITLES4 = [tx("Today"), tx("Tomorrow"), weekendWord === tx("This week") ? tx("This week") : tx("This weekend"), tx("Book ahead")];
     const gUsed = new Set();
     out.groups = [0, 1, 2, 3].map((k) => {
       const key = k === 3 ? "base" : "v";
@@ -702,7 +703,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       shown.forEach((e) => gUsed.add(e.id));
       return { key: ["today", "tomorrow", "weekend", "book"][k], title: TITLES4[k], items: shown, all: [...shown, ...rest2] };
     }).filter((g) => g.items.length);
-    if (!out.groups.length && out.length) out.groups = [{ key: "coming", title: "Coming up", items: out.slice(0, 10), all: out }];
+    if (!out.groups.length && out.length) out.groups = [{ key: "coming", title: tx("Coming up"), items: out.slice(0, 10), all: out }];
     return out;
   }, [data, today, intentSel, social, moodFavs, shuf]);
   // Remember what headed For you today (once per day per event), so ignored picks fade on later days
@@ -768,7 +769,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       <div className="row" style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 0", justifyContent: "space-between" }}>
         <div className="row" style={{ gap: 8 }}>
           <Logo size={28} dark={dark} />
-          <span className="disp" style={{ fontSize: 23, whiteSpace: "nowrap" }}>good plans</span>
+          <span className="disp" style={{ fontSize: 23, whiteSpace: "nowrap" }}>{tx("good plans")}</span>
         </div>
         <div id="tour-head" className="row" style={{ gap: 6 }}>
           {(() => {
@@ -776,9 +777,9 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
             const badge = (n) => n > 0 && <span style={{ position: "absolute", top: -3, right: -4, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: "var(--navy)", color: "var(--onnavy, #fff)", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>{n > 99 ? "99+" : n}</span>;
             const savedUp = savedNow.slice().sort((x, y) => evStart(x) - evStart(y) || byStart(x, y));
             return (<>
-              <button style={hb} aria-label={"Saved plans, " + savedUp.length} onClick={() => savedUp.length && onTile({ key: "saved", title: "Your plans", list: savedUp, color: "#1F2A5C", teaser: "Everything you've bookmarked that's still coming up.", verb: "Saved", group: "day" })}><Icon name="save" size={17} />{badge(savedUp.length)}</button>
-              <button style={hb} aria-label={"My Interests, " + (favList.length + moodFavs.length)} onClick={() => document.getElementById("my-favs")?.scrollIntoView({ behavior: "smooth" })}><Icon name="heart" size={17} />{badge(favList.length + moodFavs.length)}</button>
-              <button style={hb} aria-label={"Profile and location · " + locLabel} onClick={() => setTab("me")}><Icon name="me" size={18} /></button>
+              <button style={hb} aria-label={tx("Saved plans, ") + savedUp.length} onClick={() => savedUp.length && onTile({ key: "saved", title: tx("Your plans"), list: savedUp, color: "#1F2A5C", teaser: tx("Everything you've bookmarked that's still coming up."), verb: tx("Saved"), group: "day" })}><Icon name="save" size={17} />{badge(savedUp.length)}</button>
+              <button style={hb} aria-label={tx("My Interests, ") + (favList.length + moodFavs.length)} onClick={() => document.getElementById("my-favs")?.scrollIntoView({ behavior: "smooth" })}><Icon name="heart" size={17} />{badge(favList.length + moodFavs.length)}</button>
+              <button style={hb} aria-label={tx("Profile and location · ") + locLabel} onClick={() => setTab("me")}><Icon name="me" size={18} /></button>
             </>);
           })()}
         </div>
@@ -786,25 +787,25 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {goAsk && (
         <div className="card-sm" style={{ margin: "14px 16px 0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink3)" }}>Did you go?</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink3)" }}>{tx("Did you go?")}</div>
             <div className="disp ell" style={{ fontSize: 16 }}>{goAsk.title}</div>
           </div>
-          <button className="pill pill-dark" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "yes")}>Yes</button>
-          <button className="pill pill-line" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "no")}>No</button>
-          <button aria-label="Don't ask" onClick={() => onGoAnswer(goAsk, "skip")} style={{ border: "none", background: "none", padding: 4, color: "var(--ink3)" }}><Icon name="close" size={16} /></button>
+          <button className="pill pill-dark" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "yes")}>{tx("Yes")}</button>
+          <button className="pill pill-line" style={{ padding: "0 14px", height: 36 }} onClick={() => onGoAnswer(goAsk, "no")}>{tx("No")}</button>
+          <button aria-label={tx("Don't ask")} onClick={() => onGoAnswer(goAsk, "skip")} style={{ border: "none", background: "none", padding: 4, color: "var(--ink3)" }}><Icon name="close" size={16} /></button>
         </div>
       )}
       <div style={{ padding: "18px 20px 6px" }}>
         <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + fmtT(w.hi) + (w.rainy ? " · rain later" : "") : ""}</div>
-        <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{userName ? "Hi, " + userName : "Hi there"}</h1>
+        <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{userName ? tx("Hi, ") + userName : tx("Hi there")}</h1>
         <div style={{ fontSize: 16, lineHeight: 1.4, color: "var(--ink2)", marginTop: 8 }}>{g.blurb}</div>
       </div>
 
       {empty && (
         <div className="card" style={{ margin: "8px 16px", padding: 22, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div className="disp" style={{ fontSize: 22 }}>No events loaded yet</div>
-          <div className="muted" style={{ fontSize: 15 }}>Pull the latest feed from your Apps Script backend.</div>
-          <button className="pill pill-dark" onClick={onRefresh} disabled={refreshing}>{refreshing ? "Refreshing…" : "Refresh events"}</button>
+          <div className="disp" style={{ fontSize: 22 }}>{tx("No events loaded yet")}</div>
+          <div className="muted" style={{ fontSize: 15 }}>{tx("Pull the latest feed from your Apps Script backend.")}</div>
+          <button className="pill pill-dark" onClick={onRefresh} disabled={refreshing}>{refreshing ? tx("Refreshing…") : tx("Refresh events")}</button>
         </div>
       )}
 
@@ -827,7 +828,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
         );
         return (
           <div style={{ padding: "18px 16px 0" }}>
-            {todayOne.length > 0 && <div style={{ padding: "0 4px" }}>{head("Your plan today")}</div>}
+            {todayOne.length > 0 && <div style={{ padding: "0 4px" }}>{head(tx("Your plan today"))}</div>}
             {todayOne.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
                 <PosterCard ev={todayOne[0]} dark={dark} today={today} onOpen={onOpen} fluid />
@@ -836,11 +837,11 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
             )}
             {(nextOne.length > 0 || ongoing.length > 0) && (
               <div style={{ display: "grid", gridTemplateColumns: nextOne.length && ongoing.length ? "1fr 1fr" : "1fr", columnGap: 16, padding: "0 4px" }}>
-                {nextOne.length > 0 && col("Next", nextOne)}
-                {ongoing.length > 0 && col("Ongoing", ongoing)}
+                {nextOne.length > 0 && col(tx("Next"), nextOne)}
+                {ongoing.length > 0 && col(tx("Ongoing"), ongoing)}
               </div>
             )}
-            {mine.length > 3 && <button onClick={() => setTab("plans")} style={{ border: "none", background: "none", padding: "8px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>See all {mine.length}</button>}
+            {mine.length > 3 && <button onClick={() => setTab("plans")} style={{ border: "none", background: "none", padding: "8px 4px 0", fontSize: 13, fontWeight: 800, color: "var(--ink2)" }}>{tx("See all")} {mine.length}</button>}
           </div>
         );
       })()}
@@ -848,19 +849,19 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {/* 3. Around you right now: a map of what is on or starting nearby */}
       {!empty && mapEvs.length > 0 && (
         <div id="tour-around">
-          <Head title="Around you right now" sub="Tap a pin for a preview. Drag to look around." />
-          {mapEvs.length > 0 && <AroundMap legend height={220} evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), "Around you right now")} />}
+          <Head title={tx("Around you right now")} sub={tx("Tap a pin for a preview. Drag to look around.")} />
+          {mapEvs.length > 0 && <AroundMap legend height={220} evs={mapEvs} home={home} dark={dark} today={today} onOpen={onOpen} onFull={() => onFullMap(mapEvs.map((e) => e.id), tx("Around you right now"))} />}
         </div>
       )}
 
       {/* 4. For you: time tiles on top, then moods and picks; each says what drives it */}
       {!empty && tiles && (
         <>
-          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title="For you" sub="Best picks for your next outing." />
+          <div id="for-you" style={{ scrollMarginTop: 8 }} /><Head title={tx("For you")} sub={tx("Best picks for your next outing.")} />
           <IntentChips data={data || []} today={today} sel={intentSel} put={putIntent} onOrder={onIntentOrder} favs={moodFavs} toggleFav={toggleMoodFav} />
           <div id="tour-with" className="hscroll" style={{ padding: "12px 20px 0", gap: 11, alignItems: "center", flexWrap: "nowrap" }}>
-            <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>With</span>
-            {[{ id: null, label: "Any" }, ...SOCIAL].map((m) => { const on = social === m.id; return (
+            <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{tx("With")}</span>
+            {[{ id: null, label: tx("Any") }, ...SOCIAL].map((m) => { const on = social === m.id; return (
               <button key={m.label} aria-pressed={on} onClick={() => putSocial(m.id)} className="row" style={{ gap: 5, border: "none", background: "none", padding: "4px 0", fontSize: 13, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", color: on ? "var(--ink)" : "var(--ink3)", opacity: on ? 1 : 0.6 }}>{m.icon && React.createElement(m.icon, { size: 14, strokeWidth: 2.2 })}{m.label}</button>
             ); })}
           </div>
@@ -872,9 +873,9 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
                     <div style={{ padding: "0 20px 10px", fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--ink3)" }}>{g.title}</div>
                     <DotScroll>
                       {g.items.map((ev, k) => <div key={ev.id} id={gi === 0 && k === 0 ? "tour-card" : undefined} style={{ display: "flex", width: "min(calc(100vw - 40px), 420px)", flexShrink: 0 }}><PosterCard ev={ev} dark={dark} today={today} onOpen={onOpen} fluid /></div>)}
-                      <button onClick={() => onTile({ key: "fy-" + g.key + (social ? "-" + social : ""), title: g.title + socialTag, list: g.all, color: "#1F2A5C", teaser: "Ranked for you.", verb: "For you", group: "rank" })}
-                        aria-label={"More: " + g.title} style={{ width: 120, height: 262, flexShrink: 0, borderRadius: 20, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
-                        <span style={{ width: 40, height: 40, borderRadius: 20, background: "var(--navy)", color: "var(--onnavy, #fff)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="chev" size={20} width={2.6} /></span>More
+                      <button onClick={() => onTile({ key: "fy-" + g.key + (social ? "-" + social : ""), title: g.title + socialTag, list: g.all, color: "#1F2A5C", teaser: tx("Ranked for you."), verb: tx("For you"), group: "rank" })}
+                        aria-label={tx("More: ") + g.title} style={{ width: 120, height: 262, flexShrink: 0, borderRadius: 20, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
+                        <span style={{ width: 40, height: 40, borderRadius: 20, background: "var(--navy)", color: "var(--onnavy, #fff)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="chev" size={20} width={2.6} /></span>{tx("More")}
                       </button>
                     </DotScroll>
                   </div>
@@ -882,53 +883,53 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
               </div>
               {intentSel.length === 0 && (
                 <div className="row" style={{ padding: "18px 16px 0", gap: 8 }}>
-                  <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: "Top picks" + socialTag, list: topAll, color: "#1F2A5C", teaser: "Everything coming up, ranked by your taste.", verb: "For you", group: "day" })}
-                    className="row" style={{ flex: 1, justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}><Icon name="explore" size={17} />Explore top picks</button>
-                  <button aria-label="Show me four others" onClick={() => { const firsts = fyGroups.map((g) => g.items[0]).filter(Boolean); firsts.forEach((e, i) => T.track("shuffle", e, { s: "foryou", p: i })); setShuf((x) => [...x, ...firsts.map((e) => e.id)]); }}
+                  <button onClick={() => onTile({ key: "top-picks" + (social ? "-" + social : ""), title: tx("Top picks") + socialTag, list: topAll, color: "#1F2A5C", teaser: tx("Everything coming up, ranked by your taste."), verb: tx("For you"), group: "day" })}
+                    className="row" style={{ flex: 1, justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: "var(--navy)", color: "var(--onnavy, #fff)", fontWeight: 800, fontSize: 14.5 }}><Icon name="explore" size={17} />{tx("Explore top picks")}</button>
+                  <button aria-label={tx("Show me four others")} onClick={() => { const firsts = fyGroups.map((g) => g.items[0]).filter(Boolean); firsts.forEach((e, i) => T.track("shuffle", e, { s: "foryou", p: i })); setShuf((x) => [...x, ...firsts.map((e) => e.id)]); }}
                     style={{ width: 48, flexShrink: 0, alignSelf: "stretch", borderRadius: 14, border: "1.5px solid var(--line, rgba(128,128,128,.3))", background: "var(--card)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="refresh" size={19} /></button>
                 </div>
               )}
               {intentSel.length > 0 && (
                 <div style={{ padding: "18px 16px 0" }}>
-                  <button onClick={() => onTile({ key: "intent-" + intentSel.join("+") + (social ? "-" + social : ""), title: intentTitle + socialTag, list: intentAll, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: "Everything that fits over the next two weeks, ranked by your taste.", verb: "In the mood for" })}
+                  <button onClick={() => onTile({ key: "intent-" + intentSel.join("+") + (social ? "-" + social : ""), title: intentTitle + socialTag, list: intentAll, color: INTENT[intentSel[0]].color, icon: INTENT[intentSel[0]].icon, teaser: tx("Everything that fits over the next two weeks, ranked by your taste."), verb: tx("In the mood for") })}
                     className="row" style={{ width: "100%", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, border: "none", background: INTENT[intentSel[0]].color, color: "#fff", fontWeight: 800, fontSize: 14.5 }}>
-                    {React.createElement(INTENT[intentSel[0]].icon, { size: 17, strokeWidth: 2.2 })} Explore {intentTitle.toLowerCase()} · {new Set(intentAll.map((e) => String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24))).size}
+                    {React.createElement(INTENT[intentSel[0]].icon, { size: 17, strokeWidth: 2.2 })} {tx("Explore")} {intentTitle.toLowerCase()} · {new Set(intentAll.map((e) => String(e.title || "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 24))).size}
                   </button>
                 </div>
               )}
             </div>
           ) : (
             <div style={{ margin: "0 0 18px" }}>
-              {intentSel.length > 0 && <div className="muted" style={{ padding: "14px 20px 0", fontSize: 14 }}>Nothing fits {intentTitle.toLowerCase()} in the next two weeks.</div>}
+              {intentSel.length > 0 && <div className="muted" style={{ padding: "14px 20px 0", fontSize: 14 }}>{tx("Nothing fits")} {intentTitle.toLowerCase()} {tx("in the next two weeks.")}</div>}
             </div>
           )}
 
           {(
             <div id="my-favs" style={{ scrollMarginTop: 12 }}>
-              <Head title="My Interests" sub="Your moods and activities, one tap away." />
+              <Head title={tx("My Interests")} sub={tx("Your moods and activities, one tap away.")} />
               {picker && <InterestPicker hiddenCats={hiddenCats} onHideCat={onHideCat} tiles={tiles} moodFavs={moodFavs} onToggleMood={toggleMoodFav} moodFav={moodFav} onFav={onMoodFav} onClose={() => setPicker(false)} />}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 16px 2px" }}>
                 {favFlat.slice(0, favRows * 4).map((x) => x.kind === "mood" ? (
                   <div key={x.key} role="button" tabIndex={0} onClick={() => { putIntent([x.id]); document.getElementById("for-you")?.scrollIntoView({ behavior: "smooth" }); }} onKeyDown={(e) => { if (e.key === "Enter") putIntent([x.id]); }}
                     style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + x.mood.color, background: x.mood.color, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 800, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
-                    <button aria-label={"Remove " + x.mood.label + " from My Interests"} onClick={(e) => { e.stopPropagation(); toggleMoodFav(x.id); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
+                    <button aria-label={tx("Remove ") + x.mood.label + " from My Interests"} onClick={(e) => { e.stopPropagation(); toggleMoodFav(x.id); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
                     <BellMini nc={nc} light t={{ key: "mood-" + x.id, title: x.mood.label, cats: x.mood.cats || [], acts: x.mood.acts || [], list: [] }} />
                     {React.createElement(x.mood.icon, { size: 20, strokeWidth: 2.2, color: "#fff" })}{x.mood.label}
                   </div>
                 ) : (
                   <div key={x.key} role="button" tabIndex={0} onClick={() => onTile(x.t)} onKeyDown={(e) => { if (e.key === "Enter") onTile(x.t); }} style={{ position: "relative", width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px solid " + (x.mood?.color || x.t.color || "#888888"), background: x.mood?.color || x.t.color || "#888888", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 4px", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", cursor: "pointer" }}>
-                    <button aria-label="Remove from My Interests" onClick={(e) => { e.stopPropagation(); onMoodFav(x.t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
+                    <button aria-label={tx("Remove from My Interests")} onClick={(e) => { e.stopPropagation(); onMoodFav(x.t); }} style={{ position: "absolute", top: 1, right: 1, width: 26, height: 26, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: 0.5 }}><Icon name="heart" size={12} fill="currentColor" /></button>
                     <BellMini nc={nc} light t={x.t} />
                     {x.t.node ? <LIcon node={x.t.node} size={20} color="#fff" stroke={2.2} /> : x.t.icon ? React.createElement(x.t.icon, { size: 20, strokeWidth: 2.2, color: "#fff" }) : null}
                     <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" }}>{x.t.short || x.t.title}</span>
                   </div>
                 ))}
-                <button aria-label="Add interests: browse every mood, category and activity" onClick={() => setPicker(true)}
-                  style={{ width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px dashed var(--ink3)", background: "transparent", color: "var(--ink2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, fontWeight: 800 }}><Icon name="plus" size={20} width={2.4} />Add</button>
+                <button aria-label={tx("Add interests: browse every mood, category and activity")} onClick={() => setPicker(true)}
+                  style={{ width: 82, height: 70, flexShrink: 0, borderRadius: 16, border: "1.5px dashed var(--ink3)", background: "transparent", color: "var(--ink2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, fontWeight: 800 }}><Icon name="plus" size={20} width={2.4} />{tx("Add")}</button>
               </div>
               {favFlat.length > 12 && (
                 <div style={{ padding: "10px 20px 0", display: "flex", justifyContent: "center" }}>
-                  <button onClick={() => setFavRows(favRows * 4 < favFlat.length ? favRows + 3 : 3)} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 13.5, fontWeight: 800, padding: 4 }}>{favRows * 4 < favFlat.length ? "Show more" : "Show less"}</button>
+                  <button onClick={() => setFavRows(favRows * 4 < favFlat.length ? favRows + 3 : 3)} style={{ border: "none", background: "none", color: "var(--ink2)", fontSize: 13.5, fontWeight: 800, padding: 4 }}>{favRows * 4 < favFlat.length ? tx("Show more") : tx("Show less")}</button>
                 </div>
               )}
             </div>
@@ -940,7 +941,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {/* You may like: activity tiles leaning to the picked mood, one row; the last card loads more */}
       {!empty && discover.length > 0 && (
         <>
-          <Head title="You may also like" sub="Activities we think you'd like." />
+          <Head title={tx("You may also like")} sub={tx("Activities we think you'd like.")} />
           <DotScroll key={"yml-" + intentSel.join()} onMore={() => discN < discoverShown.length && setDiscN(discN + 6)}>
             {discoverShown.slice(0, discN).map((t) => <MoodTile key={t.key} compact t={{ ...t, open: () => onTile(t) }} fb={moodFb[t.key] || 0} fav={moodFav.includes(t.key)} onFav={(x) => { discOrder.current.frozen = true; onMoodFav(x); }} />)}
           </DotScroll>
@@ -950,7 +951,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
       {/* 5. New York right now: three rows (season, neighbourhoods, weather), each a one-card carousel of up to three */}
       {!empty && nyRows.length > 0 && (
         <div id="tour-city">
-          <Head title="New York right now" sub="What the city is up to." />
+          <Head title={tx("New York right now")} sub={tx("What the city is up to.")} />
           <div id="tour-city-first" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {nyRows.map((row, ri) => <NYRow key={row.key} row={row} ri={row.slot} onTile={onTile} />)}
           </div>
@@ -961,8 +962,8 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
 
       {!empty && (
         <div style={{ padding: "34px 20px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
-          <div className="muted" style={{ fontSize: 14 }}>{data.length} events in your feed.</div>
-          <button className="pill pill-line" onClick={() => setTab("explore")}>Explore everything</button>
+          <div className="muted" style={{ fontSize: 14 }}>{data.length} {tx("events in your feed.")}</div>
+          <button className="pill pill-line" onClick={() => setTab("explore")}>{tx("Explore everything")}</button>
         </div>
       )}
     </div>
