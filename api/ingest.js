@@ -311,7 +311,7 @@ export default async function handler(req, res) {
   if (req.query.probe) {
     try {
       const { html, url } = await fetchPage(String(req.query.probe));
-      if (/^\s*[\[{]/.test(html)) { try { const j = JSON.parse(html); const a = Array.isArray(j) ? j : j.events || j.items || [j]; return res.status(200).json({ url, bytes: html.length, items: a.length, sample: a.slice(0, Number(req.query.n) || 2), kinds: a.length ? Object.keys(a[0]) : [] }); } catch { /* not JSON */ } }
+      if (/^\s*[\[{]/.test(html)) { try { const j = JSON.parse(html); const a = Array.isArray(j) ? j : j.events || j.upcoming || j.items || [j]; if (req.query.brief) return res.status(200).json({ url, items: a.length, titles: a.slice(0, 3).map((x) => String(x.title || x.name || x.summary || "").slice(0, 70)), dates: a.slice(0, 3).map((x) => x.start_date || x.startDate || x.start || x.date || null) }); return res.status(200).json({ url, bytes: html.length, items: a.length, sample: a.slice(0, Number(req.query.n) || 2), kinds: a.length ? Object.keys(a[0]) : [] }); } catch { /* not JSON */ } }
       const ld = jsonLdEvents(html);
       return res.status(200).json({ url, bytes: html.length, jsonLdEvents: ld.length, sample: ld.slice(0, 2).map((o) => fromLd(o, { id: "p" }, url)), text: pageText(html, url).slice(0, 600) });
     } catch (e) { return res.status(200).json({ error: String(e && e.message || e) }); }
