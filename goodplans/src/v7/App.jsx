@@ -242,7 +242,13 @@ export default function App() {
         throw new Error(data.error);
       }
       const t0 = floorDay(new Date());
-      const list = (data.events || []).filter((e) => e.id && e.E && evActive(e, t0));
+      // Extra sources read by /api/ingest (libraries, cinemas, jazz, talks, volunteering…); never blocks the main feed
+      let extra = [];
+      try { extra = (await fetchJSON(API_BASE + "/api/ingest?feed=1", 15000)).events || []; } catch { /* optional */ }
+      // Events listed outside the city (London, Sydney…) are not for this app
+      const inNYC = (e) => !e.hood || /manhattan|brooklyn|queens|bronx|staten|new york|nyc|other/i.test(e.hood) && !/london|sydney/i.test(e.venue || "");
+      const have = new Set((data.events || []).map((e) => e.id));
+      const list = [...(data.events || []), ...extra.filter((e) => !have.has(e.id))].filter((e) => e.id && e.E && evActive(e, t0) && inNYC(e));
       const ts = new Date().toISOString();
       setEvents(list); setLastRefreshed(ts);
       ss("gp_events_v1", { events: list, refreshed: ts, backendRefreshed: data.refreshed || null, count: list.length, sources: [tx("Apps Script")] });
