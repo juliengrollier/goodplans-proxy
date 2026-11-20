@@ -1,6 +1,16 @@
 {
   "crons": [
-    { "path": "/api/feed-enrich", "schedule": "10 13 * * *" },
-    { "path": "/api/activity-discover", "schedule": "50 13 * * 1" }
+    {
+      "path": "/api/feed-enrich",
+      "schedule": "10 13 * * *"
+    },
+    {
+      "path": "/api/activity-discover",
+      "schedule": "50 13 * * 1"
+    },
+    {
+      "path": "/api/ingest",
+      "schedule": "30 12 * * *"
+    }
   ]
 }
