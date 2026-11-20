@@ -26,6 +26,21 @@ export const outsideNYC = (e) => {
   return false;
 };
 
+// Newsletter sources whose site the listing sometimes gets wrong (a guessed ".org"/".com" for the real domain).
+// When the link's host is that source's name on another domain ending, point it to the real one (path kept).
+const SOURCE_SITES = { "nyc for free": "nycforfree.co", "the skint": "theskint.com", "nonsense nyc": "nonsensenyc.com" };
+const stem = (h) => h.replace(/^www\./, "").replace(/\.[a-z.]+$/, "");
+export function fixUrl(e) {
+  if (!e || !e.url) return e;
+  let u; try { u = new URL(e.url); } catch { return { ...e, url: undefined }; }
+  if (!/^https?:$/.test(u.protocol)) return { ...e, url: undefined };
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  const site = Object.values(SOURCE_SITES).find((d) => stem(d) === stem(host)) || SOURCE_SITES[String(e.src || "").toLowerCase().trim()];
+  if (!site || host === site || stem(site) !== stem(host)) return e;
+  u.hostname = site; u.protocol = "https:";
+  return { ...e, url: u.href };
+}
+
 // Apply stored details to an event (only fills what the listing didn't have, except a precise place for a vague one)
 export function withDetails(e, all) {
   const d = all[e.id];
