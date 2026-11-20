@@ -248,7 +248,21 @@ export default function App() {
       // Events listed outside the city (London, Sydney…) are not for this app
       const inNYC = (e) => !e.hood || /manhattan|brooklyn|queens|bronx|staten|new york|nyc/i.test(e.hood) && !/london|sydney/i.test(e.venue || "");
       const have = new Set((data.events || []).map((e) => e.id));
-      const list = [...(data.events || []), ...extra.filter((e) => !have.has(e.id))].filter((e) => e.id && e.E && evActive(e, t0) && inNYC(e));
+      let list = [...(data.events || []), ...extra.filter((e) => !have.has(e.id))].filter((e) => e.id && e.E && evActive(e, t0) && inNYC(e));
+      // No single source may crowd out the rest: cap each source, keeping the best tier and spreading across days
+      const capOf = (src) => /broadway/i.test(src) ? 40 : /nyc parks/i.test(src) ? 120 : 60;
+      const bySrc = {};
+      list.forEach((e) => { (bySrc[e.src || ""] = bySrc[e.src || ""] || []).push(e); });
+      const kept = new Set();
+      Object.entries(bySrc).forEach(([src, arr]) => {
+        const cap = capOf(src);
+        if (arr.length <= cap) { arr.forEach((e) => kept.add(e)); return; }
+        const days = {};
+        arr.slice().sort((a, b) => (a.tier || 2) - (b.tier || 2)).forEach((e) => { (days[e.E] = days[e.E] || []).push(e); });
+        const order = Object.keys(days).sort(); let n = 0;
+        for (let r = 0; n < cap; r++) { let any = false; for (const d of order) { if (days[d][r] && n < cap) { kept.add(days[d][r]); n++; any = true; } } if (!any) break; }
+      });
+      list = list.filter((e) => kept.has(e));
       const ts = new Date().toISOString();
       setEvents(list); setLastRefreshed(ts);
       ss("gp_events_v1", { events: list, refreshed: ts, backendRefreshed: data.refreshed || null, count: list.length, sources: [tx("Apps Script")] });
