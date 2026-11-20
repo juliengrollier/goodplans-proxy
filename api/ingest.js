@@ -52,6 +52,23 @@ function jsonLdEvents(html) {
   return out;
 }
 
+
+// RSS/Atom feeds: turn each item into labelled plain text (field names kept so the extractor can see which is the date).
+function rssText(xml) {
+  const dec = (v) => String(v || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;|&rsquo;|&lsquo;/g, "'").replace(/&ndash;|&mdash;/g, "-").replace(/&amp;/g, "&");
+  const items = xml.split(/<item[ >]|<entry[ >]/i).slice(1);
+  return items.map((it) => {
+    const parts = [];
+    for (const m of it.matchAll(/<([\w:]+)[^>]*>([\s\S]*?)<\/\1>/g)) {
+      const name = m[1].toLowerCase(); let v = dec(m[2]);
+      if (/description|summary|content/.test(name)) v = clip(dec(v).replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ").replace(/CLICK HERE TO (BUY|BOOK) TICKETS NOW!?/gi, ""), 220);
+      else v = clip(v.replace(/<[^>]+>/g, " "), 200);
+      if (v) parts.push(name + ": " + v);
+    }
+    return parts.join(" | ");
+  }).join("\n");
+}
+
 function pageText(html, base) {
   const abs = (h) => { try { return new URL(h, base).href; } catch { return ""; } };
   return html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<nav[\s\S]*?<\/nav>|<footer[\s\S]*?<\/footer>/gi, " ")
@@ -176,8 +193,9 @@ async function runSource(src, store, force) {
     }
     const hash = createHash("sha1").update(html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " ")).digest("hex");
     if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
-    let raw = jsonLdEvents(html).map((o) => fromLd(o, src, url)).filter(Boolean), how = "json-ld";
-    if (raw.length < 3) { how = "claude"; raw = await readWithClaude(src, pageText(html, url), today); }
+    const isRss = /^\s*(<\?xml|<rss|<feed)/i.test(html);
+    let raw = isRss ? [] : jsonLdEvents(html).map((o) => fromLd(o, src, url)).filter(Boolean), how = isRss ? "rss" : "json-ld";
+    if (raw.length < 3) { if (!isRss) how = "claude"; raw = await readWithClaude(src, isRss ? rssText(html) : pageText(html, url), today); }
     const evs = raw.map((x) => toEvent(src, x, today, limit)).filter(Boolean);
     const seen = new Set(); st.events = evs.filter((e) => !seen.has(e.id) && seen.add(e.id));
     Object.assign(st, { at: t0, hash, ok: true, how, count: st.events.length, raw: raw.length, err: undefined, note: undefined });
