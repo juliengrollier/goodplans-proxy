@@ -114,32 +114,46 @@ function toEvent(src, x, today, limit) {
 // so they surface for people who like fitness without crowding everyone's lists; everything else is tier 2.
 const BORO = { B: "Brooklyn", M: "Manhattan", Q: "Queens", X: "Bronx", R: "Staten Island" };
 const t12 = (t) => String(t || "").replace(/\b(am|pm)\b/i, (m) => m.toUpperCase()).trim();
+const unent = (v) => String(v || "").replace(/&#(\d+);/g, (m, n) => ({ 174: "®", 241: "ñ", 233: "é", 225: "á", 237: "í", 243: "ó", 39: "'", 8217: "'" })[n] || "").replace(/&amp;/g, "&").replace(/&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+const ANCH = [["Manhattan", 40.72, -74.0], ["Manhattan", 40.78, -73.97], ["Manhattan", 40.84, -73.94], ["Manhattan", 40.87, -73.92], ["Brooklyn", 40.68, -73.97], ["Brooklyn", 40.63, -73.95], ["Brooklyn", 40.65, -73.90], ["Brooklyn", 40.70, -73.93], ["Brooklyn", 40.60, -74.0],
+  ["Queens", 40.75, -73.90], ["Queens", 40.72, -73.82], ["Queens", 40.68, -73.78], ["Queens", 40.77, -73.78], ["Queens", 40.60, -73.80], ["Bronx", 40.85, -73.88], ["Bronx", 40.88, -73.86], ["Bronx", 40.82, -73.91], ["Staten Island", 40.58, -74.15], ["Staten Island", 40.63, -74.10], ["Staten Island", 40.52, -74.2]];
+function boroOf(ll, fallback) {
+  if (!ll || ll.length !== 2 || !ll.every((n) => isFinite(n) && n)) return fallback;
+  let best = fallback, d = 1e9;
+  for (const [b, la, lo] of ANCH) { const k = (ll[0] - la) ** 2 + ((ll[1] - lo) * 0.76) ** 2; if (k < d) { d = k; best = b; } }
+  return best;
+}
 function parkEvent(src, x, today, limit) {
-  const title = clip(String(x.title || "").replace(/&amp;/g, "&").replace(/&#0?39;|&rsquo;/g, "'"), 140), start = String(x.startdate || "").slice(0, 10);
+  const title = clip(unent(x.title), 140), start = String(x.startdate || "").slice(0, 10);
   if (!title || !/^\d{4}-\d\d-\d\d$/.test(start) || start < today || start > limit) return null;
-  const cats = String(x.categories || "").split("|").map((c) => c.trim()).filter(Boolean), has = (re) => cats.some((c) => re.test(c));
-  if (/^cancel/i.test(title) || /cancelled/i.test(String(x.description || "").slice(0, 80)) || /\bcamp\b|extended day|regular day/i.test(title)) return null;
+  const cats = String(x.categories || "").split("|").map((c) => c.trim()).filter(Boolean), has = (re) => cats.some((c) => re.test(c)), T = (re) => re.test(title);
+  if (/^cancel/i.test(title) || /cancelled/i.test(String(x.description || "").slice(0, 80)) || /\bcamp\b|extended day|regular day|swim team|returning (swim|member)/i.test(title + " " + String(x.description || "").slice(0, 120))) return null;
   const rec = has(/recreation center/i);
   let cat = "Other", sub = cats[0] || "Park program";
-  if (has(/dance/i)) { cat = "Sports"; sub = "Dance class"; }
-  else if (has(/yoga|pilates/i)) { cat = "Sports"; sub = "Yoga & Pilates"; }
-  else if (has(/running|jogging/i) || /open run|\brun\b/i.test(title)) { cat = "Sports"; sub = "Running"; }
-  else if (has(/fitness|exercise|sports|recreation/i)) { cat = "Sports"; sub = has(/fitness|exercise/i) ? "Fitness" : "Sports"; }
-  else if (has(/kids|children|family|best for kids/i)) { cat = "Family"; sub = "Kids"; }
-  else if (has(/volunteer|it's my park/i)) { cat = "Outdoors"; sub = "Volunteering"; }
-  else if (has(/nature|hik|walk|tour|garden|bird|wildlife|conservation/i)) { cat = "Outdoors"; sub = has(/tour/i) ? "Walking tour" : "Nature"; }
+  if (T(/\bnyrr\b|open run|running group|\b[0-9]+k\b|turkey trot/i) || has(/running|jogging/i)) { cat = "Sports"; sub = "Running"; }
+  else if (has(/yoga|pilates/i) || T(/\byoga\b|pilates/i)) { cat = "Sports"; sub = "Yoga & Pilates"; }
+  else if (T(/\btour\b|exhibit|museum|open hours|gallery/i) || (has(/history/i) && has(/tours/i))) { cat = "Art & Culture"; sub = has(/history/i) ? "History" : "Exhibit"; }
+  else if (T(/volunteer|clean ?up|stewardship|restoration|planting|tree care|it's my park|garden/i) || has(/volunteer/i)) { cat = "Outdoors"; sub = "Volunteering"; }
+  else if (has(/arts? & crafts|workshops/i) && !has(/fitness|exercise/i)) { cat = "Art & Culture"; sub = "Workshop"; }
+  else if (has(/swimming|aquatics/i)) { cat = "Sports"; sub = "Swimming"; }
+  else if (has(/dance classes|fitness|exercise/i) && has(/dance/i)) { cat = "Sports"; sub = "Dance class"; }
+  else if (has(/fitness|exercise/i)) { cat = "Sports"; sub = "Fitness"; }
+  else if (has(/dance/i)) { cat = "Art & Culture"; sub = "Dance performance"; }
+  else if (has(/kids|children|best for kids/i)) { cat = "Family"; sub = "Kids"; }
+  else if (has(/sports|football|basketball|soccer|tennis|baseball/i)) { cat = "Sports"; sub = "Sports"; }
+  else if (has(/nature|hik|walk|bird|wildlife|astronomy|fishing|urban park rangers|conservation/i)) { cat = "Outdoors"; sub = has(/hik/i) ? "Hike" : has(/bird/i) ? "Birding" : has(/fishing/i) ? "Fishing" : "Nature"; }
   else if (has(/concert|music/i)) { cat = "Music"; sub = "Concert"; }
   else if (has(/movie|film/i)) { cat = "Film"; sub = "Outdoor film"; }
-  else if (has(/art|craft|theater|theatre/i)) { cat = "Art & Culture"; sub = cats[0]; }
+  else if (has(/art/i)) { cat = "Art & Culture"; sub = "Art"; }
   else if (has(/history|educat|learn|talk|lecture/i)) { cat = "Talk & Learn"; sub = cats[0]; }
-  const park = clip(x.parknames, 70), loc = clip(String(x.location || "").replace(/\s*\(in [^)]*\)\s*$/, ""), 70);
+  const park = clip(unent(x.parknames), 70), loc = clip(unent(x.location).replace(/\s*\(in [^)]*\)\s*$/, ""), 70);
   const venue = loc && park && !loc.toLowerCase().includes(park.toLowerCase()) ? loc + ", " + park : (park || loc || "NYC Parks");
   const ll = String(x.coordinates || "").split(",").map((n) => parseFloat(n));
-  const desc = clip(String(x.description || "").replace(/&nbsp;|<[^>]+>/g, " ").replace(/https?:\/\/\S+/g, "").replace(/&amp;/g, "&"), 280);
+  const desc = clip(unent(String(x.description || "").replace(/&nbsp;|<[^>]+>/g, " ").replace(/https?:\/\/\S+/g, "")), 280);
   const time = x.starttime ? t12(x.starttime) + (x.endtime ? " - " + t12(x.endtime) : "") : "";
   const free = /\bfree\b/i.test(desc) ? "Free" : "";
   const id = src.id + "-" + createHash("sha1").update(String(x.guid || title + start + venue)).digest("hex").slice(0, 8);
-  const e = { id, title, E: start, time: time || undefined, price: free || undefined, venue, hood: BORO[String(x.parkids || "")[0]] || "Manhattan",
+  const e = { id, title, E: start, time: time || undefined, price: free || undefined, venue, hood: boroOf(ll, BORO[String(x.parkids || "")[0]] || "Manhattan"),
     cat, sub, tier: rec && cat !== "Family" ? 3 : 2, ticket: false, src: "NYC Parks", url: /^https?:\/\//.test(x.link || "") ? String(x.link).replace(/^http:/, "https:") : undefined,
     desc: desc || undefined, tags: [].concat(free ? ["free"] : [], rec ? ["recurring"] : [], cats.slice(0, 3).map((c) => c.toLowerCase())) };
   if (ll.length === 2 && ll.every((n) => isFinite(n) && n)) e.coord = ll;
