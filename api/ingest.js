@@ -109,11 +109,57 @@ function toEvent(src, x, today, limit) {
   return e;
 }
 
+
+// NYC Parks' official 14-day feed: structured, so no Claude needed. Recreation-center class sessions are filler (tier 3)
+// so they surface for people who like fitness without crowding everyone's lists; everything else is tier 2.
+const BORO = { B: "Brooklyn", M: "Manhattan", Q: "Queens", X: "Bronx", R: "Staten Island" };
+const t12 = (t) => String(t || "").replace(/\b(am|pm)\b/i, (m) => m.toUpperCase()).trim();
+function parkEvent(src, x, today, limit) {
+  const title = clip(String(x.title || "").replace(/&amp;/g, "&").replace(/&#0?39;|&rsquo;/g, "'"), 140), start = String(x.startdate || "").slice(0, 10);
+  if (!title || !/^\d{4}-\d\d-\d\d$/.test(start) || start < today || start > limit) return null;
+  const cats = String(x.categories || "").split("|").map((c) => c.trim()).filter(Boolean), has = (re) => cats.some((c) => re.test(c));
+  if (/^cancel/i.test(title) || /cancelled/i.test(String(x.description || "").slice(0, 80)) || /\bcamp\b|extended day|regular day/i.test(title)) return null;
+  const rec = has(/recreation center/i);
+  let cat = "Other", sub = cats[0] || "Park program";
+  if (has(/dance/i)) { cat = "Sports"; sub = "Dance class"; }
+  else if (has(/yoga|pilates/i)) { cat = "Sports"; sub = "Yoga & Pilates"; }
+  else if (has(/running|jogging/i) || /open run|\brun\b/i.test(title)) { cat = "Sports"; sub = "Running"; }
+  else if (has(/fitness|exercise|sports|recreation/i)) { cat = "Sports"; sub = has(/fitness|exercise/i) ? "Fitness" : "Sports"; }
+  else if (has(/kids|children|family|best for kids/i)) { cat = "Family"; sub = "Kids"; }
+  else if (has(/volunteer|it's my park/i)) { cat = "Outdoors"; sub = "Volunteering"; }
+  else if (has(/nature|hik|walk|tour|garden|bird|wildlife|conservation/i)) { cat = "Outdoors"; sub = has(/tour/i) ? "Walking tour" : "Nature"; }
+  else if (has(/concert|music/i)) { cat = "Music"; sub = "Concert"; }
+  else if (has(/movie|film/i)) { cat = "Film"; sub = "Outdoor film"; }
+  else if (has(/art|craft|theater|theatre/i)) { cat = "Art & Culture"; sub = cats[0]; }
+  else if (has(/history|educat|learn|talk|lecture/i)) { cat = "Talk & Learn"; sub = cats[0]; }
+  const park = clip(x.parknames, 70), loc = clip(String(x.location || "").replace(/\s*\(in [^)]*\)\s*$/, ""), 70);
+  const venue = loc && park && !loc.toLowerCase().includes(park.toLowerCase()) ? loc + ", " + park : (park || loc || "NYC Parks");
+  const ll = String(x.coordinates || "").split(",").map((n) => parseFloat(n));
+  const desc = clip(String(x.description || "").replace(/&nbsp;|<[^>]+>/g, " ").replace(/https?:\/\/\S+/g, "").replace(/&amp;/g, "&"), 280);
+  const time = x.starttime ? t12(x.starttime) + (x.endtime ? " - " + t12(x.endtime) : "") : "";
+  const free = /\bfree\b/i.test(desc) ? "Free" : "";
+  const id = src.id + "-" + createHash("sha1").update(String(x.guid || title + start + venue)).digest("hex").slice(0, 8);
+  const e = { id, title, E: start, time: time || undefined, price: free || undefined, venue, hood: BORO[String(x.parkids || "")[0]] || "Manhattan",
+    cat, sub, tier: rec && cat !== "Family" ? 3 : 2, ticket: false, src: "NYC Parks", url: /^https?:\/\//.test(x.link || "") ? String(x.link).replace(/^http:/, "https:") : undefined,
+    desc: desc || undefined, tags: [].concat(free ? ["free"] : [], rec ? ["recurring"] : [], cats.slice(0, 3).map((c) => c.toLowerCase())) };
+  if (ll.length === 2 && ll.every((n) => isFinite(n) && n)) e.coord = ll;
+  if (x.enddate && x.enddate !== x.startdate && /^\d{4}-\d\d-\d\d$/.test(x.enddate)) e.X = x.enddate;
+  Object.keys(e).forEach((k) => e[k] === undefined && delete e[k]);
+  return e;
+}
+
 async function runSource(src, store, force) {
   const st = store.by[src.id] || (store.by[src.id] = {});
   const t0 = Date.now(), today = iso(new Date(t0 - 5 * 3600e3)), limit = iso(new Date(t0 + src.horizon * DAY));
   try {
     const { html, url } = await fetchPage(src.url);
+    if (src.kind === "nycparks") {
+      const hash = createHash("sha1").update(html).digest("hex");
+      if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+      const raw = JSON.parse(html), seen = new Set();
+      st.events = raw.map((x) => parkEvent(src, x, today, limit)).filter((e) => e && !seen.has(e.id) && seen.add(e.id));
+      return Object.assign(st, { at: t0, hash, ok: true, how: "feed", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
+    }
     const hash = createHash("sha1").update(html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " ")).digest("hex");
     if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
     let raw = jsonLdEvents(html).map((o) => fromLd(o, src, url)).filter(Boolean), how = "json-ld";
