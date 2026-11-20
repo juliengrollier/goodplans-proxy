@@ -179,6 +179,26 @@ function parkEvent(src, x, today, limit) {
   return e;
 }
 
+// Anthology Film Archives RSS: title, link, escaped-HTML description and a "Friday, November 20" day line per screening. No showtimes in the feed.
+const MON = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+function anthologyEvents(xml, src) {
+  const dec = (v) => String(v || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+  const out = [];
+  for (const it of xml.split(/<item[ >]/i).slice(1)) {
+    const tag = (n) => { const m = it.match(new RegExp("<" + n + "[^>]*>([\\s\\S]*?)</" + n + ">", "i")); return m ? dec(m[1]) : ""; };
+    const link = unent(tag("link")), title = unent(tag("title"));
+    const day = (it.match(/>\s*(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,\s+([A-Z][a-z]+)\s+(\d{1,2})\s*</) || []);
+    const yr = (link.match(/year=(\d{4})/) || [])[1], mo = (link.match(/month=(\d{1,2})/) || [])[1];
+    const m = MON[String(day[1] || "").toLowerCase()];
+    if (!title || !m || !yr) continue;
+    let year = +yr; if (mo && +mo === 12 && m === 1) year++; // January items listed under the December view
+    const start = year + "-" + String(m).padStart(2, "0") + "-" + String(day[2]).padStart(2, "0");
+    let d = unent(tag("description").replace(/&lt;br\s*\/?&gt;/gi, " ").replace(/&lt;[^]*?&gt;/g, " ").replace(/&amp;(?=[a-z#])/g, "&")).replace(/&[a-z]+;/gi, " ").replace(/CLICK HERE TO (BUY|BOOK) TICKETS NOW!?/gi, "").replace(/\s+/g, " ").trim();
+    out.push({ title, start, venue: "Anthology Film Archives", borough: "Manhattan", cat: "Film", sub: "Repertory cinema", desc: d, url: link.replace(/&amp;/g, "&") });
+  }
+  return out;
+}
+
 async function runSource(src, store, force) {
   const st = store.by[src.id] || (store.by[src.id] = {});
   const t0 = Date.now(), today = iso(new Date(t0 - 5 * 3600e3)), limit = iso(new Date(t0 + src.horizon * DAY));
@@ -193,6 +213,13 @@ async function runSource(src, store, force) {
     }
     const hash = createHash("sha1").update(html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " ")).digest("hex");
     if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+    if (src.kind === "anthology") {
+      const hash = createHash("sha1").update(html).digest("hex");
+      if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+      const raw = anthologyEvents(html, src), seen = new Set();
+      st.events = raw.map((x) => toEvent(src, x, today, limit)).filter((e) => e && !seen.has(e.id) && seen.add(e.id));
+      return Object.assign(st, { at: t0, hash, ok: true, how: "feed", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
+    }
     const isRss = /^\s*(<\?xml|<rss|<feed)/i.test(html);
     let raw = isRss ? [] : jsonLdEvents(html).map((o) => fromLd(o, src, url)).filter(Boolean), how = isRss ? "rss" : "json-ld";
     if (raw.length < 3) { if (!isRss) how = "claude"; raw = await readWithClaude(src, isRss ? rssText(html) : pageText(html, url), today); }
