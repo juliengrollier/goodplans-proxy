@@ -222,7 +222,7 @@ function WhenTabs({ tabs, dark, today, onOpen, onMore }) {
         </div>
         <button className="chip" onClick={() => onMore(patch)} style={{ height: 32, flexShrink: 0 }} aria-label={tx("See all: ") + label}>{tx("More")} <Icon name="chev" size={14} /></button>
       </div>
-      <DotScroll key={active[0]}>{list.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
+      <DotScroll snap key={active[0]}>{list.map((ev) => <PosterCard key={ev.id} ev={ev} dark={dark} today={today} onOpen={onOpen} />)}</DotScroll>
     </>
   );
 }
@@ -400,7 +400,7 @@ function NYCard({ c, tint, label, onTile, height = 150, half, full }) {
 // One row: a small label and page dots, then a one-card-at-a-time carousel (no edge of the next card)
 function NYRow({ row, ri, onTile }) {
   const [tint, label] = NY_TINT[Math.min(ri, 2)];
-  if (ri === 0) return <DotScroll>{row.items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={label} onTile={onTile} height={230} full />)}</DotScroll>;
+  if (ri === 0) return <DotScroll snap>{row.items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={label} onTile={onTile} height={230} full />)}</DotScroll>;
   return <DotScroll>{row.items.map((c) => <NYCard key={c.id} c={c} tint={tint} label={label} onTile={onTile} height={150} half />)}</DotScroll>;
 }
 
