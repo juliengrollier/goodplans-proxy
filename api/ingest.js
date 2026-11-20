@@ -199,6 +199,23 @@ function anthologyEvents(xml, src) {
   return out;
 }
 
+// Squarespace event collections (?format=json): upcoming[] with ms timestamps, location and categories. Used for The Jazz Gallery.
+function sqsEvents(json, src, base) {
+  const fmtD = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+  const fmtT = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
+  const out = [];
+  for (const x of json.upcoming || []) {
+    const loc = x.location || {}, la = loc.markerLat, lo = loc.markerLng;
+    if (typeof la !== "number" || la < 40.49 || la > 40.92 || lo < -74.27 || lo > -73.69) continue; // outside the five boroughs
+    const t = new Date(x.startDate), e = x.endDate ? new Date(x.endDate) : null;
+    const start = fmtD.format(t), end = e ? fmtD.format(e) : "";
+    const excerpt = unent(String(x.excerpt || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&[a-z]+;/gi, " "));
+    out.push({ title: unent(x.title), start, end: end > start ? end : "", time: fmtT.format(t).replace(/:00 /, " "), venue: unent(loc.addressTitle) || src.name,
+      borough: boroOf([la, lo], "Manhattan"), cat: "Music", sub: "Jazz", desc: excerpt, url: new URL(x.fullUrl || "", base).href });
+  }
+  return out;
+}
+
 async function runSource(src, store, force) {
   const st = store.by[src.id] || (store.by[src.id] = {});
   const t0 = Date.now(), today = iso(new Date(t0 - 5 * 3600e3)), limit = iso(new Date(t0 + src.horizon * DAY));
@@ -213,6 +230,13 @@ async function runSource(src, store, force) {
     }
     const hash = createHash("sha1").update(html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " ")).digest("hex");
     if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+    if (src.kind === "squarespace") {
+      const hash = createHash("sha1").update(html).digest("hex");
+      if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+      const raw = sqsEvents(JSON.parse(html), src, url), seen = new Set();
+      st.events = raw.map((x) => toEvent(src, x, today, limit)).filter((e) => e && !seen.has(e.id) && seen.add(e.id));
+      return Object.assign(st, { at: t0, hash, ok: true, how: "feed", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
+    }
     if (src.kind === "anthology") {
       const hash = createHash("sha1").update(html).digest("hex");
       if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
