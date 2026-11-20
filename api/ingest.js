@@ -115,8 +115,8 @@ function toEvent(src, x, today, limit) {
 const BORO = { B: "Brooklyn", M: "Manhattan", Q: "Queens", X: "Bronx", R: "Staten Island" };
 const t12 = (t) => String(t || "").replace(/\b(am|pm)\b/i, (m) => m.toUpperCase()).trim();
 const unent = (v) => String(v || "").replace(/&#(\d+);/g, (m, n) => ({ 174: "®", 241: "ñ", 233: "é", 225: "á", 237: "í", 243: "ó", 39: "'", 8217: "'" })[n] || "").replace(/&amp;/g, "&").replace(/&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
-const ANCH = [["Manhattan", 40.72, -74.0], ["Manhattan", 40.78, -73.97], ["Manhattan", 40.84, -73.94], ["Manhattan", 40.87, -73.92], ["Brooklyn", 40.68, -73.97], ["Brooklyn", 40.63, -73.95], ["Brooklyn", 40.65, -73.90], ["Brooklyn", 40.70, -73.93], ["Brooklyn", 40.60, -74.0],
-  ["Queens", 40.75, -73.90], ["Queens", 40.72, -73.82], ["Queens", 40.68, -73.78], ["Queens", 40.77, -73.78], ["Queens", 40.60, -73.80], ["Bronx", 40.85, -73.88], ["Bronx", 40.88, -73.86], ["Bronx", 40.82, -73.91], ["Staten Island", 40.58, -74.15], ["Staten Island", 40.63, -74.10], ["Staten Island", 40.52, -74.2]];
+const ANCH = [["Manhattan", 40.72, -74.0], ["Manhattan", 40.78, -73.97], ["Manhattan", 40.84, -73.94], ["Manhattan", 40.87, -73.92], ["Manhattan", 40.805, -73.945], ["Manhattan", 40.82, -73.94], ["Manhattan", 40.86, -73.935], ["Brooklyn", 40.68, -73.97], ["Brooklyn", 40.63, -73.95], ["Brooklyn", 40.65, -73.90], ["Brooklyn", 40.70, -73.93], ["Brooklyn", 40.60, -74.0],
+  ["Queens", 40.75, -73.90], ["Queens", 40.77, -73.925], ["Queens", 40.76, -73.85], ["Queens", 40.72, -73.82], ["Queens", 40.68, -73.78], ["Queens", 40.77, -73.78], ["Queens", 40.60, -73.80], ["Bronx", 40.85, -73.88], ["Bronx", 40.90, -73.91], ["Bronx", 40.87, -73.895], ["Bronx", 40.88, -73.86], ["Bronx", 40.82, -73.91], ["Staten Island", 40.58, -74.15], ["Staten Island", 40.63, -74.10], ["Staten Island", 40.52, -74.2]];
 function boroOf(ll, fallback) {
   if (!ll || ll.length !== 2 || !ll.every((n) => isFinite(n) && n)) return fallback;
   let best = fallback, d = 1e9;
@@ -150,7 +150,7 @@ function parkEvent(src, x, today, limit) {
   const venue = loc && park && !loc.toLowerCase().includes(park.toLowerCase()) ? loc + ", " + park : (park || loc || "NYC Parks");
   const ll = String(x.coordinates || "").split(",").map((n) => parseFloat(n));
   const desc = clip(unent(String(x.description || "").replace(/&nbsp;|<[^>]+>/g, " ").replace(/https?:\/\/\S+/g, "")), 280);
-  const time = x.starttime ? t12(x.starttime) + (x.endtime ? " - " + t12(x.endtime) : "") : "";
+  const time = x.starttime && !/^0:00/.test(x.starttime) ? t12(x.starttime) + (x.endtime ? " - " + t12(x.endtime) : "") : "";
   const free = /\bfree\b/i.test(desc) ? "Free" : "";
   const id = src.id + "-" + createHash("sha1").update(String(x.guid || title + start + venue)).digest("hex").slice(0, 8);
   const e = { id, title, E: start, time: time || undefined, price: free || undefined, venue, hood: boroOf(ll, BORO[String(x.parkids || "")[0]] || "Manhattan"),
