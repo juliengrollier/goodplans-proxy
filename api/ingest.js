@@ -81,7 +81,7 @@ function skintText(xml) {
     body = body.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<a [^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "$2 [$1]")
       .replace(/<\/(p|div|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&#8217;|&rsquo;/g, "'").replace(/&amp;/g, "&").replace(/&#?\w+;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
     return "POST: " + title + " (published " + dec((it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1]).trim() + ")\n" + body.trim();
-  }).join("\n\n");
+  });
 }
 const TICKETING = /ticketmaster|seatgeek|stubhub|vividseats|livenation|axs\.com|tickpick|gametime\.co/i;
 
@@ -294,9 +294,9 @@ async function runSource(src, store, force) {
       return Object.assign(st, { at: t0, hash, ok: true, how: "feed", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
     }
     if (src.kind === "skint") {
-      const hash = createHash("sha1").update(skintText(html)).digest("hex");
+      const posts = skintText(html), hash = createHash("sha1").update(posts.join("\n")).digest("hex");
       if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
-      const raw = (await readWithClaude(src, skintText(html), today)).map((x) => (TICKETING.test(x.url || "") ? { ...x, url: "" } : x)), seen = new Set();
+      const raw = (await Promise.all(posts.map((p) => readWithClaude(src, p, today).catch(() => [])))).flat().map((x) => (TICKETING.test(x.url || "") ? { ...x, url: "" } : x)), seen = new Set();
       st.events = raw.map((x) => toEvent(src, x, today, limit)).filter((e) => e && !seen.has(e.id) && seen.add(e.id));
       return Object.assign(st, { at: t0, hash, ok: true, how: "claude", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
     }
@@ -335,7 +335,7 @@ export default async function handler(req, res) {
   if (req.query.status) return res.status(200).json(ALL.map((s) => { const x = store.by[s.id] || {}; return { id: s.id, off: s.off, cadence: s.cadence, at: x.at ? new Date(x.at).toISOString() : null, ok: x.ok, how: x.how, count: x.count, raw: x.raw, err: x.err, note: x.note }; }));
   if (req.query.dry) { // dry run of one source through Claude: shows the text sent and what comes back, stores nothing
     const src = ALL.find((s) => s.id === req.query.dry); if (!src) return res.status(404).json({ error: "unknown source" });
-    try { const { html } = await fetchPage(src.url); const text = src.kind === "skint" ? skintText(html) : rssText(html); const today = iso(new Date(Date.now() - 5 * 3600e3));
+    try { const { html } = await fetchPage(src.url); const text = src.kind === "skint" ? skintText(html).slice(Number(req.query.post) || 0).join("\n\n") : rssText(html); const today = iso(new Date(Date.now() - 5 * 3600e3));
       let raw, err; try { raw = await readWithClaude(src, text, today); } catch (e) { err = String(e && e.message || e); }
       return res.status(200).json({ chars: text.length, head: text.slice(0, 1200), err, n: raw && raw.length, raw: raw && raw.slice(0, Number(req.query.n) || 6) });
     } catch (e) { return res.status(200).json({ error: String(e && e.message || e) }); }
