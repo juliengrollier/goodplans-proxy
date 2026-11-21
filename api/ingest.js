@@ -70,6 +70,21 @@ function rssText(xml) {
   }).join("\n");
 }
 
+// The Skint: its RSS carries one long digest per day or weekend (full text in content:encoded). Keep the latest few,
+// with link targets inline so the extractor can attach each event's own page; the digests are read by Claude.
+function skintText(xml) {
+  const dec = (v) => String(v || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+  const items = xml.split(/<item[ >]/i).slice(1, 5);
+  return items.map((it) => {
+    const title = dec((it.match(/<title>([\s\S]*?)<\/title>/i) || [])[1]).replace(/<[^>]+>/g, " ").trim();
+    let body = dec((it.match(/<content:encoded>([\s\S]*?)<\/content:encoded>/i) || [])[1] || (it.match(/<description>([\s\S]*?)<\/description>/i) || [])[1]);
+    body = body.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<a [^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "$2 [$1]")
+      .replace(/<\/(p|div|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&#8217;|&rsquo;/g, "'").replace(/&amp;/g, "&").replace(/&#?\w+;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
+    return "POST: " + title + "\n" + body.trim();
+  }).join("\n\n");
+}
+const TICKETING = /ticketmaster|seatgeek|stubhub|vividseats|livenation|axs\.com|tickpick|gametime\.co/i;
+
 function pageText(html, base) {
   const abs = (h) => { try { return new URL(h, base).href; } catch { return ""; } };
   return html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<nav[\s\S]*?<\/nav>|<footer[\s\S]*?<\/footer>/gi, " ")
@@ -276,6 +291,13 @@ async function runSource(src, store, force) {
       const raw = sqsEvents(JSON.parse(html), src, url), seen = new Set();
       st.events = raw.map((x) => toEvent(src, x, today, limit)).filter((e) => e && !seen.has(e.id) && seen.add(e.id));
       return Object.assign(st, { at: t0, hash, ok: true, how: "feed", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
+    }
+    if (src.kind === "skint") {
+      const hash = createHash("sha1").update(skintText(html)).digest("hex");
+      if (!force && st.hash === hash && st.ok) { st.at = t0; st.note = "unchanged"; return st; }
+      const raw = (await readWithClaude(src, skintText(html), today)).map((x) => (TICKETING.test(x.url || "") ? { ...x, url: "" } : x)), seen = new Set();
+      st.events = raw.map((x) => toEvent(src, x, today, limit)).filter((e) => e && !seen.has(e.id) && seen.add(e.id));
+      return Object.assign(st, { at: t0, hash, ok: true, how: "claude", count: st.events.length, raw: raw.length, err: undefined, note: undefined });
     }
     if (src.kind === "anthology") {
       const hash = createHash("sha1").update(html).digest("hex");
