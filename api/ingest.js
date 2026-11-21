@@ -333,6 +333,13 @@ export default async function handler(req, res) {
   if (req.query.status && okToken(req.query.t)) return res.status(200).json(ALL.map((s) => { const x = store.by[s.id] || {}; return { id: s.id, name: s.name, off: s.off, cadence: s.cadence, at: x.at ? new Date(x.at).toISOString() : null, ok: x.ok, how: x.how, count: x.count, err: x.err }; }));
   if (!cron && !vercelCron && !manual) return res.status(401).json({ error: "Unauthorized" });
   if (req.query.status) return res.status(200).json(ALL.map((s) => { const x = store.by[s.id] || {}; return { id: s.id, off: s.off, cadence: s.cadence, at: x.at ? new Date(x.at).toISOString() : null, ok: x.ok, how: x.how, count: x.count, raw: x.raw, err: x.err, note: x.note }; }));
+  if (req.query.dry) { // dry run of one source through Claude: shows the text sent and what comes back, stores nothing
+    const src = ALL.find((s) => s.id === req.query.dry); if (!src) return res.status(404).json({ error: "unknown source" });
+    try { const { html } = await fetchPage(src.url); const text = src.kind === "skint" ? skintText(html) : rssText(html); const today = iso(new Date(Date.now() - 5 * 3600e3));
+      let raw, err; try { raw = await readWithClaude(src, text, today); } catch (e) { err = String(e && e.message || e); }
+      return res.status(200).json({ chars: text.length, head: text.slice(0, 1200), err, n: raw && raw.length, raw: raw && raw.slice(0, Number(req.query.n) || 6) });
+    } catch (e) { return res.status(200).json({ error: String(e && e.message || e) }); }
+  }
   if (req.query.probe) {
     try {
       const { html, url } = await fetchPage(String(req.query.probe));
