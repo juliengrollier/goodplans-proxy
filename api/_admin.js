@@ -1,5 +1,5 @@
 /**
- * Good Plans — /api/admin  (owner-only: people, activity, flags review)
+ * Good Plans — /api/telemetry?admin=1  (owner-only: people, activity, flags review)
  *
  * POST { action:"isadmin", email }                  → { admin } (only used to decide whether to show the Admin card)
  * POST { action:"login", credential }               → Google ID token verified here; if its email is ADMIN_EMAIL → { token, exp }
@@ -37,7 +37,7 @@ async function listAll(prefix) {
 }
 const fetchBlob = async (x) => { const r = await fetch(x.url, { headers: { authorization: "Bearer " + process.env.BLOB_READ_WRITE_TOKEN } }); return r.ok ? r.json().catch(() => null) : null; };
 
-export default async function handler(req, res) {
+export default async function adminHandler(req, res) {
   const origin = req.headers.origin || "";
   res.setHeader("Access-Control-Allow-Origin", ALLOWED.test(origin) ? origin : "https://goodplans-proxy.vercel.app");
   res.setHeader("Vary", "Origin"); res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type");

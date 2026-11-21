@@ -10,6 +10,7 @@
  *   and for each score part: average when opened vs ignored, plus weights fitted by logistic regression.
  */
 import { blobApi, putJSON, getJSON } from "./_blob.js";
+import adminHandler from "./_admin.js";
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
 const POS = new Set(["open", "save", "link", "share", "dwell", "up", "directions", "went"]);
@@ -48,6 +49,7 @@ function fitLogistic(rows) {
 
 export default async function handler(req, res) {
   cors(req, res);
+  if (req.query.admin) return adminHandler(req, res); // owner-only admin lives here to stay within the 12-function limit
   if (req.method === "OPTIONS") return res.status(204).end();
   if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: "Blob store not connected" });
   try {

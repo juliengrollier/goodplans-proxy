@@ -9,7 +9,7 @@ const KEY = "gp_admin_v1";
 const getTok = () => { try { const t = JSON.parse(localStorage.getItem(KEY) || "null"); return t && t.exp > Date.now() ? t.token : ""; } catch { return ""; } };
 const ago = (t) => { if (!t) return "–"; const m = Math.round((Date.now() - t) / 60000); return m < 2 ? tx("now") : m < 90 ? m + " min" : m < 2880 ? Math.round(m / 60) + " h" : Math.round(m / 1440) + " d"; };
 const dur = (s) => (s == null ? "–" : s < 90 ? s + " s" : Math.round(s / 60) + " min");
-const post = (b) => fetch(API_BASE + "/api/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then((r) => r.json().then((d) => ({ ok: r.ok, ...d })));
+const post = (b) => fetch(API_BASE + "/api/telemetry?admin=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then((r) => r.json().then((d) => ({ ok: r.ok, ...d })));
 
 export function useIsOwner(account) {
   const [yes, setYes] = useState(false);
@@ -33,7 +33,7 @@ export default function AdminPanel({ dark }) {
     if (!tok) return;
     setErr("");
     try {
-      const [a, b] = await Promise.all([fetch(`${API_BASE}/api/admin?t=${encodeURIComponent(tok)}&view=overview&days=${days}`), fetch(`${API_BASE}/api/admin?t=${encodeURIComponent(tok)}&view=flags`)]);
+      const [a, b] = await Promise.all([fetch(`${API_BASE}/api/telemetry?admin=1&t=${encodeURIComponent(tok)}&view=overview&days=${days}`), fetch(`${API_BASE}/api/telemetry?admin=1&t=${encodeURIComponent(tok)}&view=flags`)]);
       if (a.status === 401 || b.status === 401) { try { localStorage.removeItem(KEY); } catch { /* ignore */ } setTok(""); return; }
       setData(await a.json()); setFlags((await b.json()).flags || []);
     } catch (e) { setErr(String(e.message || e)); }
@@ -46,7 +46,7 @@ export default function AdminPanel({ dark }) {
     if (d.token) { try { localStorage.setItem(KEY, JSON.stringify({ token: d.token, exp: d.exp })); } catch { /* ignore */ } setTok(d.token); } else setErr(tx("That Google account isn't the owner."));
   };
   const review = async (id, set) => {
-    await fetch(`${API_BASE}/api/admin?t=${encodeURIComponent(tok)}&flag=${encodeURIComponent(id)}&set=${set}`);
+    await fetch(`${API_BASE}/api/telemetry?admin=1&t=${encodeURIComponent(tok)}&flag=${encodeURIComponent(id)}&set=${set}`);
     setFlags((l) => (l || []).map((f) => (f.id === id ? { ...f, status: set } : f)));
   };
 
