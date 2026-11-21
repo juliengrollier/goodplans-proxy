@@ -8,7 +8,7 @@
  *
  * Talks to the Blob REST API directly (no npm dependencies in this folder).
  */
-import { okToken } from "./admin.js";
+import { okToken } from "./_admin.js";
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
 const API = "https://vercel.com/api/blob";
 const PREFIX = "flags/";
