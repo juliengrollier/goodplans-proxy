@@ -8,6 +8,7 @@
  *
  * Talks to the Blob REST API directly (no npm dependencies in this folder).
  */
+import { okToken } from "./admin.js";
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
 const API = "https://vercel.com/api/blob";
 const PREFIX = "flags/";
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
       if (req.method === "POST" && !ALLOWED.test(req.headers.origin || "")) return res.status(403).json({ error: "Origin not allowed" });
       const b = req.method === "POST" ? (typeof req.body === "string" ? JSON.parse(req.body) : req.body || {}) : { note: "Test flag (setup check)", target: "test", screen: "setup" };
       const id = new Date().toISOString().replace(/[:.]/g, "-") + "-" + Math.random().toString(36).slice(2, 6);
-      const flag = { id, at: new Date().toISOString(), note: clip(b.note || "", 2000), target: clip(b.target || "", 600), screen: clip(b.screen || "", 200), section: clip(b.section || "", 200), ev: b.ev || null, ctx: b.ctx || null, ver: clip(b.ver || "", 40), user: clip(b.user || "", 24) };
+      const flag = { id, at: new Date().toISOString(), note: clip(b.note || "", 2000), target: clip(b.target || "", 600), screen: clip(b.screen || "", 200), section: clip(b.section || "", 200), ev: b.ev || null, ctx: b.ctx || null, ver: clip(b.ver || "", 40), user: clip(b.user || "", 24), name: clip(b.name || "", 60), owner: okToken(b.t), status: okToken(b.t) ? "approved" : "pending" };
       const body = JSON.stringify(flag);
       if (body.length > 20000) return res.status(413).json({ error: "Too big" });
       await blobApi("/?" + new URLSearchParams({ pathname: PREFIX + id + ".json" }).toString(), {
@@ -81,7 +82,9 @@ export default async function handler(req, res) {
       const r = await fetch(x.url, { headers: { authorization: "Bearer " + token } });
       return r.ok ? r.json().catch(() => ({ id: x.pathname, error: "unreadable" })) : { id: x.pathname, error: "HTTP " + r.status };
     }));
-    return res.status(200).json({ count: flags.length, flags });
+    // Flags from other people wait for the owner's approval; only approved (or the owner's own, or older unlabelled) ones are returned here
+    const shown = req.query.all ? flags : flags.filter((f) => !f.status || f.status === "approved");
+    return res.status(200).json({ count: shown.length, pending: flags.filter((f) => f.status === "pending").length, flags: shown });
   } catch (e) {
     return res.status(500).json({ error: String(e.message || e) });
   }

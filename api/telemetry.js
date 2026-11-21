@@ -59,6 +59,21 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       if (!ALLOWED.test(req.headers.origin || "")) return res.status(403).json({ error: "Origin not allowed" });
       const b = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+      if (b.hello && b.hello.sid) {
+        const h = b.hello, u = String(b.user || "").replace(/[^a-z0-9]/gi, "").slice(0, 17), dv = String(b.device || "").replace(/[^a-z0-9]/gi, "").slice(0, 12);
+        if (u) {
+          const f = (await getJSON(`users/${u}.json`).catch(() => null)) || { user: u, first: Date.now(), sessions: [], devices: [] };
+          const now = Date.now(), sid = String(h.sid).slice(0, 16);
+          if (u.startsWith("g")) { f.name = String(h.name || f.name || "").slice(0, 60); f.email = String(h.email || f.email || "").slice(0, 120); }
+          f.ver = String(h.ver || f.ver || "").slice(0, 40); f.last = now;
+          if (dv && !f.devices.includes(dv)) f.devices = [...f.devices, dv].slice(-10);
+          const cur = f.sessions.find((x) => x.id === sid);
+          if (cur) cur.e = now; else f.sessions.push({ id: sid, s: Number(h.start) || now, e: now });
+          f.sessions = f.sessions.slice(-200);
+          await putJSON(`users/${u}.json`, f);
+        }
+        if (!(b.items || []).length) return res.status(200).json({ ok: true });
+      }
       const items = (b.items || []).slice(0, 400).filter((x) => x && x.k && x.id);
       if (!items.length) return res.status(200).json({ ok: true, n: 0 });
       const day = new Date().toISOString().slice(0, 10);
