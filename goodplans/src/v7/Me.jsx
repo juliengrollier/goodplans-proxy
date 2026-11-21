@@ -4,13 +4,14 @@ import { Icon } from "./icons.jsx";
 import { CatBullet } from "./components.jsx";
 import { tasteSummary } from "./engine.js";
 import { CATS } from "../lib/core.js";
+import AdminPanel, { useIsOwner } from "./AdminPanel.jsx";
 
 const LEVELS = [[tx("Love"), 80], [tx("Like"), 55], [tx("Meh"), 25], [tx("Hide"), 0]];
 const levelOf = (v) => (v === 0 ? 3 : v >= 70 ? 0 : v >= 45 ? 1 : 2);
 
 // Me is split in two: your profile (what Good Plans knows about you) and settings (connections and app options)
 const PaneCtx = React.createContext("profile");
-const SETTINGS = new Set(["Google Maps lists", "Calendar", "Notifications", "Appearance", "Location", "Events feed"].map(tx));
+const SETTINGS = new Set(["Google Maps lists", "Calendar", "Notifications", "Appearance", "Location", "Events feed", "Admin"].map(tx));
 function Card({ title, children, right }) {
   const pane = useContext(PaneCtx);
   if (SETTINGS.has(title) !== (pane === "settings")) return null;
@@ -24,6 +25,7 @@ function Card({ title, children, right }) {
 
 export default function Me(p) {
   const [pane, setPane] = useState("profile");
+  const owner = useIsOwner(p.account);
   const { prof, eprof, taste, setCatLevel, setCatValue, dark, theme, setTheme, unit, setUnit, hiddenCats = [], onShowCat, stars = {}, onUnstar, onUnfollow, onUndo,
     calStatus, busyCount, onCheckCal, calName, notif = {}, perm, onNotifOn, onNotifSet, onNotifTest, onNotifOff, onUnbell,
     backend, setBackend, lastRefreshed, eventCount, onRefresh, refreshing, refreshLog,
@@ -292,6 +294,7 @@ export default function Me(p) {
         <button className="pill pill-line" onClick={onRetryGPS}><Icon name="pin" size={18} /> {tx("Update my location")}</button>
       </Card>
 
+      {owner && <Card title={tx("Admin")}><AdminPanel dark={dark} /></Card>}
       <Card title={tx("Events feed")} right={<span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{eventCount} {tx("events")}</span>}>
         <span style={{ fontSize: 14, color: "var(--ink2)" }}>{tx("Last refreshed")} {lastRefreshed ? new Date(lastRefreshed).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : "never"}{tx(". Refreshes on its own every 6 hours.")}</span>
         <button className="pill pill-dark" onClick={onRefresh} disabled={refreshing}><Icon name="refresh" size={18} /> {refreshing ? tx("Refreshing…") : tx("Refresh now")}</button>

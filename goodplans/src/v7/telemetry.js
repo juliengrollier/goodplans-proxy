@@ -36,3 +36,20 @@ if (typeof window !== "undefined") {
 export async function loadWeights() {
   try { const r = await fetch(API_BASE + "/api/telemetry?weights=" + encodeURIComponent(userId())); return r.ok ? await r.json() : {}; } catch { return {}; }
 }
+
+// Session heartbeat: tells the owner who is registered, when they come back and for how long. No event content.
+const SID = Math.random().toString(36).slice(2, 10), START = Date.now();
+let who = { name: "", email: "" };
+export const setWho = (w) => { who = { name: w?.name || "", email: w?.email || "" }; };
+export async function ping() {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+  try {
+    const ver = typeof __BUILD__ !== "undefined" ? __BUILD__ : "";
+    await fetch(API_BASE + "/api/telemetry", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device, user: userId(), hello: { sid: SID, start: START, name: who.name, email: who.email, ver }, items: [] }) });
+  } catch { /* offline */ }
+}
+if (typeof window !== "undefined") {
+  setTimeout(ping, 4000);
+  setInterval(ping, 60000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") ping(); });
+}

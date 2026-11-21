@@ -430,7 +430,7 @@ export default function App() {
   useEffect(() => { const on = () => setFavMoods(readFavMoods()); window.addEventListener("gp-moodfav", on); window.addEventListener("storage", on); return () => { window.removeEventListener("gp-moodfav", on); window.removeEventListener("storage", on); }; }, []);
   // Per person = per signed-in account (a short hash of the Google id); without an account, per phone
   const userKey = account?.sub ? "g" + account.sub.slice(-10) : "";
-  useEffect(() => { T.setUser(userKey); }, [userKey]);
+  useEffect(() => { T.setUser(userKey); T.setWho(account); T.ping(); }, [userKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const [rankW, setRankW] = useState({});
   useEffect(() => { T.loadWeights().then((w) => setRankW(w && typeof w === "object" ? w : {})); }, [userKey]);
   const rankCtx = useMemo(() => rankContext({ model: modelRef.current, space, tasteVec: tasteMe, moodFav, favMoods, stars: taste.stars || {}, today, weights: rankW }), [space, tasteMe, moodFav, favMoods, taste, today, modelVer, rankW]); // eslint-disable-line react-hooks/exhaustive-deps

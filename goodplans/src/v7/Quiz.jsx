@@ -26,7 +26,7 @@ const CSS = `
 `;
 
 // Official Google button (Google Identity Services); hidden if it can't load here
-function GoogleButton({ onAccount, dark, width }) {
+export function GoogleButton({ onAccount, dark, width }) {
   const ref = useRef(null);
   const [state, setState] = useState("loading");
   useEffect(() => {
@@ -35,7 +35,7 @@ function GoogleButton({ onAccount, dark, width }) {
       if (!alive || !window.google?.accounts?.id || !ref.current) { setState("off"); return; }
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID, ux_mode: "popup", auto_select: false, itp_support: true,
-        callback: (r) => { const p = jwt(r.credential || ""); if (p) onAccount({ provider: "google", sub: p.sub, name: p.given_name || (p.name || "").split(" ")[0] || "", email: p.email || "", picture: p.picture || "", at: Date.now() }); },
+        callback: (r) => { try { window.__gpCred = r.credential; } catch { /* ignore */ } const p = jwt(r.credential || ""); if (p) onAccount({ provider: "google", sub: p.sub, name: p.given_name || (p.name || "").split(" ")[0] || "", email: p.email || "", picture: p.picture || "", at: Date.now() }); },
       });
       window.google.accounts.id.renderButton(ref.current, { type: "standard", theme: dark ? "filled_black" : "outline", size: "large", shape: "pill", text: "continue_with", logo_alignment: "center", width });
       setState("on");

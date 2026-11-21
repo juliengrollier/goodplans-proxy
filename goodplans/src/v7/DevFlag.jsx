@@ -78,7 +78,7 @@ export default function DevFlag({ events = [], screen = "", openEv = null }) {
     try {
       const r = await fetch(API_BASE + "/api/flags", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         note, target: pick.target + (pick.inner ? " › " + pick.inner : ""), section: pick.section, screen: screen + (openEv ? " › event " + openEv : ""),
-        ev: evInfo(pick.ev), ctx: { w: window.innerWidth, h: window.innerHeight, at: new Date().toString(), rect: pick.rect }, ver: VER, user: userId(),
+        ev: evInfo(pick.ev), ctx: { w: window.innerWidth, h: window.innerHeight, at: new Date().toString(), rect: pick.rect }, ver: VER, user: userId(), name: (() => { try { return JSON.parse(localStorage.getItem("gp_account_v1") || "null")?.name || ""; } catch { return ""; } })(), t: (() => { try { return (JSON.parse(localStorage.getItem("gp_admin_v1") || "null") || {}).token || ""; } catch { return ""; } })(),
       }) });
       if (!r.ok) throw new Error("HTTP " + r.status);
       setPick(null); setNote(""); setMsg(tx("Flag sent")); setTimeout(() => setMsg(""), 1800);
