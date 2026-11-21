@@ -414,9 +414,34 @@ export function SectionHead({ title, n, color, icon, onMore }) {
   );
 }
 
+// ── Account entry point: the avatar shown top-right on every screen. Opens the account sheet (taste, lists, settings, admin).
+export const AccountCtx = createContext({ account: null, open: () => {}, badge: 0 });
+export function AccountButton({ size = 38 }) {
+  const { account, open, badge } = useContext(AccountCtx);
+  const g = account?.provider === "google";
+  const initials = g ? String(account.name || account.email || "").trim().slice(0, 1).toUpperCase() : "";
+  return (
+    <button onClick={() => open()} aria-label={tx("Account and settings") + (badge ? " · " + badge + " " + tx("need attention") : "")}
+      style={{ position: "relative", width: size, height: size, borderRadius: size / 2, border: "none", padding: 0, flexShrink: 0, background: "var(--chip)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "visible" }}>
+      {g && account.picture ? <img src={account.picture} alt="" referrerPolicy="no-referrer" style={{ width: size, height: size, borderRadius: size / 2, objectFit: "cover" }} />
+        : initials ? <span style={{ fontWeight: 800, fontSize: size * 0.42 }}>{initials}</span> : <Icon name="me" size={size * 0.47} />}
+      {badge > 0 && <span aria-hidden="true" style={{ position: "absolute", top: -1, right: -1, width: 11, height: 11, borderRadius: 6, background: "#F2611D", border: "2px solid var(--bg)" }} />}
+    </button>
+  );
+}
+
+export function LocationChip({ label }) {
+  const { open } = useContext(AccountCtx);
+  return (
+    <button className="chip" onClick={() => open("location")} aria-label={tx("Location: ") + label + tx(". Change")} style={{ height: 28, fontSize: 12.5, gap: 4, padding: "0 10px" }}>
+      <Icon name="pin" size={13} /> {label}
+    </button>
+  );
+}
+
 export function TabBar({ tab, setTab, plansCount }) {
   const night = new Date().getHours() >= 18;
-  const items = [["today", night ? tx("Tonight") : tx("Today")], ["explore", tx("Explore")], ["map", tx("Map")], ["plans", tx("Plans")], ["me", "Me"]];
+  const items = [["today", night ? tx("Tonight") : tx("Today")], ["explore", tx("Explore")], ["map", tx("Map")], ["plans", tx("Plans")]];
   return (
     <nav className="tabbar" aria-label={tx("Main")}>
       {items.map(([k, l]) => (

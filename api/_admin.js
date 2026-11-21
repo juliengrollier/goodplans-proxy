@@ -95,9 +95,12 @@ export default async function adminHandler(req, res) {
         sessions: ss.length, avgSessionSec: dur.length ? Math.round(dur.reduce((x, y) => x + y, 0) / dur.length / 1000) : null, totalSec: Math.round(dur.reduce((x, y) => x + y, 0) / 1000),
         activeDays: a.days.size, shown: a.imp, opened: a.open, saved: a.save, hearted: a.up, dismissed: a.down, shared: a.share, linkClicks: a.link, devices: (r.devices || []).length, app: r.ver || "" };
     }).sort((x, y) => (y.lastSeen || 0) - (x.lastSeen || 0));
+    const daily = {};
+    for (const e of evs) { const d = new Date(e.t).toISOString().slice(0, 10); const x = daily[d] || (daily[d] = { day: d, users: new Set(), opens: 0, saves: 0 }); x.users.add(e.user); if (e.k === "open") x.opens++; if (e.k === "save") x.saves++; }
+    const days_ = Object.values(daily).sort((a, b) => (a.day < b.day ? -1 : 1)).map((x) => ({ day: x.day, users: x.users.size, opens: x.opens, saves: x.saves }));
     const day = (n) => now - n * 864e5;
     return res.status(200).json({ days, registered: people.filter((p) => p.signedIn).length, anonymous: people.filter((p) => !p.signedIn).length,
-      active7: people.filter((p) => (p.lastSeen || 0) > day(7)).length, active1: people.filter((p) => (p.lastSeen || 0) > day(1)).length, people });
+      active7: people.filter((p) => (p.lastSeen || 0) > day(7)).length, active1: people.filter((p) => (p.lastSeen || 0) > day(1)).length, daily: days_, people });
   } catch (e) {
     return res.status(500).json({ error: String(e.message || e) });
   }

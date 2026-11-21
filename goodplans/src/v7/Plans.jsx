@@ -1,3 +1,4 @@
+import { AccountButton } from "./components.jsx";
 import { evColor, evNode, LIcon } from "./taxonomy.js";
 import { tx } from "./i18n.js";
 import React, { useState } from "react";
@@ -41,13 +42,13 @@ export default function Plans({ favs, scoreOne, dark, today, onOpen, onRemove, b
   return (
     <div>
       <div style={{ padding: "calc(18px + env(safe-area-inset-top)) 20px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <h1 className="disp" style={{ margin: 0, fontSize: 34 }}>{tx("Our plans")}</h1>
+        <div className="row" style={{ justifyContent: "space-between", gap: 10 }}><h1 className="disp" style={{ margin: 0, fontSize: 34 }}>{tx("Our plans")}</h1><AccountButton /></div>
         <div className="seg" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <button className={tab === "up" ? "on" : ""} onClick={() => setTab("up")}>{tx("Upcoming ·")} {dated.length}</button>
           <button className={tab === "ideas" ? "on" : ""} onClick={() => setTab("ideas")}>{tx("Ideas ·")} {ideas.length}</button>
         </div>
         <div className="muted" style={{ fontSize: 13 }}>
-          {calStatus === "ok" ? tx("Plans that clash with your calendar are dimmed.") : tx("Connect your calendar in Me to see clashes.")} {tx("Sharing with your partner comes with accounts.")}
+          {calStatus === "ok" ? tx("Plans that clash with your calendar are dimmed.") : tx("Connect your calendar in Settings to see clashes.")} {tx("Sharing with your partner comes with accounts.")}
         </div>
       </div>
       {tab === "up" && (groups.length ? groups.map((g) => (

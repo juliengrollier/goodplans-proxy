@@ -14,7 +14,7 @@ import { catColor, catIcon } from "./theme.js";
 import { fmtT, startMinutes, endMinutes, nowMinutes, fmtClock, isFree, isoDay, whenLabel, eventWindow, canMake } from "./engine.js";
 import { DAYS, MONTHS, evCovers, evStart, evEnd, runLen, nextOn, bookSoon, CATS, daysUntil, isImprecise } from "../lib/core.js";
 import { collapseSeries } from "./dedupe.js";
-import { Travel, catLabel } from "./components.jsx";
+import { Travel, catLabel, AccountButton, LocationChip } from "./components.jsx";
 import { FAMILIES, FAM, CATEGORIES, CAT, SUBTYPES, famColor, evColor, LIcon, CatChip } from "./taxonomy.js";
 import { User, Users, Maximize2 } from "lucide";
 
@@ -779,7 +779,7 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
             return (<>
               <button style={hb} aria-label={tx("Saved plans, ") + savedUp.length} onClick={() => savedUp.length && onTile({ key: "saved", title: tx("Your plans"), list: savedUp, color: "#1F2A5C", teaser: tx("Everything you've bookmarked that's still coming up."), verb: tx("Saved"), group: "day" })}><Icon name="save" size={17} />{badge(savedUp.length)}</button>
               <button style={hb} aria-label={tx("My Interests, ") + (favList.length + moodFavs.length)} onClick={() => document.getElementById("my-favs")?.scrollIntoView({ behavior: "smooth" })}><Icon name="heart" size={17} />{badge(favList.length + moodFavs.length)}</button>
-              <button style={hb} aria-label={tx("Profile and location · ") + locLabel} onClick={() => setTab("me")}><Icon name="me" size={18} /></button>
+              <AccountButton />
             </>);
           })()}
         </div>
@@ -796,7 +796,10 @@ export default function Today({ onIntentOrder, userName = "", tiles, moodFav = [
         </div>
       )}
       <div style={{ padding: "18px 20px 6px" }}>
-        <div className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + fmtT(w.hi) + (w.rainy ? " · rain later" : "") : ""}</div>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          <span className="muted" style={{ fontSize: 15, fontWeight: 700 }}>{g.line}{w ? " · " + fmtT(w.hi) + (w.rainy ? " · rain later" : "") : ""}</span>
+          <LocationChip label={locLabel} />
+        </div>
         <h1 className="disp" style={{ margin: "2px 0 0", fontSize: 38, lineHeight: 1, letterSpacing: -0.6 }}>{userName ? tx("Hi, ") + userName : tx("Hi there")}</h1>
         <div style={{ fontSize: 16, lineHeight: 1.4, color: "var(--ink2)", marginTop: 8 }}>{g.blurb}</div>
       </div>
