@@ -80,7 +80,7 @@ function skintText(xml) {
     let body = dec((it.match(/<content:encoded>([\s\S]*?)<\/content:encoded>/i) || [])[1] || (it.match(/<description>([\s\S]*?)<\/description>/i) || [])[1]);
     body = body.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<a [^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "$2 [$1]")
       .replace(/<\/(p|div|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&#8217;|&rsquo;/g, "'").replace(/&amp;/g, "&").replace(/&#?\w+;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
-    return "POST: " + title + "\n" + body.trim();
+    return "POST: " + title + " (published " + dec((it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1]).trim() + ")\n" + body.trim();
   }).join("\n\n");
 }
 const TICKETING = /ticketmaster|seatgeek|stubhub|vividseats|livenation|axs\.com|tickpick|gametime\.co/i;
