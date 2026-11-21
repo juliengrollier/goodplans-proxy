@@ -15,6 +15,7 @@ import { SOURCES as ALL } from "./_sources.js";
 const SOURCES = ALL.filter((s) => !s.off);
 import { getJSON, putJSON } from "./_blob.js";
 import { createHash } from "node:crypto";
+import { okToken } from "./_admin.js";
 
 export const config = { maxDuration: 60 };
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
@@ -306,6 +307,7 @@ export default async function handler(req, res) {
   const cron = req.headers.authorization && process.env.CRON_SECRET && req.headers.authorization === "Bearer " + process.env.CRON_SECRET;
   const vercelCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
   const manual = !!process.env.FLAGS_KEY && req.query.key === process.env.FLAGS_KEY;
+  if (req.query.status && okToken(req.query.t)) return res.status(200).json(ALL.map((s) => { const x = store.by[s.id] || {}; return { id: s.id, name: s.name, off: s.off, cadence: s.cadence, at: x.at ? new Date(x.at).toISOString() : null, ok: x.ok, how: x.how, count: x.count, err: x.err }; }));
   if (!cron && !vercelCron && !manual) return res.status(401).json({ error: "Unauthorized" });
   if (req.query.status) return res.status(200).json(ALL.map((s) => { const x = store.by[s.id] || {}; return { id: s.id, off: s.off, cadence: s.cadence, at: x.at ? new Date(x.at).toISOString() : null, ok: x.ok, how: x.how, count: x.count, raw: x.raw, err: x.err, note: x.note }; }));
   if (req.query.probe) {

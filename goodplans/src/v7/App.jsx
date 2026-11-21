@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tx } from "./i18n.js";
 import { CSS, FONTS_HREF } from "./theme.js";
-import { TabBar, ActionsCtx } from "./components.jsx";
+import { TabBar, ActionsCtx, AccountCtx } from "./components.jsx";
+import { useIsOwner, usePendingFlags } from "./AdminPanel.jsx";
 import { EMPTY_FILTERS } from "./Filters.jsx";
 import { markSeen } from "./moods2.js";
 import { INTENT } from "./intents.js";
@@ -226,7 +227,7 @@ export default function App() {
 
   // ── Backend calls
   const api = useCallback((action, extra = "", ms) => {
-    if (!backend.url) return Promise.reject(new Error(tx("No backend URL. Add it in Me → Events feed.")));
+    if (!backend.url) return Promise.reject(new Error(tx("No backend URL. Add it in Settings → Events feed.")));
     const q = (action ? "action=" + action + "&" : "") + "key=" + encodeURIComponent(backend.key) + extra;
     return fetchJSON(backend.url + (backend.url.includes("?") ? "&" : "?") + q, ms);
   }, [backend]);
@@ -782,7 +783,7 @@ export default function App() {
     if (kind === "up") toast(tx("Got it, more like this"));
     if (kind === "down") toast(tx("Got it, less like this"));
     if (kind === "why") toast(tx("Thanks, noted"));
-    if (kind === "nfm") { toast(tx("Hidden. Undo in Me.")); setOpenEv(null); }
+    if (kind === "nfm") { toast(tx("Hidden. Undo in Your lists.")); setOpenEv(null); }
   };
   const follow = (ev) => { const t = toggleFollow(taste, ev); saveTaste(t); toast(t.follows[(ev.venue || "").split(",")[0].trim().toLowerCase()] ? tx("Following ") + ev.venue.split(",")[0] : tx("Unfollowed")); };
   const unfollow = (k) => { const follows = { ...taste.follows }; delete follows[k]; saveTaste({ ...taste, follows }); };
@@ -979,6 +980,15 @@ export default function App() {
     putModel(m, true);
   };
   const navTab = (t) => { if (t !== tab) pushView(); setTab(t); window.scrollTo(0, 0); };
+  // ── Account sheet (avatar, top-right on every screen): its own stack of screens, closed back to where you were
+  const [meStack, setMeStack] = useState(["home"]);
+  const isOwner = useIsOwner(account);
+  const pendingFlags = usePendingFlags(isOwner);
+  const openAccount = (screen) => { setMeStack(screen ? ["home", screen] : ["home"]); if (tab !== "me") navTab("me"); else window.scrollTo(0, 0); };
+  const mePush = (sc) => { setMeStack((st) => [...st, sc]); window.scrollTo(0, 0); };
+  const mePop = () => { setMeStack((st) => (st.length > 1 ? st.slice(0, -1) : st)); window.scrollTo(0, 0); };
+  const closeAccount = () => { setMeStack(["home"]); if (viewStack.length) popView(); else { setTab("today"); window.scrollTo(0, 0); } };
+  const accountCtx = { account, open: openAccount, badge: pendingFlags };
   const openTile = (t) => {
     pushView();
     // Default grouping from where you came: one activity → by day; a mood, a moment or an area → by category
@@ -1023,6 +1033,7 @@ export default function App() {
   // so back closes the top layer first and only leaves the app from Today with nothing open.
   const layers = [];
   viewStack.forEach(() => layers.push(popView));
+  if (tab === "me") meStack.slice(1).forEach(() => layers.push(mePop));
   if (!viewStack.length && tab !== "today") layers.push(() => { setTab("today"); window.scrollTo(0, 0); });
   if (showFree) layers.push(() => setShowFree(false));
   if (surprise) layers.push(() => setSurprise(null));
@@ -1082,6 +1093,7 @@ export default function App() {
   return (
     <ActionsCtx.Provider value={actions}>
     <NotifyCtx.Provider value={notifyCtx}>
+    <AccountCtx.Provider value={accountCtx}>
     <div className="gp-app" style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         {tab === "today" && <Today onIntentOrder={learnIntentOrder} userName={(() => { try { return localStorage.getItem("gp_name_v1") || account?.name || ""; } catch { return account?.name || ""; } })()} tiles={tileSet} moodFav={moodFav} moodClicks={moodClicks} moodHide={moodHide} onMoodDrop={dropMood} nyRows={nyRows} moodFb={moodFb} onMoodFb={reactMood} onMoodFav={favMood} onTile={openTile} onFullMap={openFullMap} picks={picks} goAsk={goAsk} onGoAnswer={answerGo} data={visible} sections={sections} dark={dark} today={today} home={home} locLabel={locLabel} onOpen={openEvent} setTab={navTab}
@@ -1091,7 +1103,7 @@ export default function App() {
         {tab === "explore" && <Explore rankCtx={rankCtx} listMeta={listMeta} tiles={tileSet} moodFav={moodFav} onMoodFav={favMood} onClose={closeList} onTile={openTile} scored={visible} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} regulars={regulars} annual={annual} home={home} onFullMap={openFullMap} moodFb={moodFb} onMoodFb={reactMood} />}
         {tab === "map" && <MapView scored={visible} home={home} dark={dark} today={today} onOpen={openEvent} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} />}
         {tab === "plans" && <Plans favs={favs} scoreOne={scoreOne} dark={dark} today={today} onOpen={openEvent} onRemove={toggleSave} busySlots={busySlots} calStatus={calStatus} />}
-        {tab === "me" && <Me devMode={devMode} onDevMode={toggleDev} moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz("retake")} account={account} onSignOut={signOut} onSignIn={() => setShowQuiz("auth")} onTour={() => { navTab("today"); setTimeout(() => setShowTour(true), 500); }} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
+        {tab === "me" && <Me screen={meStack[meStack.length - 1]} onPush={mePush} onBack={() => window.history.back()} onClose={closeAccount} owner={isOwner} pendingFlags={pendingFlags} locLabel={locLabel} devMode={devMode} onDevMode={toggleDev} moodLab={moodLab} meet={meet} onMeet={setMeetOn} axes={axes} onNudge={nudgeAxis} quiz={quiz} onRetakeQuiz={() => setShowQuiz("retake")} account={account} onSignOut={signOut} onSignIn={() => setShowQuiz("auth")} onTour={() => { navTab("today"); setTimeout(() => setShowTour(true), 500); }} maps={mapsData} mapsBusy={mapsBusy} mapsMatches={mapsMatches} onImportMaps={importMaps} onRemoveMaps={removeMaps} learned={{ card: modelRef.current.card, strong: modelRef.current.strong || 0, count: modelRef.current.count || 0, muted: Object.keys(modelRef.current.muted || {}).length }} cardBusy={cardBusy} onCardRefresh={() => buildCard(true)} onMuteLine={muteLine} onResetLearning={resetLearning}
           prof={prof} eprof={eprof} taste={taste} setCatLevel={setCatLevel} setCatValue={setCatValue} dark={dark} theme={theme} setTheme={setTheme} unit={unit} setUnit={setUnit} hiddenCats={[...(filters.xcats || []), ...(filters.xsubs || [])]} onShowCat={(c) => setFilters({ ...filters, xcats: (filters.xcats || []).filter((y) => y !== c), xsubs: (filters.xsubs || []).filter((y) => y !== c) })} stars={taste.stars || {}} onUnstar={(kind, id) => actions.toggleStar(kind, id)}
           onUnfollow={unfollow} onUndo={undo} resetTaste={resetTaste}
           calStatus={calStatus} busyCount={busySlots.length} onCheckCal={() => checkCal(false)} calName={calName}
@@ -1156,6 +1168,7 @@ export default function App() {
       )}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
+    </AccountCtx.Provider>
     </NotifyCtx.Provider>
     </ActionsCtx.Provider>
   );

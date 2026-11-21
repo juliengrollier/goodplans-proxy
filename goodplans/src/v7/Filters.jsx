@@ -4,7 +4,7 @@
 import React, { useContext, useMemo, useState } from "react";
 import { tx } from "./i18n.js";
 import { Icon } from "./icons.jsx";
-import { Dialog, ActionsCtx } from "./components.jsx";
+import { Dialog, ActionsCtx, AccountButton } from "./components.jsx";
 import { isFree, priceNum, startMinutes, nowMinutes } from "./engine.js";
 import { matchV, evCovers, evStart, evEnd, eHour } from "../lib/core.js";
 import { FAM, CATEGORIES, CAT, SUBTYPES, CatChip } from "./taxonomy.js";
@@ -184,6 +184,7 @@ export function FilterHeader({ filters, setFilters, sort, setSort, dark, items, 
         <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label={tx("Sort")} className="chip" style={{ height: 32, appearance: "none", paddingRight: 14 }}>
           {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
+        <AccountButton size={36} />
       </div>
       <FilterBar f={filters} setF={setFilters} dark={dark} items={items} today={today} />
     </div>
