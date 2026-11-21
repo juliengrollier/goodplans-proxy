@@ -116,8 +116,9 @@ Rules: only events the text states, dated ${today} or later (the page may list p
   const d = await r.json();
   if (!r.ok) throw new Error("claude " + r.status + " " + (d?.error?.message || ""));
   const t = (d.content || []).filter((x) => x.type === "text").map((x) => x.text).join("");
-  const a = t.indexOf("["), b = t.lastIndexOf("]");
-  if (a < 0 || b < a) throw new Error("no JSON array");
+  const a = t.indexOf("["); let b = t.lastIndexOf("]");
+  if (a < 0) throw new Error("no JSON array: " + clip(t, 80));
+  if (b < a) { const c = t.lastIndexOf("}"); if (c < a) throw new Error("no JSON array: " + clip(t, 80)); return JSON.parse(t.slice(a, c + 1) + "]"); } // reply cut off: keep the complete items
   return JSON.parse(t.slice(a, b + 1));
 }
 
