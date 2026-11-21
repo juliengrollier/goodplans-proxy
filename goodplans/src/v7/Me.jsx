@@ -271,7 +271,7 @@ export default function Me(p) {
         </Group>
         <Group label={tx("Connections")}>
           <Row icon="cal" title={tx("Calendar")} value={calStatus === "ok" ? tx("Connected") : calStatus === "checking" ? tx("Checking…") : tx("Not connected")} onClick={go("calendar")} />
-          <Row icon="map" title={tx("Google Maps lists")} value={maps?.lists?.length ? maps.lists.length + " " + tx("lists") : tx("Not imported")} onClick={go("maps")} />
+          <Row icon="map" title={tx("Google Maps lists")} value={maps?.lists?.length ? maps.lists.length + " " + (maps.lists.length === 1 ? tx("list") : tx("lists")) : tx("Not imported")} onClick={go("maps")} />
         </Group>
         <Group label={tx("Alerts")}>
           <Row icon="bell" title={tx("Notifications")} value={notifOn ? tx("On") : tx("Off")} onClick={go("notifications")} />

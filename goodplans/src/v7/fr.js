@@ -649,4 +649,5 @@ export const FR = {
  "Connect your calendar in Settings to see clashes.": "Connecte ton agenda dans Réglages pour voir les conflits.",
  "No backend URL. Add it in Settings → Events feed.": "Pas d'URL de backend. Ajoute-la dans Réglages → Flux d'événements.",
  "Hidden. Undo in Your lists.": "Masqué. Annule dans Tes listes.",
+ "list": "liste",
 };
