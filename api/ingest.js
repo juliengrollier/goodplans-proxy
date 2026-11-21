@@ -80,7 +80,10 @@ function skintText(xml) {
     let body = dec((it.match(/<content:encoded>([\s\S]*?)<\/content:encoded>/i) || [])[1] || (it.match(/<description>([\s\S]*?)<\/description>/i) || [])[1]);
     body = body.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<a [^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "$2 [$1]")
       .replace(/<\/(p|div|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&#8217;|&rsquo;/g, "'").replace(/&amp;/g, "&").replace(/&#?\w+;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
-    return "POST: " + title + " (published " + dec((it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1]).trim() + ")\n" + body.trim();
+    const pub = new Date(dec((it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1]).trim()), md = title.match(/(\d{1,2})\/(\d{1,2})/);
+    let d0 = isNaN(pub) ? new Date() : pub; if (md) d0 = new Date(Date.UTC(d0.getUTCFullYear(), +md[1] - 1, +md[2], 12));
+    const key = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((k) => { const x = new Date(d0.getTime() + k * DAY); return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][x.getUTCDay()] + "=" + iso(x); }).join(", ");
+    return "POST: " + title + " (published " + dec((it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1]).trim() + ")\nWEEKDAY LABELS MEAN THESE DATES (the first match on or after the start): " + key + "\n" + body.trim();
   });
 }
 const TICKETING = /ticketmaster|seatgeek|stubhub|vividseats|livenation|axs\.com|tickpick|gametime\.co/i;
