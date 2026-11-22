@@ -271,11 +271,11 @@ export function CompactCard({ ev, dark, today, onOpen, label, when, walk }) {
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {label ? <span className="tag tag-soon" style={{ alignSelf: "flex-start", height: 22 }}>{label}</span> : <span className="row ell" style={{ gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink3)" }}><CatBullet ev={ev} size={16} dark={dark} />{catLabel(ev)}</span>}
         <span className="disp clamp2" style={{ fontSize: 17, lineHeight: 1.12 }}>{ev.title}</span>
-
+        <Snippet ev={ev} lines={2} size={13} />
         <span className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}>
           <span style={{ whiteSpace: "nowrap" }}><When text={when || whenLabel(ev, today)} plain />{ev.moreDates ? <span style={{ color: "var(--ink3)", fontWeight: 700 }}> · +{ev.moreDates} more {ev.moreDates > 1 ? "dates" : "date"}</span> : null}</span><span style={{ fontWeight: 400, color: "var(--ink3)" }}>{walk ? <span className="row" style={{ gap: 3, whiteSpace: "nowrap" }}><Icon name="walk" size={13} width={2.2} />{walk}</span> : <Travel tt={ev.tt} />}</span>
+          <span style={{ marginLeft: "auto", flexShrink: 0 }}><CardActions ev={ev} size={28} noSave /></span>
         </span>
-        <div className="row" style={{ justifyContent: "flex-end", marginTop: 2 }}><CardActions ev={ev} size={28} noSave /></div>
       </div>
     </div>
   );
@@ -490,7 +490,7 @@ function loadLeaflet() {
 }
 
 export function LeafletMap({ events, home, dark, height, interactive = true, onPick, selectedId, zoom = 14, fit, rounded, twoFinger, hideHome, numbered, pinColor, numberOffset = 0 }) {
-  const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef("");
+  const ref = useRef(null), mapRef = useRef(null), layerRef = useRef(null), tileRef = useRef(null), fitted = useRef(""), spread = useRef(null);
   const [err, setErr] = useState(null);
   const [hint, setHint] = useState(false);
   useEffect(() => {
@@ -507,6 +507,8 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       }
       setTimeout(() => m.invalidateSize(), 120);
       m.on("zoomend", () => drawRef.current && drawRef.current());
+      // Tapping the map itself folds a spread-out stack back into its bubble
+      m.on("click", () => { if (spread.current) { spread.current = null; drawRef.current && drawRef.current(); } });
       draw();
     }).catch(() => setErr(tx("Map could not load")));
     return () => { alive = false; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; tileRef.current = null; } };
@@ -532,28 +534,48 @@ export function LeafletMap({ events, home, dark, height, interactive = true, onP
       setTimeout(() => { try { m.invalidateSize(); if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [34, 34], maxZoom: 16 }); } catch { /* unmounted */ } }, 250);
     }
     // Clustering: pins closer than ~42px on screen merge into a count bubble; tapping it zooms to its pins
+    // Pins that share (almost) the same spot can never separate by zooming: a tap on their bubble spreads them in a ring
+    if (spread.current && !spread.current.every((id) => events.some((e) => e.id === id))) spread.current = null;
+    const spreadSet = new Set(spread.current || []), fanned = events.filter((e) => spreadSet.has(e.id) && Array.isArray(e.coord));
     const groups = [];
     if (events.length > 6 && !numbered) {
       for (const ev of events) {
+        if (spreadSet.has(ev.id)) continue;
         if (ev.id === selectedId || !Array.isArray(ev.coord)) { groups.push([ev]); continue; }
         const p = m.latLngToLayerPoint(ev.coord);
         const g = groups.find((g) => g.length && g[0].id !== selectedId && g.p && g.p.distanceTo(p) < 42);
         if (g) g.push(ev); else { const ng = [ev]; ng.p = p; groups.push(ng); }
       }
     }
-    const singles = events.length > 6 && !numbered ? groups.filter((g) => g.length === 1).map((g) => g[0]) : events;
+    const singles = events.length > 6 && !numbered ? groups.filter((g) => g.length === 1).map((g) => g[0]) : events.filter((e) => !spreadSet.has(e.id));
+    const pos = new Map();
+    if (fanned.length) {
+      const c = m.latLngToLayerPoint([fanned.reduce((a, e) => a + e.coord[0], 0) / fanned.length, fanned.reduce((a, e) => a + e.coord[1], 0) / fanned.length]);
+      const r = Math.max(46, (fanned.length * 42) / (2 * Math.PI)), cLL = m.layerPointToLatLng(c);
+      fanned.forEach((ev, i) => {
+        const a = -Math.PI / 2 + (2 * Math.PI * i) / fanned.length, ll = m.layerPointToLatLng(L.point(c.x + r * Math.cos(a), c.y + r * Math.sin(a)));
+        pos.set(ev.id, ll);
+        L.polyline([cLL, ll], { color: dark ? "#FBF7EF" : "#1B1F3B", weight: 1.5, opacity: 0.5, interactive: false }).addTo(layerRef.current);
+      });
+      singles.push(...fanned);
+    }
     groups.filter((g) => g.length > 1).forEach((g) => {
       const lat = g.reduce((a, e) => a + e.coord[0], 0) / g.length, lon = g.reduce((a, e) => a + e.coord[1], 0) / g.length, sz = g.length > 20 ? 50 : g.length > 8 ? 44 : 38;
       const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${dark ? "#FBF7EF" : "#1B1F3B"};color:${dark ? "#1B1F3B" : "#fff"};font-weight:800;font-size:${sz > 40 ? 15 : 14}px;border:3px solid ${dark ? "#1B1F3B" : "#fff"}">${g.length}</div>`;
       const mk = L.marker([lat, lon], { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }) });
-      mk.on("click", () => m.fitBounds(L.latLngBounds(g.map((e) => e.coord)), { padding: [40, 40], maxZoom: 17 }));
+      mk.on("click", () => {
+        // Would these pins still overlap at the closest zoom? Then spread them instead of zooming
+        const pts = g.map((e) => m.project(e.coord, 17)), far = Math.max(...pts.map((p) => Math.max(...pts.map((q) => p.distanceTo(q)))));
+        if (far < 42) { spread.current = g.map((e) => e.id); if (m.getZoom() < 16) m.setView([lat, lon], 16); else draw(); return; }
+        m.fitBounds(L.latLngBounds(g.map((e) => e.coord)), { padding: [40, 40], maxZoom: 17 });
+      });
       mk.addTo(layerRef.current);
     });
     singles.forEach((ev) => {
       const c = (pinColor && pinColor(ev)) || evColor(ev, dark), sel = ev.id === selectedId, sz = numbered ? (sel ? 34 : 28) : sel ? 44 : 34;
       const inner = numbered ? `<span style="color:#fff;font-weight:800;font-size:${sel ? 15 : 13}px">${numberOffset + events.indexOf(ev) + 1}</span>` : lIconString(evNode(ev), sel ? 20 : 16);
       const html = `<div class="gp-pin" style="width:${sz}px;height:${sz}px;background:${c};${sel ? "box-shadow:0 0 0 3px " + (dark ? "#FBF7EF" : "#1B1F3B") : ""}">${inner}</div>`;
-      const mk = L.marker(ev.coord, { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }), interactive: !!onPick });
+      const mk = L.marker(pos.get(ev.id) || ev.coord, { icon: L.divIcon({ className: "", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }), interactive: !!onPick, zIndexOffset: pos.has(ev.id) ? 1000 : 0 });
       if (onPick) mk.on("click", () => onPick(ev));
       mk.addTo(layerRef.current);
     });
