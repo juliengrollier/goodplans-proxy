@@ -95,7 +95,7 @@ a{color:inherit}
 .sec-h .n{margin-left:auto;font-size:14px;font-weight:700;color:var(--ink3)}
 .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:480px;height:calc(64px + env(safe-area-inset-bottom));padding:6px 8px env(safe-area-inset-bottom);border-radius:24px 24px 0 0;background:var(--tab);display:grid;grid-template-columns:repeat(5,1fr);box-shadow:0 -6px 24px rgba(27,31,59,.18);z-index:50}
+.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:480px;height:calc(64px + env(safe-area-inset-bottom));padding:6px 8px env(safe-area-inset-bottom);border-radius:24px 24px 0 0;background:var(--tab);display:grid;grid-auto-flow:column;grid-auto-columns:1fr;box-shadow:0 -6px 24px rgba(27,31,59,.18);z-index:50}
 .tabbar button{border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--tab-ink);font-size:11px;font-weight:700}
 .tabbar .tab-ic{width:52px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center}
 .tabbar button.on{color:var(--tab-on);font-weight:800}
