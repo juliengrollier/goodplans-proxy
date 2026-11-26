@@ -220,11 +220,40 @@ export function HeroCard({ ev, dark, today, onOpen, label }) {
 }
 
 // A horizontal carousel with page dots under it, so it is obvious there is more to swipe to
+// The carousel a card was last opened from, and which card: when that card's page closes, the carousel
+// slides on to the next one, so you see where you are and what's next
+let dotArm = null;
+export const SHEET_CLOSED = "gp:sheet-closed";
 export function DotScroll({ children, className = "hscroll", style, onMore, snap }) {
   const ref = useRef(null);
   const [i, setI] = useState(0);
   const last = useRef({ x: 0, dir: 0, idx: 0, t: 0 });
   const n = React.Children.count(children);
+  const arm = (ev) => {
+    const el = ref.current; if (!el) return;
+    const j = [...el.children].findIndex((k) => k.contains(ev.target));
+    dotArm = j >= 0 && el.children[j].tagName !== "BUTTON" ? { el, j, at: Date.now() } : null;
+  };
+  useEffect(() => {
+    const onClosed = () => {
+      const a = dotArm, el = ref.current;
+      if (!a || a.el !== el || !el) return;
+      dotArm = null;
+      if (Date.now() - a.at > 30 * 60000) return;
+      // a moment for the page to slide away first; only when the carousel is on screen
+      setTimeout(() => {
+        const r = el.getBoundingClientRect();
+        if (!el.isConnected || !el.offsetParent || r.bottom < 0 || r.top > window.innerHeight) return;
+        const next = el.children[a.j + 1];
+        if (!next || next.tagName === "BUTTON") return; // the "More" tile is not a card
+        const pad = parseFloat(getComputedStyle(el).paddingLeft) || 0;
+        const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        el.scrollTo({ left: next.offsetLeft - pad, behavior: reduce ? "auto" : "smooth" });
+      }, 260);
+    };
+    window.addEventListener(SHEET_CLOSED, onClosed);
+    return () => window.removeEventListener(SHEET_CLOSED, onClosed);
+  }, []);
   const onScroll = () => {
     const el = ref.current; if (!el) return;
     const kids = [...el.children]; if (kids.length < 2) return;
@@ -253,7 +282,7 @@ export function DotScroll({ children, className = "hscroll", style, onMore, snap
   const shown = Math.min(n, 7), at = n > 1 ? Math.round((i / (n - 1)) * (shown - 1)) : 0;
   return (
     <>
-      <div ref={ref} className={className + (snap ? " gp-snap" : "")} style={style} onScroll={onScroll}>{children}</div>
+      <div ref={ref} className={className + (snap ? " gp-snap" : "")} style={style} onScroll={onScroll} onClickCapture={arm}>{children}</div>
       {n > 1 && (
         <div className="row" style={{ justifyContent: "center", gap: 5, padding: "20px 0 0" }} aria-hidden="true">
           {Array.from({ length: shown }, (_, k) => <span key={k} style={{ width: k === at ? 16 : 6, height: 6, borderRadius: 3, background: "var(--ink)", opacity: k === at ? 0.85 : 0.22, transition: "all .2s" }} />)}

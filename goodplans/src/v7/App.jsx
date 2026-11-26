@@ -26,7 +26,7 @@ import { FreeUntilDialog, Surprise, WhyDialog } from "./Extras.jsx";
 import { PULSE_ICON } from "./pulseIcons.js";
 import { MOOD_KEY, buildContext, scoreMoods, momentSummary } from "./mood.js";
 import { YOU_KEY, rankYou, learnYou } from "./you.js";
-import { annualItems } from "./nyc.js";
+import { annualItems, cityFlagships } from "./nyc.js";
 import { mergeDuplicates, collapseSeries } from "./dedupe.js";
 import * as L from "./learn.js";
 import * as M from "./maps.js";
@@ -43,11 +43,15 @@ import {
 } from "./engine.js";
 import {
   DP, SK_P, SK_F, SK_B, DEFAULT_SUBS, sg, ss, daysUntil, CATS, DAYS,
-  evStart, nextOn,
+  evStart, nextOn, kmdist,
 } from "../lib/core.js";
+// The app is about New York: a position far outside the city (travelling, a stale fix) would turn every trip into a
+// day-long walk and hide everything today as "too late to make it", so out of town the Lower East Side stays home
+const NYC_RADIUS_KM = 40;
+const inNYC = (c) => Array.isArray(c) && kmdist(c, LES) <= NYC_RADIUS_KM;
 import * as N from "./notify.js";
 import { startMinutes } from "./engine.js";
-import { NotifyCtx, Dialog } from "./components.jsx";
+import { NotifyCtx, Dialog, SHEET_CLOSED } from "./components.jsx";
 import { Icon } from "./icons.jsx";
 
 // Backend defaults: set VITE_GP_URL / VITE_GP_KEY in Vercel. Values saved in Me override them.
@@ -125,8 +129,10 @@ export default function App() {
   const openEvRef = useRef(null), trailRef = useRef([]);
   trailRef.current = trail;
   const setOpenEv = useCallback((id) => {
+    const was = openEvRef.current;
     if (id == null) { const t = trailRef.current; if (t.length > 1) T.track("trail", { id: t[t.length - 1] }, { n: t.length }); setTrail([]); }
     openEvRef.current = id; setOpenEvRaw(id);
+    if (id == null && was != null) window.dispatchEvent(new Event(SHEET_CLOSED));
   }, []);
   const [surprise, setSurprise] = useState(null); // {ev, seen:Set} | null
   const [toastMsg, setToastMsg] = useState("");
@@ -309,7 +315,7 @@ export default function App() {
     if (!navigator.geolocation) return;
     setLocSt((s) => (interactive || s === "default" ? "locating" : s));
     navigator.geolocation.getCurrentPosition(
-      (p) => { const c = [p.coords.latitude, p.coords.longitude]; setHome(c); setLocSt("ok"); ss("gp_loc_v1", { coord: c, ts: Date.now() }); if (interactive) toast(tx("Location updated")); },
+      (p) => { const c = [p.coords.latitude, p.coords.longitude]; if (!inNYC(c)) { setHome(LES); setLocSt("away"); if (interactive) toast(tx("You're outside New York: using the Lower East Side")); return; } setHome(c); setLocSt("ok"); ss("gp_loc_v1", { coord: c, ts: Date.now() }); if (interactive) toast(tx("Location updated")); },
       () => { setLocSt((s) => (s === "locating" ? "default" : s)); if (interactive) toast(tx("Location not available")); },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
     );
@@ -336,7 +342,7 @@ export default function App() {
         stars: tst.stars ? { cats: migrateMap(tst.stars.cats), subs: migrateMap(tst.stars.subs) } : tst.stars });
       if (th) setThemeState(th);
       if (gm && (gm.url || gm.key)) setBackendState({ url: gm.url || ENV_URL, key: gm.key || ENV_KEY });
-      if (loc?.coord) { setHome(loc.coord); setLocSt("cached"); }
+      if (loc?.coord && inNYC(loc.coord)) { setHome(loc.coord); setLocSt("cached"); }
       if (slots?.length) { setBusySlots(slots); setCalStatus("ok"); }
       if (calPref?.name) setCalName(calPref.name);
       if (evStore?.events?.length) { setEvents(evStore.events.filter((e) => evActive(e, floorDay(new Date())))); setLastRefreshed(evStore.refreshed || null); }
@@ -435,9 +441,11 @@ export default function App() {
   const [rankW, setRankW] = useState({});
   useEffect(() => { T.loadWeights().then((w) => setRankW(w && typeof w === "object" ? w : {})); }, [userKey]);
   const rankCtx = useMemo(() => rankContext({ model: modelRef.current, space, tasteVec: tasteMe, moodFav, favMoods, stars: taste.stars || {}, today, weights: rankW }), [space, tasteMe, moodFav, favMoods, taste, today, modelVer, rankW]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The city's big days (Macy's parade, Marathon…) join the list even when no source listed them, and lead on the day
+  const flagships = useMemo(() => cityFlagships(today, allEvents), [today, allEvents]);
   const scored = useMemo(() => {
     const ctx = { eprof, beh, today, home, taste, weather, busySlots };
-    return allEvents.map((e0) => {
+    return [...allEvents, ...flagships.items].map((e0) => {
       const t = tags[e0.id];
       const e = t ? { ...e0, kw: t.k, cat: t.cat && CATS[t.cat] !== undefined ? t.cat : e0.cat, srcCat: e0.cat } : { ...e0 };
       e.ncat = classify(e, t?.cat2); e.fam = CAT[e.ncat].fam; e.nsub = classifySub(e, e.ncat, t?.sub2);
@@ -453,11 +461,13 @@ export default function App() {
         boost = want ? 6 : 3; s.savedPlace = place;
         s.why = [want ? tx("On your “") + want + "” list" : tx("A place you saved · ") + place.lists[0], ...s.why];
       }
+      const lift = flagships.boost[e0.id] ?? e0.cityBoost ?? 0;
+      if (lift) { boost += lift; s.why = [tx("A big day in New York"), ...s.why]; }
       s.calChecked = calStatus === "ok";
       // One score for "how much would I want this, now" (rank.js); every screen orders by it
       return rank(s, rankCtx, { boost });
     }).sort((a, b) => b.rk - a.rk);
-  }, [allEvents, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, mapsIdx, rankCtx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allEvents, flagships, tags, eprof, beh, today, home, taste, weather, busySlots, calStatus, modelVer, mapsIdx, rankCtx]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoredRef = useRef([]); scoredRef.current = scored;
   const scoreOne = useCallback((e0) => {
     const e = { ...e0, ncat: e0.ncat && CAT[e0.ncat] ? e0.ncat : classify(e0) }; e.fam = CAT[e.ncat].fam; e.nsub = e0.nsub || classifySub(e, e.ncat);

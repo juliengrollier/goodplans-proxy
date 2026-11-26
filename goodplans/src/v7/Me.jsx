@@ -389,7 +389,7 @@ export default function Me(p) {
       </>)}
       {screen === "location" && (<>
       <Card title={tx("Location")}>
-        <span style={{ fontSize: 14, color: "var(--ink2)" }}>{locSt === "ok" ? tx("Using your live location.") : locSt === "cached" ? tx("Using your last known location.") : locSt === "locating" ? tx("Locating…") : tx("Using the Lower East Side as home. Allow location for “nearby” picks.")}</span>
+        <span style={{ fontSize: 14, color: "var(--ink2)" }}>{locSt === "ok" ? tx("Using your live location.") : locSt === "cached" ? tx("Using your last known location.") : locSt === "locating" ? tx("Locating…") : locSt === "away" ? tx("You're outside New York, so the Lower East Side is used as home.") : tx("Using the Lower East Side as home. Allow location for “nearby” picks.")}</span>
         <button className="pill pill-line" onClick={onRetryGPS}><Icon name="pin" size={18} /> {tx("Update my location")}</button>
       </Card>
       </>)}
