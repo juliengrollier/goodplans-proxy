@@ -217,3 +217,46 @@ export function annualItems(today, events) {
   });
   return out.sort((a, b) => (a.E < b.E ? -1 : 1));
 }
+
+// ── The city's big days: the handful of moments the whole city turns out for. On the day (and in the days before)
+// they join the event list like any listing, so Today can lead with them even when no source has listed them yet.
+// day(y): the date · time: the usual hours · same: what a feed listing of it is called (then that listing is used
+// instead, with the same lift).
+const FLAG = {
+  "thanksgiving": { title: "Macy's Thanksgiving Day Parade", day: (y) => thanksgiving(y), time: "8:30 AM - 12:00 PM", same: "macy'?s.{0,20}parade|thanksgiving day parade" },
+  "halloween": { title: "Village Halloween Parade", day: (y) => D(y, 9, 31), time: "7:00 PM - 10:30 PM", same: "halloween parade" },
+  "marathon": { title: "New York City Marathon", day: (y) => nth(y, 10, 0, 1), time: "8:00 AM - 4:00 PM", same: "nyc marathon|new york city marathon|tcs.{0,10}marathon" },
+  "july4": { title: "Macy's 4th of July Fireworks", day: (y) => D(y, 6, 4), time: "9:00 PM - 10:00 PM", same: "macy'?s.{0,20}fireworks|4th of july fireworks|fourth of july fireworks" },
+  "stpat": { title: "St. Patrick's Day Parade", day: (y) => (D(y, 2, 17).getDay() === 0 ? D(y, 2, 16) : D(y, 2, 17)), time: "11:00 AM - 4:30 PM", same: "st\\.? patrick'?s?( day)? parade" },
+  "tree-lighting": { title: "Rockefeller Center Christmas Tree Lighting", day: (y) => add(thanksgiving(y), 6), time: "7:00 PM - 10:00 PM", same: "rockefeller.{0,30}tree lighting|tree lighting.{0,30}rockefeller" },
+  "mermaid": { title: "Coney Island Mermaid Parade", day: (y) => satOnOrAfter(D(y, 5, 20)), time: "1:00 PM - 4:00 PM", same: "mermaid parade" },
+  "pride-march": { title: "NYC Pride March", day: (y) => last(y, 5, 0), time: "12:00 PM - 6:00 PM", same: "pride march" },
+  "west-indian": { title: "West Indian American Day Parade", day: (y) => nth(y, 8, 1, 1), time: "11:00 AM - 6:00 PM", same: "west indian.{0,30}(parade|carnival)|labor day parade" },
+  "nye": { title: "Times Square Ball Drop", day: (y) => D(y, 11, 31), time: "6:00 PM - 12:15 AM", same: "ball drop" },
+};
+const FLAG_LEAD = 6;
+// → { items: big days the feed hasn't listed, as events; boost: { feedEventId: lift } for the listings that are them }
+// The lift grows with how much the city feels it and peaks on the day, so the day's big moment leads Today.
+export function cityFlagships(today, events) {
+  const out = { items: [], boost: {} };
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  NYC.forEach((n) => {
+    const f = FLAG[n.id], meta = META[n.id];
+    if (!f || !meta) return;
+    let d = null;
+    for (const y of [t0.getFullYear(), t0.getFullYear() + 1]) { const x = f.day(y); if (x >= t0) { d = x; break; } }
+    if (!d) return;
+    const dd = Math.round((d - t0) / 86400000);
+    if (dd > FLAG_LEAD) return;
+    const k = iso(d), re = new RegExp(f.same, "i");
+    const lift = Math.round((n.p - 80) * (dd === 0 ? 1 : dd === 1 ? 0.7 : 0.4));
+    const hits = (events || []).filter((e) => re.test(e.title || "") && e.E <= k && (e.X || e.E) >= k);
+    if (hits.length) { hits.forEach((e) => { out.boost[e.id] = lift; }); return; }
+    const [cat, venue, lat, lon, desc, imgQ] = meta;
+    out.items.push({
+      id: "city-" + n.id + "-" + k, title: f.title, E: k, time: f.time, venue, coord: [lat, lon], cat, desc, imgQ,
+      price: "Free", ticket: false, src: "NYC calendar", tier: 1, city: n.id, cityBoost: lift,
+    });
+  });
+  return out;
+}
