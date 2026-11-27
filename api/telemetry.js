@@ -9,7 +9,7 @@
  *   counts, For you hit rate by position (acted on within 24 h), open rate by screen and by score decile,
  *   and for each score part: average when opened vs ignored, plus weights fitted by logistic regression.
  */
-import { blobApi, putJSON, getJSON } from "./_blob.js";
+import { putJSON, getJSON, listAll, getMany, hasStore } from "./_blob.js";
 import adminHandler from "./_admin.js";
 
 const ALLOWED = /(^https?:\/\/localhost(:\d+)?$)|(\.vercel\.app$)/;
@@ -25,15 +25,6 @@ function cors(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
-async function listAll(prefix) {
-  const out = []; let cursor = "";
-  for (let i = 0; i < 20; i++) {
-    const q = new URLSearchParams({ prefix, limit: "1000" }); if (cursor) q.set("cursor", cursor);
-    const d = await blobApi("?" + q.toString(), { method: "GET" });
-    out.push(...(d.blobs || [])); if (!d.hasMore || !d.cursor) break; cursor = d.cursor;
-  }
-  return out;
-}
 
 function fitLogistic(rows) {
   // rows: [x[], y]; plain gradient descent with L2, features roughly 0..1
@@ -51,7 +42,7 @@ export default async function handler(req, res) {
   cors(req, res);
   if (req.query.admin) return adminHandler(req, res); // owner-only admin lives here to stay within the 12-function limit
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: "Blob store not connected" });
+  if (!hasStore()) return res.status(503).json({ error: "Store not connected" });
   try {
     if (req.method === "GET" && req.query.weights) {
       const u = String(req.query.weights).replace(/[^a-z0-9]/gi, "").slice(0, 17);
@@ -81,7 +72,7 @@ export default async function handler(req, res) {
       const day = new Date().toISOString().slice(0, 10);
       const dev = String(b.device || "anon").replace(/[^a-z0-9]/gi, "").slice(0, 12);
       const user = String(b.user || "p" + dev).replace(/[^a-z0-9]/gi, "").slice(0, 17);
-      await putJSON(`telemetry/${day}/${user}-${dev}-${Date.now()}.json`, { device: dev, user, items });
+      await putJSON(`telemetry/${day}/${user}-${dev}-${Date.now()}.json`, { device: dev, user, items }, { ttl: 120 * 86400 });
       return res.status(200).json({ ok: true, n: items.length });
     }
     if (!process.env.FLAGS_KEY || req.query.key !== process.env.FLAGS_KEY) return res.status(401).json({ error: "Unauthorized" });
@@ -95,9 +86,8 @@ export default async function handler(req, res) {
     const days = Math.min(60, Number(req.query.days) || 14);
     const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
     const blobs = (await listAll("telemetry/")).filter((x) => x.pathname.slice(10, 20) >= since);
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
-    const files = await Promise.all(blobs.map(async (x) => { const r = await fetch(x.url, { headers: { authorization: "Bearer " + token } }); return r.ok ? r.json() : null; }));
-    const all = files.filter(Boolean).flatMap((f) => f.items.map((i) => ({ ...i, dev: f.device, user: f.user || "p" + f.device }))).sort((a, b) => a.t - b.t);
+    const files = await getMany(blobs);
+    const all = files.filter(Boolean).flatMap((f) => (f.items || []).map((i) => ({ ...i, dev: f.device, user: f.user || "p" + f.device }))).sort((a, b) => a.t - b.t);
     const users = [...new Set(all.map((e) => e.user))].filter((u) => !req.query.user || u === req.query.user);
     const summarize = (ev) => {
 

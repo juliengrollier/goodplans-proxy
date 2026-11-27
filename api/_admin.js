@@ -9,7 +9,7 @@
  * The token is an HMAC (key FLAGS_KEY) valid 30 days; the same routes also accept ?key=FLAGS_KEY (for scheduled tasks).
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { blobApi, putJSON, getJSON } from "./_blob.js";
+import { putJSON, getJSON, listAll, getMany, hasStore } from "./_blob.js";
 
 export const config = { maxDuration: 60 };
 const CLIENT_ID = "485243730775-p30fh8ams562nt6b6tm234p3kc3plecb.apps.googleusercontent.com";
@@ -26,16 +26,6 @@ export function okToken(t) {
 }
 const isAdminReq = (req) => (!!process.env.FLAGS_KEY && req.query.key === process.env.FLAGS_KEY) || okToken(req.query.t || req.body?.t);
 
-async function listAll(prefix) {
-  const out = []; let cursor = "";
-  for (let i = 0; i < 20; i++) {
-    const q = new URLSearchParams({ prefix, limit: "1000" }); if (cursor) q.set("cursor", cursor);
-    const d = await blobApi("?" + q.toString(), { method: "GET" });
-    out.push(...(d.blobs || [])); if (!d.hasMore || !d.cursor) break; cursor = d.cursor;
-  }
-  return out;
-}
-const fetchBlob = async (x) => { const r = await fetch(x.url, { headers: { authorization: "Bearer " + process.env.BLOB_READ_WRITE_TOKEN } }); return r.ok ? r.json().catch(() => null) : null; };
 
 export default async function adminHandler(req, res) {
   const origin = req.headers.origin || "";
@@ -43,7 +33,7 @@ export default async function adminHandler(req, res) {
   res.setHeader("Vary", "Origin"); res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: "Blob store not connected" });
+  if (!hasStore()) return res.status(503).json({ error: "Store not connected" });
   try {
     if (req.method === "POST") {
       const b = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
@@ -70,16 +60,16 @@ export default async function adminHandler(req, res) {
     }
     if (req.query.view === "flags") {
       const files = (await listAll("flags/")).sort((a, b) => (a.pathname < b.pathname ? -1 : 1));
-      const flags = (await Promise.all(files.map(fetchBlob))).filter(Boolean).map((f) => ({ id: f.id, at: f.at, note: f.note, screen: f.screen, target: f.target, user: f.user || "", name: f.name || "", owner: !!f.owner, status: f.status || "approved", title: f.ev?.title || "" }));
+      const flags = (await getMany(files)).filter(Boolean).map((f) => ({ id: f.id, at: f.at, note: f.note, screen: f.screen, target: f.target, user: f.user || "", name: f.name || "", owner: !!f.owner, status: f.status || "approved", title: f.ev?.title || "" }));
       return res.status(200).json({ flags });
     }
     // overview: registered people + activity
     const days = Math.min(90, Number(req.query.days) || 30), now = Date.now();
     const since = new Date(now - days * 864e5).toISOString().slice(0, 10);
     const [userFiles, tFiles] = await Promise.all([listAll("users/"), listAll("telemetry/")]);
-    const reg = (await Promise.all(userFiles.map(fetchBlob))).filter(Boolean);
+    const reg = (await getMany(userFiles)).filter(Boolean);
     const blobs = tFiles.filter((x) => x.pathname.slice(10, 20) >= since).slice(-600);
-    const evs = (await Promise.all(blobs.map(fetchBlob))).filter(Boolean).flatMap((f) => (f.items || []).map((i) => ({ ...i, user: f.user || "p" + f.device })));
+    const evs = (await getMany(blobs)).filter(Boolean).flatMap((f) => (f.items || []).map((i) => ({ ...i, user: f.user || "p" + f.device })));
     const by = {};
     for (const e of evs) {
       const u = by[e.user] || (by[e.user] = { user: e.user, imp: 0, open: 0, save: 0, up: 0, down: 0, share: 0, link: 0, days: new Set(), last: 0 });
