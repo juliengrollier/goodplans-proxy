@@ -8,7 +8,7 @@
  * Each run handles at most MAX events, so a big backlog clears over a few runs.
  */
 import { place, page, needsPage, vagueVenue } from "./_details-core.js";
-import { readIndex, putJSON, INDEX } from "./_blob.js";
+import { getJSON, putJSON, INDEX } from "./_blob.js";
 
 export const config = { maxDuration: 60 };
 const MAX = 36, PARALLEL = 6, HORIZON_DAYS = 45;
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     const feed = await fr.json();
     if (feed.error) return res.status(502).json({ error: "feed: " + feed.error });
     const events = feed.events || [];
-    const idx = await readIndex();
+    const idx = (await getJSON(INDEX)) || {}; // a read error aborts the run instead of overwriting the index
     const today = iso(new Date()), until = iso(new Date(Date.now() + HORIZON_DAYS * 864e5)), soon = iso(new Date(Date.now() + 4 * 864e5));
     // drop entries for events that are over
     const live = new Set(events.filter((e) => (e.X || e.E) >= today).map((e) => e.id));

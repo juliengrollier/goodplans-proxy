@@ -13,7 +13,7 @@
  */
 import { SOURCES as ALL } from "./_sources.js";
 const SOURCES = ALL.filter((s) => !s.off);
-import { getJSON, putJSON } from "./_blob.js";
+import { getJSON, putJSON, hasStore } from "./_blob.js";
 import { createHash } from "node:crypto";
 import { okToken } from "./_admin.js";
 
@@ -322,7 +322,8 @@ async function runSource(src, store, force) {
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  const store = (await getJSON(STORE).catch(() => null)) || { by: {} };
+  let readErr = null;
+  const store = (await getJSON(STORE).catch((e) => { readErr = e; return null; })) || { by: {} };
   if (!store.by) store.by = {};
   if (req.query.feed) {
     res.setHeader("Cache-Control", "public, max-age=600");
@@ -351,7 +352,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ url, bytes: html.length, jsonLdEvents: ld.length, sample: ld.slice(0, 2).map((o) => fromLd(o, { id: "p" }, url)), text: pageText(html, url).slice(0, 600) });
     } catch (e) { return res.status(200).json({ error: String(e && e.message || e) }); }
   }
-  if (!process.env.ANTHROPIC_API_KEY || !process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: "ANTHROPIC_API_KEY / BLOB_READ_WRITE_TOKEN not set" });
+  if (!process.env.ANTHROPIC_API_KEY || !hasStore()) return res.status(503).json({ error: "ANTHROPIC_API_KEY / store not set" });
+  // never overwrite the stored events with a near-empty set because the store could not be read
+  if (readErr) return res.status(503).json({ error: "store read failed: " + String(readErr.message || readErr) });
   const one = req.query.source ? SOURCES.filter((s) => s.id === req.query.source) : null;
   const now = Date.now();
   const due = one || SOURCES.filter((s) => { const x = store.by[s.id]; return !x || !x.at || now - x.at >= EVERY[s.cadence]; })

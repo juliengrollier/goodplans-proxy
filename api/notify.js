@@ -14,7 +14,7 @@
  *   Nothing is sent while the phone's clock is far from New York time (away from the city), except tests.
  * Storage (private Blob): push/u/<user>.json written by the app, push/s/<user>.json written here, push/feed.json cache.
  */
-import { getJSON, putJSON, blobApi } from "./_blob.js";
+import { getJSON, putJSON, listAll, hasStore } from "./_blob.js";
 import { sendPush, VAPID_PUBLIC } from "./_webpush.js";
 import { ACT_RE } from "./_activity-ids.js";
 import { CAT_RE } from "./_taxonomy-re.js";
@@ -31,15 +31,6 @@ function cors(req, res) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-}
-async function listAll(prefix) {
-  const out = []; let cursor = "";
-  for (let i = 0; i < 10; i++) {
-    const q = new URLSearchParams({ prefix, limit: "1000" }); if (cursor) q.set("cursor", cursor);
-    const d = await blobApi("?" + q.toString(), { method: "GET" });
-    out.push(...(d.blobs || [])); if (!d.hasMore || !d.cursor) break; cursor = d.cursor;
-  }
-  return out;
 }
 
 // ── Time helpers: a date (YYYY-MM-DD) and minutes since midnight in a time zone
@@ -203,7 +194,7 @@ async function sampleMessage(kind, doc) {
 export default async function handler(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: "Blob store not connected" });
+  if (!hasStore()) return res.status(503).json({ error: "Store not connected" });
   const authed = !!process.env.FLAGS_KEY && req.query.key === process.env.FLAGS_KEY;
   try {
     // ── From the app
